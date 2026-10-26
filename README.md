@@ -13,7 +13,8 @@ Crucible has two modes that share one live AI interviewer:
 | **You get** | A replay of your session (code playback synced with your voice and every nudge) plus scored feedback | A pass/fail **"merge gate"** verdict, the before/after load charts, and the same replay and feedback |
 
 > **Status:** planning and scaffolding (hackathon day 0). The full build plan for humans and coding agents is in
-> **[PLAN.md](PLAN.md)**.
+> **[PLAN.md](PLAN.md)**, and each teammate's part of it is in **[plan/](plan/README.md)**. The frontend scaffold
+> and landing page are on the `frontend` branch.
 
 ---
 
@@ -124,6 +125,8 @@ All Meta Model API calls go through `https://api.meta.ai/v1` with the OpenAI-com
 ```
 .
 ├── README.md · PLAN.md · LICENSE · Makefile · .env.example
+├── plan/                    # one plan per teammate: owned paths, handoffs, build order
+├── frontend-schematic/      # detailed frontend plan + UI rules
 ├── backend/                 # Python 3.12 · FastAPI · uv
 │   └── crucible/
 │       ├── contracts/       # 🔒 shared Pydantic schemas → generates frontend/src/types/contracts.ts
@@ -139,7 +142,7 @@ All Meta Model API calls go through `https://api.meta.ai/v1` with the OpenAI-com
 │   ├── problems/            # original interview problems with tests, rubrics, reference solutions
 │   ├── defense_apps/        # sample "vibe-coded" apps with seeded, documented flaws
 │   └── evals/               # scripted sessions to test the interviewer's behavior
-└── frontend/                # Next.js (App Router) · Tailwind · shadcn/ui · Monaco · React Flow · Recharts
+└── frontend/                # Next.js 16 (App Router) · React 19 · Tailwind v4 · shadcn/ui · Monaco · React Flow · Recharts
 ```
 
 ---
@@ -148,7 +151,7 @@ All Meta Model API calls go through `https://api.meta.ai/v1` with the OpenAI-com
 
 > These commands work once the Day 0 scaffold lands (see [PLAN.md §16](PLAN.md#16-work-packages)).
 
-**Prerequisites:** Python 3.12 + [uv](https://docs.astral.sh/uv/), Node 22 + pnpm, a
+**Prerequisites:** Python 3.12 + [uv](https://docs.astral.sh/uv/), Node 22+ with pnpm (`corepack enable`), a
 [Meta Model API](https://dev.meta.ai/docs/quickstart) key, and a [Modal](https://modal.com) account
 (`modal token new`).
 
@@ -172,12 +175,12 @@ make evals        # replay scripted sessions through the interviewer (calls the 
 
 ## Team
 
-| Person | Owns |
-|---|---|
-| **Srinithin Ganesh** | Live Coding Interview backend + the shared interviewer engine (analyzer, policy, voice, reports) |
-| **Shreyas Sahoo** | Project Defense backend (audit, chaos lab, grill, verify) + the code runner and deployment |
-| **Likhil Gudipati** | Frontend for both modes: interview room, defense flow, report and replay |
-| **Sharvil Talware** | Data for both modes: the problem bank, sample defense apps, evals |
+| Person | Owns | Plan |
+|---|---|---|
+| **Srinithin Ganesh** | Live Coding Interview backend + the shared interviewer engine (analyzer, policy, voice, reports) | [plan](plan/srinithin-engine-and-coding.md) |
+| **Shreyas Sahoo** | Project Defense backend (audit, chaos lab, grill, verify) + the code runner and deployment | [plan](plan/shreyas-defense-and-runner.md) |
+| **Likhil Gudipati** | Frontend for both modes: interview room, defense flow, report and replay | [plan](plan/likhil-frontend.md) |
+| **Sharvil Talware** | Data for both modes: the problem bank, sample defense apps, evals | [plan](plan/sharvil-data.md) |
 
 ---
 
