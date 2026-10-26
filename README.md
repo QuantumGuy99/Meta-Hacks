@@ -153,7 +153,7 @@ All Meta Model API calls go through `https://api.meta.ai/v1` with the OpenAI-com
 (`modal token new`).
 
 ```bash
-git clone https://github.com/QuantumGuy99/-Coding-Section.git crucible && cd crucible
+git clone https://github.com/QuantumGuy99/Meta-Hacks.git crucible && cd crucible
 cp .env.example .env          # add MODEL_API_KEY and the Modal tokens
 make install                  # uv sync + pnpm install
 make dev                      # backend on :8000, frontend on :3000
