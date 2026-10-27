@@ -47,10 +47,16 @@ class Settings(BaseSettings):
     # App
     RUNNER: Literal["modal", "local"] = "modal"
     ALLOW_LOCAL_RUNNER: bool = False
+    LOCAL_RUNNER_ISOLATE: bool = True  # True: app deps via `uv run --with-requirements`; False: this venv
     DATABASE_URL: str = "sqlite:///./var/crucible.db"
     MOCK: bool = False
     CORS_ORIGINS: str = "http://localhost:3000"
     MAX_SESSIONS_PER_IP_PER_DAY: int = 10
+
+    # Defense
+    DEFENSE_APPS_DIR: Path = REPO_ROOT / "data" / "defense_apps"
+    DEFENSE_EXTRA_APPS_DIR: Path | None = None  # dev: e.g. backend/tests/fixtures/apps
+    DEFENSE_DEV_API: bool = False  # enables /api/defense/dev/* (standalone pipeline runs)
 
     @property
     def cors_origins(self) -> list[str]:
@@ -71,6 +77,10 @@ class Settings(BaseSettings):
     @property
     def has_meta_key(self) -> bool:
         return bool(self.MODEL_API_KEY)
+
+    @property
+    def has_glimmer(self) -> bool:
+        return bool(self.GLIMMER_BASE_URL and self.GLIMMER_MODEL)
 
     @property
     def has_modal(self) -> bool:
