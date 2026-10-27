@@ -18,7 +18,7 @@ The engine is the product (PLAN §1). If you fall behind, cut P1 coding features
 | Path | What |
 |---|---|
 | `backend/crucible/engine/` | `hub`, `timeline`, `codestate`, `analyzer`, `policy`, `interviewer`, `voice`, `report`, `context`, `prompts/` |
-| `backend/crucible/models/` | `llm.py`, `asr.py`, `image.py`, `sam.py`, `registry.py`, `smoke.py` (not `glimmer.py`, which is Shreyas's) |
+| `backend/crucible/models/` | `llm.py`, `asr.py`, `image.py`, `sam.py`, `registry.py`, `smoke.py` |
 | `backend/crucible/coding/` | `problems`, `session` (phases, timers), `tests` (RunService), `integrity`, `prompts/` |
 | `backend/crucible/vision/` | P2 SAM 3.1 features |
 | `backend/crucible/contracts/` | Co-owned with Shreyas; you both approve every change |
