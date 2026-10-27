@@ -1,0 +1,20 @@
+[
+  {
+    "id": "f1",
+    "title": "Balance transfers under load",
+    "category": "race_condition",
+    "severity": "critical",
+    "file": "app/main.py",
+    "line_start": 40,
+    "line_end": 46,
+    "explanation": "transfer() reads both balances, awaits the fraud check, then writes balances computed from the stale reads. Concurrent transfers touching the same account interleave across the await, so updates are lost and money is created or destroyed.",
+    "expected_fix": "Make the read-check-write one atomic step: hold a lock (or use a transaction) around reading and writing the balances, and re-check funds inside it.",
+    "grill_expected_points": [
+      "The balances are read before the await and written after it, so the write uses stale values (read-modify-write race / lost update).",
+      "While one request awaits the fraud check, other concurrent requests read and write the same accounts and their updates get overwritten.",
+      "Make the read, the funds check and the write atomic, for example with a lock or a database transaction."
+    ],
+    "chaos_invariant": "the sum of all balances stays 1,000,000",
+    "chaos": {"endpoint": "/transfer", "method": "POST", "body_example": "{\"src\": \"acct-0\", \"dst\": \"acct-1\", \"amount\": 7}"}
+  }
+]

@@ -34,7 +34,9 @@ def test_database_url_must_be_sqlite():
     assert Settings(_env_file=None, DATABASE_URL="sqlite:///:memory:").database_path is None
 
 
-engine_only = pytest.mark.skipif(_engine() is None, reason="engine (#5, #8) not merged yet")
+engine_only = pytest.mark.skipif(
+    _engine(Settings(_env_file=None)) is None, reason="engine (#5, #8) not merged yet"
+)
 
 
 @engine_only
@@ -59,6 +61,11 @@ def test_coding_session_round_trip_persists_to_sqlite(settings):
 
 
 @engine_only
-def test_defense_sessions_are_unavailable_until_defense_controller_lands(client):
-    r = client.post("/api/sessions", json={"mode": "defense", "project_id": "bank-transfer"})
-    assert r.status_code == 400 and r.json()["error"]["code"] == "mode_unavailable"
+def test_defense_session_without_a_runner_is_a_clear_400(settings):
+    # LocalRunner without ALLOW_LOCAL_RUNNER refuses to start (like Modal without credentials). The app
+    # still starts; only the defense session is refused.
+    no_runner = settings.model_copy(update={"RUNNER": "local", "ALLOW_LOCAL_RUNNER": False})
+    with TestClient(create_app(no_runner)) as client:
+        r = client.post("/api/sessions", json={"mode": "defense", "project_id": "bank-transfer"})
+        assert r.status_code == 400 and r.json()["error"]["code"] == "bad_config"
+        assert "can't run code" in r.json()["error"]["message"]
