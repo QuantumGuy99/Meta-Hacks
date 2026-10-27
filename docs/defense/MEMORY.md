@@ -29,20 +29,18 @@ session. Update it before you finish any session that changed code, decisions or
 | RUN-1 | Runner protocol, harness, LocalRunner | not started | Due 2026-10-27 (SG, ST need it) |
 | OPS-2 | Mock replay engine + fixtures | not started | Skeleton 2026-10-27, working 2026-10-29 |
 | DEF-1..10, RUN-2/3, OPS-1 | see PLAN §16 + role plan | not started | |
-| PR #4 | Spec reconciled with PLAN.md | open, **merge conflicts** with main (PR #2) | https://github.com/QuantumGuy99/Meta-Hacks/pull/4 |
+| PR #4 | Spec reconciled with PLAN.md + role plan + agent docs | open, main merged in, awaiting SG + LG review | https://github.com/QuantumGuy99/Meta-Hacks/pull/4 |
 
 ## Handoff (overwrite every session)
-- **Last done:** 2026-10-27 [claude] Reconciled DEFENSE_AGENT_SPEC.txt with PLAN.md (PR #4); added
-  agent docs (this file, backend/CLAUDE.md, .claude/skills/crucible-code/SKILL.md).
-- **Next step:** fix PR #4 (merge main; rename `defense/session.py` → `defense/controller.py` to match
-  the role plan's `DefenseController`; update `plan/shreyas-defense-and-runner.md` per PLAN §22 rule 15:
-  grill scoring, AuditPublic, SAM DEF-9, card DEF-10, port 8080). Then S-0 → store → S-1 → RUN-1.
+- **Last done:** 2026-10-27 [claude] Merged main (PR #2) into docs/defense-spec, resolved PLAN.md
+  conflicts (§14.6, §23), renamed `defense/session.py` → `defense/controller.py` (DefenseController on SG's
+  ModeController hook), updated the role plan (rule 15) and README model table; pushed PR #4.
+- **Next step:** S-0 scaffold (role plan "S-0 — Scaffold"), then store/repo.py → S-1 → RUN-1 → OPS-2 skeleton.
 - **Blocked on:** SG + LG approval of the contract changes in PR #4 before S-1 is final.
 
 ## Open questions for teammates
 - SG: OK for SS to write `models/sam.py` and `models/image.py` (DEF-9, DEF-10)?
 - LG / SG: GitHub usernames, so PRs can request reviews.
-- README model table still calls SAM 3.1 "Stretch"; should say P1.
 
 ## Verified facts and gotchas
 <!-- e.g. "2026-10-28 [claude] Modal Sandbox.open() writes files into a running sandbox (V7)" -->
@@ -52,5 +50,6 @@ session. Update it before you finish any session that changed code, decisions or
   the session id is the scenario name (PLAN §14.6).
 
 ## Session log (keep the last 10, newest first)
+- 2026-10-27 [claude] Merged main into PR #4, resolved conflicts, controller.py rename, role plan + README synced.
 - 2026-10-27 [claude] Cloned repo; wrote CLAUDE.md + DEFENSE_AGENT_SPEC.txt; reconciled 24 conflicts
   with PLAN.md; opened PR #4; added agent memory, coding rules and code-format skill.

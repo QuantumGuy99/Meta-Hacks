@@ -48,6 +48,9 @@ work package and build it.
 - Anything marked **⚠️ VERIFY** is an API detail we couldn't confirm from the docs. Check the linked doc before
   coding against it, then update this file. The full list is in §23.
 - When this plan and the code disagree, fix whichever is wrong in the same PR. Don't let them drift.
+- **Per-person plans** are in [`plan/`](plan/README.md): each teammate's slice of this file (owned paths,
+  handoffs with dates, build order, a brief for each work package). This file is the spec. If a role plan
+  disagrees with it, this file wins, and the role plan gets fixed in the same PR.
 
 ---
 
@@ -199,14 +202,16 @@ Finding.chaos (plan) ──► AttackWriter (Glimmer → fallback Spark) fills 3
 | Layer | Choice | Notes |
 |---|---|---|
 | Backend | **Python 3.12**, **FastAPI**, uvicorn, **Pydantic v2**, pydantic-settings | Python because Modal's SDK and the harness are Python |
-| Package mgmt | **uv** (backend), **pnpm** (frontend) | |
+| Package mgmt | **uv** (backend), **pnpm** via corepack (frontend) | Node ≥ 22 (Next 16 and shadcn's `cn` package require it; Node 24 works) |
 | LLM client | **`openai` Python SDK** with `base_url="https://api.meta.ai/v1"` | Meta's API is OpenAI-compatible; pass `api_key` explicitly |
 | ASR client | `websockets` (Python) | Backend proxies to `wss://api.meta.ai/v1/asr/realtime` |
 | Storage | **SQLite** via SQLModel (file at `DATABASE_URL`) | One file; volume-mounted when deployed |
 | Code execution | **Modal Sandboxes** (`modal` SDK); `LocalRunner` subprocess for dev | |
-| Frontend | **Next.js** (App Router, latest stable) + React + TypeScript, **Tailwind**, **shadcn/ui** | Desktop-first (≥ 1280 px); an editor app |
+| Frontend | **Next.js 16** (App Router, Turbopack) + **React 19** + TypeScript, **Tailwind v4**, **shadcn/ui** (`base-nova` style, Base UI primitives) | Desktop-first (≥ 1280 px); an editor app. Next 16 changed APIs, so read `frontend/AGENTS.md` before writing frontend code |
+| UI rules | [`frontend-schematic/UI_TEMPLATE.md`](frontend-schematic/UI_TEMPLATE.md): dark theme tokens, one accent, Hanken Grotesk (Geist Mono only in code), taste-skill look + Vercel's Web Interface Guidelines | Every screen is checked against it before its PR. Lives on the `frontend` branch until it merges |
 | Editor | `@monaco-editor/react` | Disable quick suggestions to keep it interview-like |
-| Diagram / charts | `@xyflow/react` (React Flow), **Recharts** | |
+| Diagram / charts | `@xyflow/react` (React Flow) with `@dagrejs/dagre` auto-layout, **Recharts** | |
+| Other frontend libs | `react-markdown` (problem statements), `motion` (state-change animation), `lucide-react` (icons) | Each listed in the PR that adds it (§22 rule 12) |
 | Client state | **zustand** | One store per session |
 | TTS | Browser **`speechSynthesis`** | Meta has no TTS model; this is free and needs no key |
 | Lint/test | ruff, pytest, pytest-asyncio; eslint, tsc, Playwright (P1) | |
@@ -222,6 +227,8 @@ Owners: **SG** Srinithin Ganesh · **SS** Shreyas Sahoo · **LG** Likhil Gudipat
 ```
 .
 ├── README.md · PLAN.md · LICENSE
+├── plan/                            # one plan per teammate: their slice of this file        (each owner)
+├── frontend-schematic/              # LG's detailed frontend plan + UI rules (UI_TEMPLATE.md) (LG)
 ├── Makefile                         # install, dev, check, contracts, validate, evals, mock  (SS)
 ├── .env.example                     # every variable, documented                              (SS)
 ├── .github/workflows/ci.yml         # make check                                              (SS)
@@ -247,7 +254,7 @@ Owners: **SG** Srinithin Ganesh · **SS** Shreyas Sahoo · **LG** Likhil Gudipat
 │   │   │   ├── report.py            # metrics, moments, ReportDraft (Wonder), merge
 │   │   │   └── prompts/*.md         # every prompt lives in a file, never inline
 │   │   ├── coding/                  # problems.py session.py tests.py integrity.py prompts/  (SG)
-│   │   ├── defense/                 # session.py projects.py audit.py chaos.py attack_writer.py
+│   │   ├── defense/                 # controller.py projects.py audit.py chaos.py attack_writer.py
 │   │   │                            # validator.py grill.py verify.py verdict.py card.py prompts/ (SS)
 │   │   ├── runner/                  # base.py local.py modal_runner.py                       (SS)
 │   │   │   └── harness/             # run_tests.py chaos_template.py (baked into the sandbox image)
@@ -1081,8 +1088,10 @@ Owner: **SS**. Data (sample apps): **ST** with SS reviewing.
 - `chaos` loops over queued findings; `grill` loops over findings with verdict `broke`; `fix` covers all broken
   findings in one editor session (tabs per file); `verify` re-runs every baseline script.
 - If verify fails, return to `fix` (max 2 extra rounds, then verdict).
-- `defense/session.py` (`DefenseSession`, the defense twin of `coding/session.py`) drives this sequence
-  through `runtime.set_phase()`. Ingest happens in `setup` (`projects.py`), before the session starts.
+- `defense/controller.py` (`DefenseController`, implementing SG's `ModeController` hook, the defense twin of
+  `CodingController` in `coding/session.py`) drives this sequence through `runtime.set_phase()`. Grill
+  questions go out through `Interviewer.say()`; the fix stage attaches a `RubricContext` built from the
+  finding. Ingest happens in `setup` (`projects.py`), before the session starts.
 - The phase enum is the shared `Phase` (§7.1); there is no separate defense enum. Outcomes such as "chaos
   broke it" or "merge approved" are data (`ChaosRun.verdict`, `Verdict.passed`), not phases. The UI's stage
   labels (Auditing → Chaos run → Broke → Grill → Fixing → Verifying → Merge approved/rejected) are derived
@@ -1217,6 +1226,36 @@ class Runner(Protocol):
     async def close_session(self, session_id: str) -> None: ...
 ```
 
+The request and handle types live in `runner/base.py`. They're backend-internal (never sent over the
+WebSocket), so they aren't in `contracts/`:
+
+```python
+class RunLimits(Strict):
+    per_test_s: float = 2.0
+    total_s: float = 10.0
+    stdout_bytes: int = 4096
+
+class RunRequest(Strict):
+    run_id: str
+    t: int                        # session time when Run/Submit was pressed
+    kind: Literal["run", "submit"]
+    code: str
+    function: FunctionSig
+    cases: list[CaseSpec]         # run: visible only; submit: visible + hidden
+    limits: RunLimits = RunLimits()
+
+@dataclass
+class ProjectHandle:
+    project_id: str
+    port: int
+    sandbox_id: str | None        # Modal sandbox id; None for LocalRunner
+    workdir: str | None           # LocalRunner temp dir; None for Modal
+```
+
+`run_tests` sends the harness `{code, function, cases, limits}`, then adds `run_id`, `t` and `kind` from the
+request to the harness output to return a full `RunResult`. Hiding hidden-test details from the browser is
+the caller's job (`coding/tests.py`, §10.3), not the runner's.
+
 - **Harness** `runner/harness/run_tests.py`: reads one JSON object from **stdin**
   `{code, function, cases, limits}`, executes the code in a fresh module namespace, runs each case in a
   subprocess-free loop with `signal.alarm`-based per-test timeouts, compares with the comparator
@@ -1242,7 +1281,11 @@ class Runner(Protocol):
   - Network: the attack only needs loopback. Restrict egress if the SDK supports it (⚠️ VERIFY
     `block_network` / `cidr_allowlist` in the Sandbox reference and that loopback still works).
 - **LocalRunner (dev only):** the same harness via `asyncio.create_subprocess_exec` in a temp dir with
-  timeouts. It refuses to start unless `RUNNER=local` and `ALLOW_LOCAL_RUNNER=1`. Never used in production.
+  timeouts. It also implements `start_project` / `stream_exec` / `stop_project` (the app's entrypoint as a
+  subprocess with its requirements installed in an isolated environment, e.g. `uv run --no-project
+  --with-requirements requirements.txt …`), so ST can validate sample apps and SS can build the chaos lab
+  before Modal works. It refuses to start unless `RUNNER=local` and `ALLOW_LOCAL_RUNNER=1`. Never used in
+  production.
 
 ---
 
@@ -1319,11 +1362,19 @@ the original, and `fix.patch` applied → the same script **holds**.
 
 Owner: **LG** (UI). Capture/replay libs: **SG**. Defense helpers: **SS**.
 
+LG scaffolded `frontend/` and built the landing page (most of FE-1) on the `frontend` branch. His detailed plan
+is in `frontend-schematic/CRUCIBLE_FRONTEND_PLAN.md`, and the UI rules are in `frontend-schematic/UI_TEMPLATE.md`.
+Until S-1 and OPS-2 land, the frontend uses two **dev-only bridges**, and neither may appear in the demo:
+- `src/types/contracts.draft.ts`, hand-transcribed from §7 and §8.2 behind an `@/types` barrel. It's deleted
+  the day `contracts.ts` is generated.
+- A `FixtureTransport` in `src/lib/dev-fixtures/`, enabled by `NEXT_PUBLIC_FIXTURES=1`. It plays the same
+  JSONL format as the backend's MOCK mode (§14.6) and is removed once MOCK mode works.
+
 ### 14.1 Routes
 | Route | Content |
 |---|---|
 | `/` | Hero, the two mode cards, "how it works", the Meta models strip |
-| `/coding` | Setup form (difficulty, topic, feedback, voice, speak replies) |
+| `/coding` | Setup form (difficulty, topic, feedback, voice, speak replies); pre-fills from the `?topic=&feedback=` the landing page's start dialog sends |
 | `/coding/[id]` | `InterviewRoom` in coding configuration |
 | `/defense` | Sample app cards (+ zip upload, P1) |
 | `/defense/[id]` | Stage stepper: Audit → Chaos → Grill → Fix → Verify → Verdict |
@@ -1381,12 +1432,15 @@ Layout (desktop ≥ 1280 px):
 
 ### 14.6 Mock mode
 With `MOCK=1` the backend replays `mock/fixtures/<scenario>.jsonl` (recorded `ServerMessage`s with relative
-timestamps) on the session socket and serves canned REST responses. MOCK is only ever switched on
-explicitly: a timeout, a missing credential or a Modal failure in a real session never falls back to
-recorded data (it follows §21: a real fallback model, or an `error` verdict with a retry button), because
-recorded results shown as live would be a faked demo. Scenarios: `coding-active`,
+timestamps) on the session socket and serves canned REST responses. Each line is
+`{"dt_ms": <ms since the previous line>, "msg": <ServerMessage>}`; client messages are accepted and logged, not
+answered. In MOCK mode a session's id is its scenario name (`/coding/coding-active`). Scenarios: `coding-active`,
 `coding-passive`, `defense-bank-transfer`, `report-coding`, `report-defense`. SG and SS keep their fixtures
 in sync with contract changes (CI validates fixtures against the contracts).
+
+MOCK is only ever switched on explicitly: a timeout, a missing credential or a Modal failure in a real
+session never falls back to recorded data (it follows §21: a real fallback model, or an `error` verdict with
+a retry button), because recorded results shown as live would be a faked demo.
 
 ### 14.7 TTS (`lib/tts.ts`)
 `speechSynthesis` with a chosen English voice (prefer a natural voice when available), a queue, `cancel()`
@@ -1474,9 +1528,11 @@ the Billing page. `MAX_SESSIONS_PER_IP_PER_DAY=10` on the deployed app.
 Format: **ID — title** (owner · priority · depends on) followed by "done when".
 
 ### Day 0 (Mon Oct 26 evening): everyone
-- **S-0 — Scaffold** (SS · P0 · –): the layout from §6; FastAPI `/api/health`; Next.js app with Tailwind +
-  shadcn; `Makefile` targets (`install`, `dev`, `check`, `contracts`, `validate`, `evals`); `.env.example`
-  (§19.2); ruff/eslint/prettier; CI running `make check`.
+- **S-0 — Scaffold** (SS · P0 · –): the layout from §6; FastAPI `/api/health`; `Makefile` targets
+  (`install`, `dev`, `check`, `contracts`, `validate`, `evals`); `.env.example` (§19.2); ruff/eslint/prettier;
+  CI running `make check`. The Next.js part is already done: LG scaffolded `frontend/` (Next 16, Tailwind v4,
+  shadcn) on the `frontend` branch, so merge that first and wire it into `make dev` and CI
+  (`pnpm --dir frontend …`).
   *Done when* `make dev` serves both apps and CI is green on `main`.
 - **S-1 — Contracts v1** (SG + SS · P0 · S-0): every model in §7 + `export.py` + the generated TS; fixture
   JSON for each top-level model under `backend/tests/fixtures/` validated in tests.
@@ -1548,7 +1604,8 @@ Format: **ID — title** (owner · priority · depends on) followed by "done whe
 - **OPS-2 — Mock replay engine + fixtures** (P0 · S-1): §14.6.
 
 ### Likhil: frontend
-- **FE-1 — Shell, landing, design system** (P0 · S-0).
+- **FE-1 — Shell, landing, design system** (P0 · S-0). The landing page and design tokens are done on the
+  `frontend` branch; what's left is the app shell for the room and report pages.
 - **FE-2 — API/WS clients + session store** (P0 · S-1): typed from `contracts.ts`, reconnect with backoff,
   `hello` on (re)connect.
 - **FE-3 — InterviewRoom + Monaco + TestPanel** (P0 · FE-2, ENG-2 capture lib).
@@ -1672,6 +1729,7 @@ CORS_ORIGINS=http://localhost:3000
 MAX_SESSIONS_PER_IP_PER_DAY=10
 NEXT_PUBLIC_API_URL=http://localhost:8000
 NEXT_PUBLIC_WS_URL=ws://localhost:8000
+NEXT_PUBLIC_FIXTURES=0            # dev only: frontend FixtureTransport until MOCK mode works (§14)
 ```
 
 ---
@@ -1749,20 +1807,22 @@ These apply to Muse Code, Claude Code and humans alike.
 13. **Never copy problem text from the internet**, and never commit generated problems that haven't passed
     `validate_problems` + human review.
 14. When this plan is wrong or incomplete, fix the plan in the same PR.
+15. **Keep your role plan in `plan/` current.** When a date, an interface or the scope in it changes, update
+    it (and this file, if the spec changed) in the same PR.
 
 ---
 
 ## 23. Things to verify
 
-| # | Item | Where to check | Status |
-|---|---|---|---|
-| V1 | Full `RealtimeHandshakeRequest` schema; ENDPOINTING event fields (`turnId`, final text, `startMs`/`endMs`) | dev.meta.ai/docs/api-reference/voice/realtime, /docs/speech-to-text | open |
-| V2 | How prompt caching triggers (automatic prefix caching?) | dev.meta.ai/docs (pricing mentions cached input) | open |
-| V3 | `reasoning_effort` with `beta.chat.completions.parse` on Spark 1.3 and Wonder 1.0 | /docs/reasoning, /docs/structured-output | open |
-| V4 | Structured output support on `muse-wonder-1.0` | /docs/models, /docs/structured-output | open |
-| V5 | Glimmer model id + base URL on the chosen host (Modal / Fireworks / OpenRouter) | host docs | open |
-| V6 | Baseten base URL for `meta-models/muse-spark-open-1026` | docs.baseten.co | open |
-| V7 | Modal: Sandbox stdin API, writing files into a running sandbox, `add_local_dir` timing, readiness probes, egress restriction + loopback | modal.com/docs/sdk/py/latest/Sandbox | open |
-| V8 | Muse Code headless/non-interactive mode (for the optional refactor handoff) | dev.meta.ai/lp/muse-code, `muse --help` | open |
-| V9 | SAM 3.1 box/mask record parsing details | dev.meta.ai/docs/sam/segmenting | open |
-| V10 | Muse Image request/response format for illustrations | dev.meta.ai/docs/image-generation | open |
+| # | Item | Where to check | Owner | Status |
+|---|---|---|---|---|
+| V1 | Full `RealtimeHandshakeRequest` schema; ENDPOINTING event fields (`turnId`, final text, `startMs`/`endMs`) | dev.meta.ai/docs/api-reference/voice/realtime, /docs/speech-to-text | SG | open |
+| V2 | How prompt caching triggers (automatic prefix caching?) | dev.meta.ai/docs (pricing mentions cached input) | SG | open |
+| V3 | `reasoning_effort` with `beta.chat.completions.parse` on Spark 1.3 and Wonder 1.0 | /docs/reasoning, /docs/structured-output | SG | open |
+| V4 | Structured output support on `muse-wonder-1.0` | /docs/models, /docs/structured-output | SG | open |
+| V5 | Glimmer model id + base URL on the chosen host (Modal / Fireworks / OpenRouter) | host docs | SS | open |
+| V6 | Baseten base URL for `meta-models/muse-spark-open-1026` | docs.baseten.co | ST | open |
+| V7 | Modal: Sandbox stdin API, writing files into a running sandbox, `add_local_dir` timing, readiness probes, egress restriction + loopback | modal.com/docs/sdk/py/latest/Sandbox | SS | open |
+| V8 | Muse Code headless/non-interactive mode (for the optional refactor handoff) | dev.meta.ai/lp/muse-code, `muse --help` | SS | open |
+| V9 | SAM 3.1 box/mask record parsing details (also needed for DEF-9) | dev.meta.ai/docs/sam/segmenting | SG | open |
+| V10 | Muse Image request/response format for illustrations (also DEF-10's card) | dev.meta.ai/docs/image-generation | ST | open |
