@@ -1,6 +1,6 @@
 # Keep the image small and secrets out of it.
-.env
-.env.*
+**/.env
+**/.env.*
 !.env.example
 .git
 **/.venv
