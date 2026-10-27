@@ -24,7 +24,7 @@ session. Update it before you finish any session that changed code, decisions or
 | WP | What | State | Notes |
 |---|---|---|---|
 | S-0 | Scaffold, Makefile, CI, store | merged (#10) | Delete main.py's import guard once nothing on main needs it |
-| RUN-1 | Runner protocol, harness (`run_tests.py`), LocalRunner | done on `feat/defense` | 21 harness tests. RunRequest has `hidden_case_ids` |
+| RUN-1 | Runner protocol, harness (`run_tests.py`), LocalRunner | done (PR #15) | 21 harness tests + a real problem (contracts fixture: reference 3/3, starter fails). Re-run on Sharvil's 3 gold problems when they land |
 | RUN-3 (projects) | ModalRunner start/put/stream/stop | verified on real Modal 2026-10-27 | Two bugs fixed: stray port arg; stdout chunks → lines |
 | RUN-2 | Warm Modal sandbox for coding tests | not started (Thu) | ModalRunner.run_tests raises a clear "RUN-2" error until then |
 | DEF-1..5 | projects, audit, attack, chaos, grill, verdict | done on `feat/defense` | |
@@ -55,6 +55,7 @@ session. Update it before you finish any session that changed code, decisions or
   the session id is the scenario name (PLAN §14.6).
 
 ## Session log (keep the last 10, newest first)
+- 2026-10-27 [claude] Day 0 + Day 1 checklist complete; RUN-1 "done when" checked on a real problem.
 - 2026-10-27 [claude] DEF-6, RUN-1, OPS-2 built; Modal verified; deploy config PR #14; Glimmer dropped PR #13; folders consolidated.
 - 2026-10-27 [claude] S-0 PR #10 (CI green); Defense built on SG's stack in `feat/defense`, 194 tests pass; reviews posted on #5–#7.
 - 2026-10-27 [claude] Merged main into PR #4, resolved conflicts, controller.py rename, role plan + README synced.
