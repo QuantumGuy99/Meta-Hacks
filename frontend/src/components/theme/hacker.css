@@ -1,0 +1,486 @@
+/* Crucible "professional hacker" layer, loaded after vivid.css.
+   Black and blue only. Space Grotesk for headings, nav, buttons and labels; Inter for reading
+   text; monospace only for code-like cues (file names, timers, tags, terminal panels). Hairline borders and near-square
+   corners instead of big bright fills. Terminal cues: a blinking cursor, `$` prompts,
+   `>` on actions, bracketed status tags. */
+
+:root {
+  --mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --display: var(--font-display), system-ui, sans-serif;
+  --line: #1f1f26;
+  --line-2: #2c2c35;
+  --panel: #07070a;
+  --blue-dim: #7f9cff;
+  --r: 4px;
+}
+
+/* ---------- subtle film grain over the black, so it reads as a surface, not a void ---------- */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+/* the page wrappers are transparent so the grain shows through the black */
+:root .lp,
+:root .lp :is(.rm, .df, .rp) {
+  background: transparent;
+}
+
+/* ---------- reading text: calm, generous, high contrast ---------- */
+:root .lp :is(.hero-sub, .sec-lead, .cta-copy p, .hiw-line, .fr-line, .rp-text p) {
+  line-height: 1.6;
+}
+:root .lp .hero-sub {
+  color: #d6d6dc;
+}
+:root .lp .sec {
+  padding-top: clamp(112px, 10vw, 160px);
+}
+
+/* ---------- type ---------- */
+:root .lp :is(h1, h2, h3, .lp-wordmark, .lp-nav nav a, .ui-btn, .lp-link, .room-phases, .msg-who,
+    .hiw-title, .dlg h3, .dlg-field > span, .dlg-seg, .hiw-pause, .rm-top, .rm-panel-head, .df-stages,
+    .df-banner strong, .df-gate strong, .rp-overall strong, .topo-title) {
+  font-family: var(--display);
+}
+:root .lp :is(.fr-state, .sev, .st, .room-badge, .room-timer, .room-file, .fr-file, .fr-foot,
+    .fr-live-label, .fr-metrics, .rm-timer, .rm-tag, .rm-case-status, .df-muted, .rp-time, .rp-speeds,
+    .rp-moment-time, .topo-kind) {
+  font-family: var(--mono);
+}
+:root .lp :is(h1, h2) {
+  font-weight: 500;
+  letter-spacing: -0.035em;
+}
+:root .lp .hero h1 {
+  font-size: clamp(2.5rem, 1.2rem + 3.8vw, 4.5rem);
+  line-height: 1.02;
+}
+/* keep section and closing titles on one or two lines */
+:root .lp .sec h2 {
+  font-size: clamp(1.9rem, 1.1rem + 2.4vw, 3.25rem);
+  line-height: 1.05;
+}
+:root .lp .cta-copy h2 {
+  font-size: clamp(2.6rem, 1.2rem + 4.2vw, 5rem);
+  line-height: 1;
+}
+/* accent words: blue, upright, same face as the heading (no serif italics in this theme) */
+:root .lp .fx-serif {
+  font-family: var(--display);
+  font-style: normal;
+  font-size: 1em;
+  letter-spacing: -0.035em;
+}
+:root .lp :is(.fx-lime, .fx-cyan, .fx-orange) {
+  color: var(--cobalt);
+}
+
+/* blinking block cursor after the hero headline */
+:root .lp .hero h1::after {
+  content: "_";
+  margin-left: 0.08em;
+  color: var(--cobalt);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root .lp .hero h1::after {
+    animation: caret 1.05s steps(1, end) infinite;
+  }
+}
+@keyframes caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* `>` prompt before section titles, as in a shell */
+:root .lp .sec h2::before,
+:root .lp .cta h2::before {
+  content: "> ";
+  color: var(--blue-dim);
+  font-weight: 400;
+}
+:root .lp .cta h2::before {
+  color: rgb(255 255 255 / 0.7);
+}
+
+/* ---------- nav ---------- */
+:root .lp .lp-nav {
+  border-bottom-color: var(--line);
+}
+:root .lp .lp-wordmark {
+  font-size: 18px;
+  letter-spacing: -0.04em;
+}
+:root .lp .lp-wordmark::after {
+  content: "_";
+  color: var(--cobalt);
+}
+:root .lp .lp-nav nav a {
+  font-size: 13px;
+  color: var(--muted-ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  :root .lp .lp-nav nav a:hover,
+  :root .lp .lp-link:hover {
+    color: #fff;
+  }
+}
+
+/* ---------- buttons ---------- */
+:root .lp .ui-btn {
+  border-radius: var(--r);
+  background: transparent;
+  border: 1px solid var(--line-2);
+  font-size: 13px;
+  letter-spacing: -0.01em;
+}
+:root .lp .ui-btn-primary {
+  background: var(--cobalt);
+  border-color: var(--cobalt);
+  color: #fff;
+}
+@media (hover: hover) and (pointer: fine) {
+  :root .lp .ui-btn:hover:not(:disabled) {
+    background: #111117;
+    border-color: #3a3a46;
+  }
+  :root .lp .ui-btn-primary:hover:not(:disabled) {
+    background: #4a7dff;
+    border-color: #4a7dff;
+    color: #fff;
+  }
+}
+:root .lp .lp-link {
+  font-size: 14px;
+}
+
+/* ---------- hero room ---------- */
+:root .lp .hero-stage .room {
+  border-color: var(--line-2);
+  border-radius: 6px;
+}
+:root .lp :is(.room-bar, .room-file) {
+  background: var(--panel);
+  border-color: var(--line);
+}
+:root .lp .room-bar {
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+}
+:root .lp .room-editor {
+  background: #000;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+}
+:root .lp .room-side {
+  background: var(--panel);
+  border-radius: 0;
+}
+:root .lp .room-phases li {
+  border-radius: 2px;
+  font-size: 12px;
+}
+:root .lp .room-phases li[aria-current] {
+  background: var(--cobalt);
+  color: #fff;
+}
+:root .lp .st {
+  border-radius: 2px;
+  font-size: 12px;
+}
+:root .lp .st-done {
+  background: var(--cobalt);
+  color: #fff;
+}
+:root .lp .st-miss {
+  background: #fff;
+  color: #000;
+}
+
+/* ---------- defense rows: dark terminal cards, colour only on the status ---------- */
+:root .lp .fr,
+:root .lp :is(.fr-broke, .fr-held, .fr-defended) {
+  background: var(--panel);
+  color: #fff;
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+}
+:root .lp .fr-broke {
+  border-color: #fff;
+}
+:root .lp :is(.fr-held, .fr-defended) {
+  border-color: var(--cobalt);
+}
+:root .lp .fr :is(.fr-file, .fr-foot, .fr-live-label, .fr-metrics dt) {
+  color: var(--muted-ink);
+}
+:root .lp .fr .sev {
+  background: #fff;
+  color: #000;
+  border-radius: 2px;
+  font-size: 12px;
+}
+:root .lp .fr-line b {
+  color: #fff;
+}
+:root .lp .fr .gate {
+  color: var(--cobalt);
+}
+:root .lp .fr .ui-btn-primary {
+  background: var(--cobalt);
+  border-color: var(--cobalt);
+  color: #fff;
+}
+:root .lp .fr-metrics > div {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: #000;
+}
+:root .lp .fr-metrics :is(dd, .is-bad, .is-ok) {
+  color: #fff;
+  font-family: var(--mono);
+}
+:root .lp .fr-metrics .is-bad {
+  color: #fff;
+}
+:root .lp .fr-metrics .is-ok {
+  color: var(--cobalt);
+}
+/* bracketed status tags: [found] [broke] [held] [defended] */
+:root .lp .fr-state {
+  font-size: 15px;
+  text-transform: lowercase;
+  color: var(--muted-ink);
+}
+:root .lp .fr-state::before {
+  content: "[";
+  color: var(--blue-dim);
+}
+:root .lp .fr-state::after {
+  content: "]";
+  color: var(--blue-dim);
+}
+
+/* ---------- how it works ---------- */
+:root .lp .hiw-step {
+  border-radius: var(--r);
+  border: 1px solid transparent;
+}
+:root .lp .hiw-step.is-active {
+  background: var(--panel);
+  border-color: var(--line-2);
+}
+:root .lp .hiw-step.is-active :is(.hiw-title, .hiw-line) {
+  color: #fff;
+}
+:root .lp .hiw-title {
+  font-size: clamp(1.05rem, 0.95rem + 0.5vw, 1.35rem);
+  letter-spacing: -0.03em;
+}
+:root .lp .hiw-stage {
+  border-radius: 6px;
+}
+:root .lp .hiw-frag.liquid-glass {
+  border-radius: 6px;
+}
+/* black instruments on the blue glass, so the tour never reads blue on blue
+   (.hiw-stage raises specificity over vivid.css's tinted versions) */
+:root .lp .hiw-stage .hiw-frag .hf-overall strong {
+  padding: 4px 12px 6px;
+  border-radius: var(--r);
+  background: #000;
+  color: #fff;
+}
+:root .lp .hiw-stage .hiw-frag .hf-overall span {
+  color: #000;
+}
+:root .lp .hiw-stage .hiw-frag .hf-track {
+  background: #000;
+}
+:root .lp .hiw-stage .hiw-frag .hf-track span {
+  background: #fff;
+}
+:root .lp .hiw-stage .hiw-frag .hf-num {
+  color: #000;
+  font-weight: 600;
+}
+:root .lp .hiw-stage .hiw-frag .hf-scrub {
+  background: #000;
+}
+:root .lp .hiw-stage .hiw-frag .hf-scrub .mk {
+  background: #fff;
+}
+:root .lp .hiw-stage .hiw-frag .hf-scrub .mk-n {
+  background: var(--cyan);
+}
+:root .lp .hiw-stage .hiw-frag .hf-head {
+  background: var(--cobalt);
+}
+:root .lp .hiw-stage .hiw-frag :is(.hf-legend, .hf-plan) {
+  align-self: flex-start;
+  padding: 4px 8px;
+  border-radius: var(--r);
+  background: #000;
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+:root .lp .hiw-frag .msg-you {
+  padding: 10px 12px;
+  border-radius: var(--r);
+  background: #000;
+  color: #fff;
+}
+:root .lp .hiw-frag .msg-you .msg-who {
+  color: rgb(255 255 255 / 0.65);
+}
+
+/* ---------- CTA + dialog ---------- */
+:root .lp .cta {
+  border-radius: 0;
+}
+:root .lp .dlg {
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  background: #000;
+}
+:root .lp .dlg h3 {
+  font-size: 15px;
+}
+:root .lp .dlg-field input {
+  border-radius: var(--r);
+  background: var(--panel);
+  border-color: var(--line-2);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 14px;
+}
+:root .lp .dlg-seg {
+  border-radius: var(--r);
+  background: var(--panel);
+}
+:root .lp .dlg-seg label {
+  border-radius: 2px;
+  font-size: 12.5px;
+}
+:root .lp .dlg-seg label.is-on {
+  background: var(--cobalt);
+  color: #fff;
+}
+
+/* ---------- footer: the nav wordmark at full width, cursor and all ---------- */
+:root .lp .tile-word {
+  background: #000;
+  color: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-family: var(--display);
+}
+:root .lp .word-float-text {
+  font-family: var(--display);
+  letter-spacing: -0.05em;
+}
+:root .lp .tile-word .word-float-text::after {
+  content: "_";
+  color: var(--cobalt);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root .lp .tile-word .word-float-text::after {
+    animation: caret 1.05s steps(1, end) infinite;
+  }
+}
+
+/* ---------- room / defense / report demos ---------- */
+:root .lp :is(.rm-panel, .rm-tests, .df-side, .df-topo, .df-chart, .rp-chart, .rp-code, .rp-transcript) {
+  background: var(--panel);
+  border-color: var(--line);
+  border-radius: 6px;
+}
+:root .lp :is(.rm-panel, .rm-tests) {
+  border-radius: 0;
+}
+:root .lp .rm-msgs .msg {
+  border-radius: var(--r);
+}
+:root .lp .rm-msgs .msg-ai {
+  background: #0d1a3d;
+  border: 1px solid #1d3577;
+}
+:root .lp .rm-msgs .msg-nudge {
+  background: #fff;
+  color: #000;
+}
+:root .lp .rm-ask input {
+  border-radius: var(--r);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 13px;
+}
+:root .lp .df-stages button {
+  border-radius: 2px;
+  font-size: 12.5px;
+}
+:root .lp .df-stages button[aria-current] {
+  background: var(--cobalt);
+  color: #fff;
+}
+:root .lp .df-banner {
+  border-radius: 6px;
+  background: var(--panel);
+  color: #fff;
+  border: 1px solid #fff;
+}
+:root .lp .df-banner.is-held {
+  border-color: var(--cobalt);
+  background: var(--panel);
+}
+:root .lp .df-banner.is-broke {
+  background: var(--panel);
+}
+:root .lp .df-banner strong {
+  color: #fff;
+}
+:root .lp .df-banner.is-held strong {
+  color: var(--cobalt);
+}
+:root .lp .df-metrics {
+  border-radius: 6px;
+}
+:root .lp .df-gate {
+  border-radius: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  color: #fff;
+}
+:root .lp .df-gate.is-pass {
+  border-color: var(--cobalt);
+  background: var(--panel);
+}
+:root .lp .df-gate.is-fail {
+  border-color: #fff;
+  background: var(--panel);
+}
+:root .lp .df-gate :is(strong, .df-muted) {
+  color: #fff;
+}
+:root .lp .df-gate.is-pass strong {
+  color: var(--cobalt);
+}
+:root .lp .topo-node {
+  border-radius: var(--r);
+}
+:root .lp .rp-overall {
+  background: var(--cobalt);
+  color: #fff;
+  border-radius: 6px;
+}
+:root .lp .rp-overall :is(strong, .df-muted) {
+  color: #fff;
+}
+:root .lp .rp-moment {
+  border-radius: var(--r);
+}

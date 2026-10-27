@@ -2,25 +2,33 @@
 
 Every Crucible screen follows two rule sets:
 
-- **Look:** taste-skill (art direction).
+- **Look:** the "vivid" theme below (`components/theme/vivid.css`), with liquid glass from the `liquid-glass` skill on small subpanels only.
 - **Behaviour:** Vercel's Web Interface Guidelines (accessibility, forms, motion, copy).
 
 Check each new page or component against both before opening a PR. Run the guidelines review with the `web-design-guidelines` skill. It fetches the current rules from
 `https://raw.githubusercontent.com/vercel-labs/web-interface-guidelines/main/command.md`.
 
+## Design rules (from Likhil)
+
+- **Aesthetic:** clean, modern, high-contrast, premium typography, restrained palette (at most 3 core colours plus neutrals: here black, blue `#2f6bff`, white), subtle background grain, intentional whitespace.
+- **Banned:** glowing gradient text, glassmorphism everywhere (glass only on a few small subpanels over blue), identical boring feature cards, buzzwords such as "supercharge", "seamless" or "delve".
+- **Motion:** smooth, subtle scroll animations and micro-interactions that feel organic, not distracting: short travel, no tilt, no bounce easing.
+- **Two equal modes:** Live Coding Interview and Project Defense carry the same weight everywhere: matching hero buttons, the same section header layout, and one start dialog with a mode switch.
+
+The "professional hacker" layer (`components/theme/hacker.css`) applies these on top of the base theme: Space Grotesk headings and controls, a blinking `_` cursor on the hero and both wordmarks, `>` shell prompts on section titles (not on buttons), solid square buttons (cobalt primary, hairline-bordered secondary), a few bold white key phrases per paragraph, bracketed status tags, hairline-bordered panels, and black instruments (score box, tracks, chips) wherever a fragment sits on blue.
+
 ## Look
 
 | Thing | Rule |
 |---|---|
-| Direction | "The product performs": real, working fragments of Crucible instead of illustrations (taste-skill seed 93808965) |
-| Theme | Dark. `--bg #0c0c0d`, `--surface #17171a`, `--surface-2 #222226`, `--ink #f2f2f0`, `--muted-ink #a2a2a8` |
-| Accent | `#1c80ba` (`--signal`): the hero stage, colour fields, interviewer state, focus rings, progress. Button fills use the darker `#1a74a9` (`--signal-fill`) so white label text passes 4.5:1 |
-| Red | `--danger #e5484d`, failures only: a broken chaos run, missing steps, severity chips. Never on actions |
-| Green | `--ok #4cc77a`: tests passed, merge gate passed, fix verified |
-| Type | Hanken Grotesk 400/500, plus Geist Mono only inside code. Steps: small 13–14, body 17–19, lead 20–26, head 32–64, display 44–80 |
-| Shape | Buttons are square with a 4px radius. Fragments have a 6px radius and 1px `--ui-line` borders, inside `data-ui` only |
-| Fragments | Interface fragments use `data-ui` and the `--ui-bg` / `--ui-panel` / `--ui-line` tokens |
-| Banned | Gradients, glows, resting shadows, eyebrow labels, 01/02/03 numbering, monospace outside code, rows of identical icon cards |
+| Direction | Real, working fragments of Crucible instead of illustrations, set in bold solid colour blocks on black |
+| Page | Solid black `#000`. Surfaces `#101012` / `#1c1c20`; ink `#fff`, muted `#b4b4bc` |
+| Colours | Solid, bright, high contrast: cobalt `#2f6bff` (stages, fields, interviewer), lime `#c6ff1a` (primary action, passes, phase), pink `#ff2e88` (failures, nudges), cyan `#00d4ff`, orange `#ff8a00`. Black text on bright fills, white on dark |
+| Gradients | None, anywhere. The only exception is the liquid-glass tint |
+| Liquid glass | `<LiquidGlass>` (`components/theme/LiquidGlass.tsx`, port of the skill's refraction) on small subpanels that sit over a solid colour block: the hero interviewer panel, the tour panel, the metric tiles. Children of a glass panel paint no surface of their own |
+| Type | Space Grotesk 500 for headings, the wordmark, nav, buttons and labels; Inter for reading text; Geist Mono only for code and terminal cues (file names, timers, tags, the principles panel) |
+| Shape | 8px buttons with a 0.97 press; 12–16px radius on cards and colour blocks |
+| Banned | Gradients outside liquid glass, eyebrow labels, 01/02/03 numbering, monospace outside code, coloured side stripes on cards |
 | Layout | 12-column grid with one pair of margins (`--margin`, safe-area aware). Section gaps 96–140px. No half-empty rows: answer any one-sided block with content on the other side |
 | Motion | Masked headline on load, reveal-once on scroll, feedback on every control. Transform and opacity only, each with a `prefers-reduced-motion` fallback |
 
@@ -41,7 +49,7 @@ Check each new page or component against both before opening a PR. Run the guide
 | Panels and scrubber | shadcn `resizable`, `slider` | Scrubber markers are real buttons |
 | Icons | `lucide-react`, plus animated `refresh-cw` and `activity` from lucide-animated | Keep animated icons to a handful |
 
-Demo routes on mock data: `/coding/demo`, `/defense/demo`, `/report/demo`.
+Demo routes on mock data: `/coding/demo`, `/defense/demo`, `/report/demo`. The landing fragments and these routes read the backend's sample data from `src/lib/fixtures/` (copies of `backend/tests/fixtures/*.json`, typed against the generated `src/types/contracts.ts`): the Quiet Streak coding session and the bank-transfer defense. The room records edits with `lib/capture/editor.ts` and the report replays them with `lib/replay.ts` (both verbatim from `feat/engine-codestate`; never edited here). The defense demo follows PLAN §11.2: Audit → Chaos → Grill → Fix → Verify → Verdict, with the explanation hidden until the grill is graded, code-computed grill scores, "Circle It" on the diagram, per-file editor models in Fix, and a before/after verify chart.
 
 ## Behaviour (Web Interface Guidelines, as applied here)
 

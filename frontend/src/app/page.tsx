@@ -1,97 +1,71 @@
 import Link from "next/link";
 import { DefenseRows } from "@/components/landing/DefenseRows";
+import { Facts } from "@/components/landing/Facts";
 import { HeroRoom } from "@/components/landing/HeroRoom";
 import { HowItWorks } from "@/components/landing/HowItWorks";
-import { RevealObserver } from "@/components/landing/Motion";
+import { LandingMotion } from "@/components/landing/Motion";
 import { StartDialog } from "@/components/landing/StartDialog";
+import { HeadlineReveal } from "@/components/motion/HeadlineReveal";
+import { SmoothScroll } from "@/components/motion/SmoothScroll";
+import Magnet from "@/components/react-bits/Magnet";
+import ScrollFloat from "@/components/react-bits/ScrollFloat";
+import ScrollReveal from "@/components/react-bits/ScrollReveal";
+import { DRAFT_CODE } from "@/lib/fixtures";
 import { highlightPython } from "@/lib/highlight";
 import "@/components/landing/landing.css";
-
-const TOUR_CODE = `for right, t in enumerate(temps):
-    while lows and temps[lows[-1]] >= t:
-        lows.pop()
-    lows.append(right)
-    while highs and temps[highs[-1]] <= t:
-        highs.pop()
-    highs.append(right)
-    while temps[highs[0]] - temps[lows[0]] > k:
-        left += 1`;
+import "@/components/landing/sections.css";
 
 const REPO = "https://github.com/QuantumGuy99/Meta-Hacks";
 
-// From README "Meta models we use".
-const MODELS: { group: string; rows: { name: string; use: string; tone: string }[] }[] = [
-  {
-    group: "Live interviewer",
-    rows: [
-      { name: "Muse Spark 1.3", use: "Analyzer, replies", tone: "accent" },
-      { name: "Muse Voice Transcribe", use: "Think-aloud speech", tone: "accent" },
-    ],
-  },
-  {
-    group: "Audit and reports",
-    rows: [{ name: "Muse Wonder 1.0", use: "Project audit, reports", tone: "ink" }],
-  },
-  {
-    group: "Chaos lab",
-    rows: [
-      { name: "Muse Glimmer", use: "Attack scripts", tone: "ink" },
-      { name: "Muse Spark Open", use: "Failover, problem drafts", tone: "muted" },
-    ],
-  },
-  {
-    group: "Extras",
-    rows: [
-      { name: "Muse Image", use: "Problem illustrations", tone: "muted" },
-      { name: "SAM 3.1", use: "Paper sketches, stretch", tone: "muted" },
-    ],
-  },
+// The project's own design rules (README "Design rules"), shown as the credibility section.
+const PRINCIPLES = [
+  ["The model suggests; code decides.", "Models propose interventions. Code decides when, and whether, anything reaches you."],
+  ["Never hand over the answer.", "Hints escalate from nudge to question to hint to concept. Never code."],
+  ["Neutral integrity.", "Pastes and tab switches are noted as facts in the report, never as accusations."],
+  ["The timeline is the source of truth.", "Every score and replay is built only from recorded edits, speech, runs and nudges."],
+  ["Every external call has a fallback.", "A slow model or sandbox degrades the session; it never breaks it."],
 ];
 
 export default async function Home() {
-  const tourCodeHtml = await highlightPython(TOUR_CODE);
+  const tourCodeHtml = await highlightPython(DRAFT_CODE);
   return (
     <div className="lp">
-      <RevealObserver />
+      <SmoothScroll />
+      <LandingMotion />
+
+      {/* 1. Minimal nav: logo and the primary action */}
       <header className="lp-nav">
         <Link href="/" className="lp-wordmark" translate="no">
           Crucible
         </Link>
-        <nav aria-label="Main">
-          <a href="#coding">Coding Interview</a>
-          <a href="#defense">Project Defense</a>
-          <a href="#models">Models</a>
-          <a href={REPO}>GitHub</a>
-        </nav>
+        <a href="#start" className="ui-btn ui-btn-primary nav-cta">
+          Start Interview
+        </a>
       </header>
 
       <main id="main" tabIndex={-1}>
+        {/* 2. Hero: eight-word headline, sub-headline, two equal actions (one per mode) */}
         <section className="hero" aria-labelledby="hero-title">
           <div className="hero-copy">
-            <h1 id="hero-title" className="lines">
-              <span className="line">
-                <span data-line style={{ "--i": 0 } as React.CSSProperties}>
-                  Interviews That
-                </span>
-              </span>
-              <span className="line">
-                <span data-line style={{ "--i": 1 } as React.CSSProperties}>
-                  Watch You Code
-                </span>
-              </span>
-            </h1>
+            <HeadlineReveal as="h1" id="hero-title" onLoad>
+              Practice Tools Grade Answers. Crucible Grades <span className="fx-lime">How You Engineer.</span>
+            </HeadlineReveal>
             <div className="hero-aside">
               <p className="hero-sub">
-                Crucible is an AI technical interviewer. It follows every edit and every word, nudges
-                you when you skip a step, and grades how you got there.
+                A live AI interviewer that follows <strong>every edit and every word</strong>, nudges you
+                when you skip a step, and <strong>scores your process</strong>, not just your output.
               </p>
               <div className="hero-actions">
-                <Link href="/coding" className="ui-btn ui-btn-primary ui-btn-lg">
-                  Start a Coding Interview
-                </Link>
-                <Link href="/defense" className="lp-link">
-                  Or Defend a Project
-                </Link>
+                <Magnet padding={40} magnetStrength={8} maxOffset={6}>
+                  <Link href="/coding" className="ui-btn ui-btn-primary ui-btn-lg">
+                    Start a Coding Interview
+                  </Link>
+                </Magnet>
+                <Magnet padding={40} magnetStrength={8} maxOffset={6}>
+                  <Link href="/defense" className="ui-btn ui-btn-primary ui-btn-lg">
+                    Defend a Project
+                  </Link>
+                </Magnet>
               </div>
             </div>
           </div>
@@ -100,62 +74,131 @@ export default async function Home() {
           </div>
         </section>
 
-        <section id="defense" className="sec sec-defense" aria-labelledby="defense-title">
-          <h2 id="defense-title" data-reveal>
-            Break It, Then Defend It
-          </h2>
-          <p className="sec-lead" data-reveal>
-            Bring a small Python web app. Crucible audits it, attacks it in a sandbox, asks you why it
-            broke, and re-runs the same attack on your fix.
-          </p>
-          <DefenseRows />
+        {/* 3. Verifiable facts strip */}
+        <Facts />
+
+        {/* 4. The problem and the answer */}
+        <section className="sec sec-story" aria-labelledby="story-title">
+          <HeadlineReveal id="story-title">
+            Two Gaps Practice Tools <span className="fx-lime">Miss</span>
+          </HeadlineReveal>
+          <div className="story-rows">
+            <div className="story-row" data-reveal>
+              <p className="story-claim">Practice tools grade the answer. Interviewers grade the process.</p>
+              <p className="story-detail">
+                LeetCode tells you whether your code passed. It <strong>can’t tell you</strong> that you
+                coded before stating an approach, skipped the empty-input case, went quiet for four
+                minutes, or needed three hints.
+              </p>
+            </div>
+            <div className="story-row" data-reveal>
+              <p className="story-claim">AI writes code faster than you can explain it.</p>
+              <p className="story-detail">
+                You can generate a thousand lines in a minute and still not know why your endpoint{" "}
+                <strong>loses data under 200 concurrent requests</strong>. That gap shows up in interviews,
+                and in production.
+              </p>
+            </div>
+          </div>
+          <ScrollReveal
+            as="p"
+            containerClassName="story-answer"
+            textClassName="story-answer-text"
+            baseOpacity={0.2}
+            baseRotation={0}
+            blurStrength={2}
+          >
+            Crucible closes both with one idea: an interviewer that sees your process as it happens, every keystroke, every test run, every sentence, and holds you to what a strong engineer would do.
+          </ScrollReveal>
         </section>
 
-        <section id="coding" className="sec sec-how" aria-labelledby="how-title">
-          <h2 id="how-title" data-reveal>
-            One Coding Interview
-          </h2>
+        {/* 5. Feature showcase: the two modes, given the same weight and the same header */}
+        <section id="coding" className="sec sec-mode sec-how" aria-labelledby="how-title">
+          <div className="mode-head">
+            <HeadlineReveal id="how-title">
+              Live Coding <span className="fx-lime">Interview</span>
+            </HeadlineReveal>
+            <div className="mode-copy" data-reveal>
+              <p className="sec-lead">
+                Pick a difficulty and get <strong>an original problem</strong>. Code in a real editor and
+                think out loud; the interviewer follows every edit and{" "}
+                <strong>nudges you when you skip a step</strong>.
+              </p>
+              <Link href="/coding" className="ui-btn ui-btn-primary ui-btn-lg">
+                Start a Coding Interview
+              </Link>
+            </div>
+          </div>
           <HowItWorks codeHtml={tourCodeHtml} />
         </section>
 
-        <section id="models" className="sec sec-models" aria-labelledby="models-title">
-          <div className="models-col">
-            <h2 id="models-title" data-reveal>
-              Built on Meta Models
-            </h2>
-            {MODELS.map((g) => (
-              <div key={g.group} className="mgroup" data-reveal>
-                <p className="mgroup-name">{g.group}</p>
-                <ul>
-                  {g.rows.map((r) => (
-                    <li key={r.name}>
-                      <span className={`mdot mdot-${r.tone}`} aria-hidden />
-                      <span className="mname" translate="no">
-                        {r.name}
-                      </span>
-                      <span className="muse">{r.use}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+        <section id="defense" className="sec sec-mode sec-defense" aria-labelledby="defense-title">
+          <div className="mode-head">
+            <HeadlineReveal id="defense-title">
+              Project <span className="fx-lime">Defense</span>
+            </HeadlineReveal>
+            <div className="mode-copy" data-reveal>
+              <p className="sec-lead">
+                Bring a small Python web app. Crucible audits it, <strong>attacks it in a sandbox</strong>,
+                asks you why it broke (circle the culprit on the diagram), and{" "}
+                <strong>re-runs the same attack on your fix</strong>.
+              </p>
+              <Link href="/defense" className="ui-btn ui-btn-primary ui-btn-lg">
+                Defend a Project
+              </Link>
+            </div>
           </div>
-          <p className="models-note" data-reveal>
-            The model suggests; code decides. Every intervention passes cooldowns, a hint ladder and a
-            leak guard before it reaches you, so the interviewer never hands over the answer.
-          </p>
+          <DefenseRows />
         </section>
 
-        <section className="cta" aria-labelledby="cta-title">
+        {/* 6. Credibility: the team's reason, and the rules the interviewer is held to */}
+        <section className="sec sec-cred" aria-labelledby="cred-title">
+          <HeadlineReveal id="cred-title">
+            Held to <span className="fx-lime">Its Own</span> Rules
+          </HeadlineReveal>
+          <div className="cred-grid">
+            <figure className="cred-quote" data-reveal>
+              <blockquote>
+                <p>
+                  “We’re students who grind LeetCode and use AI coding agents every day.”
+                </p>
+                <p>
+                  “The AI technical interviewer that watches <em>how</em> you engineer, not just what you
+                  submit.”
+                </p>
+              </blockquote>
+              <figcaption>
+                <span>The Crucible team</span>
+                <span className="cred-meta">Meta Global AI Developer Hackathon, 2026</span>
+                <a href={REPO} className="lp-link">
+                  Read the source on GitHub
+                </a>
+              </figcaption>
+            </figure>
+            <div className="cred-term" data-reveal data-ui>
+              <div className="cred-term-bar">
+                <span translate="no">PRINCIPLES.md</span>
+              </div>
+              <ol className="cred-rules">
+                {PRINCIPLES.map(([rule, detail]) => (
+                  <li key={rule}>
+                    <strong>{rule}</strong>
+                    <span>{detail}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          </div>
+        </section>
+
+        {/* 7. Final action band */}
+        <section id="start" className="cta" aria-labelledby="cta-title">
           <div className="cta-copy">
-            <h2 id="cta-title">
-              Start the
-              <br />
-              Interview
-            </h2>
+            <HeadlineReveal id="cta-title">Pick Your Interview</HeadlineReveal>
             <p>
-              You get an original problem, a Python editor and an interviewer who is already listening.
-              No account needed.
+              Code an original problem live, or defend a project under load.{" "}
+              <strong>Same interviewer, same scored replay.</strong> No account, no setup: you’re started
+              in under a minute.
             </p>
           </div>
           <div className="cta-dialog">
@@ -164,9 +207,45 @@ export default async function Home() {
         </section>
       </main>
 
-      <footer className="tiles">
+      {/* 8. Clean, functional footer */}
+      <footer className="site-foot">
+        <div className="foot-top">
+          <div className="foot-brand">
+            <Link href="/" className="lp-wordmark" translate="no">
+              Crucible
+            </Link>
+            <p>The AI interviewer that watches how you engineer.</p>
+          </div>
+          <nav className="foot-links" aria-label="Footer">
+            <div>
+              <p className="foot-head">Practice</p>
+              <Link href="/coding">Coding Interview</Link>
+              <Link href="/defense">Project Defense</Link>
+            </div>
+            <div>
+              <p className="foot-head">Demos</p>
+              <Link href="/coding/demo">Interview Room</Link>
+              <Link href="/defense/demo">Defense Lab</Link>
+              <Link href="/report/demo">Session Report</Link>
+            </div>
+            <div>
+              <p className="foot-head">Project</p>
+              <a href={REPO}>GitHub</a>
+              <a href={`${REPO}/blob/main/LICENSE`}>MIT License</a>
+            </div>
+          </nav>
+        </div>
         <div className="tile tile-word" aria-hidden translate="no">
-          Crucible
+          <ScrollFloat
+            containerClassName="word-float"
+            textClassName="word-float-text"
+            scrollStart="top bottom"
+            scrollEnd="center bottom"
+            stagger={0.03}
+            distance={48}
+          >
+            Crucible
+          </ScrollFloat>
         </div>
       </footer>
     </div>

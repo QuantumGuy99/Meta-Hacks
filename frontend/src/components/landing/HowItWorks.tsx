@@ -3,6 +3,31 @@
 import NumberFlow from "@number-flow/react";
 import { AnimatePresence, m } from "motion/react";
 import { useEffect, useRef, useState } from "react";
+import { LiquidGlass } from "@/components/theme/LiquidGlass";
+import {
+  clock,
+  CLARIFY_QUESTION,
+  codingReport,
+  dimensionLabel,
+  levelLabel,
+  nudge,
+  pasteFlag,
+  problem,
+  timeline,
+  transcript,
+  visibleRun,
+} from "@/lib/fixtures";
+
+// The tour replays the shared Quiet Streak fixture: its transcript, nudge, runs and report.
+const report = codingReport;
+const metrics = report.metrics;
+const durationMs = metrics.duration_s * 1000;
+const said = transcript[0];
+const plannedAt = timeline.find((e) => e.kind === "transcript")?.t ?? said.end_ms;
+// Statement markdown read aloud: drop the inline-code backticks.
+const statement = problem.statement_md.replaceAll("`", "");
+const hints = Object.values(metrics.hints_by_level).reduce((a, b) => a + b, 0);
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 // Stage fragments cross-fade with a short rise when the tab changes.
 const stageMotion = {
@@ -105,7 +130,7 @@ export function HowItWorks({ codeHtml }: { codeHtml: string }) {
       </div>
 
       <div className="hiw-stage">
-        <div
+        <LiquidGlass
           data-ui
           id="hiw-panel"
           role="tabpanel"
@@ -118,22 +143,21 @@ export function HowItWorks({ codeHtml }: { codeHtml: string }) {
             <m.div key="chat" className="hf-chat" {...stageMotion}>
               <p className="msg msg-ai">
                 <span className="msg-who">Interviewer</span>
-                Given hourly temperature readings and a tolerance k, find the longest run where the
-                readings stay within k of each other.
+                {statement}
               </p>
               <p className="msg msg-you">
-                <span className="msg-who">You · voice</span>
-                Can readings be negative? And is k inclusive?
+                <span className="msg-who">You · text</span>
+                {CLARIFY_QUESTION}
               </p>
               <p className="msg msg-ai">
                 <span className="msg-who">Interviewer</span>
-                Yes to both. A run where max minus min equals k counts.
+                No. Quiet means strictly below the threshold.
               </p>
               <p className="msg msg-you">
-                <span className="msg-who">You · voice</span>
-                Then a sliding window, tracking min and max with two deques. Linear time.
+                <span className="msg-who">You · {said.source}</span>
+                {said.text}
               </p>
-              <div className="hf-plan">Stated plan recorded · 1:12</div>
+              <div className="hf-plan">Stated plan recorded · {clock(plannedAt / 1000)}</div>
             </m.div>
           )}
           {active === 1 && (
@@ -141,13 +165,16 @@ export function HowItWorks({ codeHtml }: { codeHtml: string }) {
               {/* Shiki HTML rendered on the server with the shared Crucible code theme */}
               <div className="hf-shiki" translate="no" dangerouslySetInnerHTML={{ __html: codeHtml }} />
               <p className="msg msg-ai msg-nudge">
-                <span className="msg-who">Interviewer · Nudge</span>
-                Your loop moves left, but the deques may still hold indexes before it. Worth a second
-                look.
+                <span className="msg-who">
+                  Interviewer · {levelLabel(nudge.level)} · {clock(nudge.t / 1000)}
+                </span>
+                {nudge.text}
               </p>
               <div className="hf-runs">
-                <span className="st st-miss">Run 2 · 3 of 4 visible tests</span>
-                <span>Paste noted · 0 chars</span>
+                <span className="st st-done">
+                  Run 1 · {visibleRun.passed} of {visibleRun.total} visible tests
+                </span>
+                <span>Noted · {pasteFlag.detail}</span>
               </div>
             </m.div>
           )}
@@ -155,37 +182,39 @@ export function HowItWorks({ codeHtml }: { codeHtml: string }) {
             <m.div key="report" className="hf-report" {...stageMotion}>
               <div className="hf-overall">
                 <strong>
-                  <ScoreReveal value={78} />
+                  <ScoreReveal value={report.overall} />
                 </strong>
-                <span>Overall, medium problem, 31 min</span>
+                <span>
+                  Overall · {problem.title}, {problem.difficulty} · {clock(metrics.duration_s)}
+                </span>
               </div>
-              {[
-                ["Problem solving", 8],
-                ["Correctness", 7],
-                ["Code quality", 8],
-                ["Communication", 9],
-                ["Independence", 6],
-              ].map(([name, score]) => (
-                <div key={name} className="hf-dim">
-                  <span>{name}</span>
+              {report.dimensions.map((d) => (
+                <div key={d.name} className="hf-dim">
+                  <span>{dimensionLabel(d.name)}</span>
                   <span className="hf-track">
-                    <span style={{ width: `${(score as number) * 10}%` }} />
+                    <span style={{ width: `${d.score * 10}%` }} />
                   </span>
-                  <span className="hf-num">{score}</span>
+                  <span className="hf-num">{d.score}</span>
                 </div>
               ))}
               <div className="hf-scrub" aria-hidden>
-                <span className="mk mk-n" style={{ left: "22%" }} />
-                <span className="mk" style={{ left: "41%" }} />
-                <span className="mk mk-n" style={{ left: "58%" }} />
-                <span className="mk" style={{ left: "83%" }} />
+                {report.moments.map((mo) => (
+                  <span
+                    key={mo.t}
+                    className={mo.kind === "nudge" ? "mk mk-n" : "mk"}
+                    style={{ left: `${(mo.t / durationMs) * 100}%` }}
+                  />
+                ))}
                 <span className="hf-head" />
               </div>
-              <div className="hf-legend">Replay · 2 nudges · 1 hint · 4 runs</div>
+              <div className="hf-legend">
+                Replay · {plural(metrics.interventions_shown, "nudge")} · {plural(hints, "hint")} ·{" "}
+                {plural(metrics.runs, "run")}
+              </div>
             </m.div>
           )}
           </AnimatePresence>
-        </div>
+        </LiquidGlass>
       </div>
     </div>
   );

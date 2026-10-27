@@ -11,7 +11,7 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-display);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -50,36 +50,49 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Crucible tokens (taste-skill direction "The product performs"), dark theme.
-   #1c80ba = the accent (actions, stage, interviewer, focus, progress); red only marks failures. */
+/* Crucible tokens: "vivid" theme. Solid black page, bright solid colour blocks, high
+   contrast (black text on bright fills, white on dark). No gradients anywhere except the
+   liquid-glass subpanels (components/theme/liquid-glass.css + LiquidGlass.tsx). */
 :root {
-  --bg: #0c0c0d;
-  --surface: #17171a;
-  --surface-2: #222226;
-  --ink: #f2f2f0;
-  --muted-ink: #a2a2a8;
-  --signal: #1c80ba;
-  /* button fills only: white text on #1c80ba is 4.3:1, on this 5.1:1 */
-  --signal-fill: #1a74a9;
-  --signal-hover: #166a9b;
-  --danger: #e5484d;
-  --signal-ink: #ffffff;
-  --secondary-blue: #1c80ba;
+  --bg: #000000;
+  --surface: #101012;
+  --surface-2: #1c1c20;
+  --ink: #ffffff;
+  --muted-ink: #b4b4bc;
+  /* black + blue only (white for text and failures). Legacy names kept so screens don't change:
+     --lime = brand blue, --cyan/--orange = light blue, --pink = white. */
+  --cobalt: #2f6bff; /* brand blue; black or white text both clear 4.5:1 */
+  --lime: #2f6bff; /* action colour; black text */
+  --pink: #ffffff;
+  --cyan: #8fb3ff;
+  --orange: #8fb3ff;
+  --on-bright: #000000;
+  /* aliases the screens already use */
+  --ice: var(--cyan);
+  --amber: var(--orange);
+  --signal: var(--cobalt);
+  --signal-fill: var(--lime);
+  --signal-hover: #ffffff;
+  --signal-ink: #000000;
+  --danger: #ffffff;
+  --secondary-blue: var(--cobalt);
   --secondary-ink: #ffffff;
-  --field-1: #222226;
-  --field-1-ink: #f2f2f0;
-  --ok: #4cc77a;
+  --field-1: var(--lime);
+  --field-1-ink: #000000;
+  --ok: #2f6bff;
   /* inside data-ui interface fragments */
-  --ui-bg: #121214;
-  --ui-panel: #18181b;
-  --ui-line: #2a2a2f;
-  --ui-line-2: #3a3a40;
+  --ui-bg: #0b0b0d;
+  --ui-panel: #141417;
+  --ui-line: #26262c;
+  --ui-line-2: #3a3a42;
   --step-small: clamp(0.8125rem, 0.79rem + 0.1vw, 0.875rem);
   --step-body: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
   --step-lead: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
   --step-head: clamp(2rem, 1.3rem + 3.2vw, 4rem);
   --step-display: clamp(2.75rem, 1.4rem + 4.2vw, 5rem);
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Emil Kowalski's strong curves */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --margin: max(clamp(16px, 2.8vw, 40px), env(safe-area-inset-left), env(safe-area-inset-right));
 }
 
@@ -90,8 +103,8 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: #1a74a9;
-  --primary-foreground: #ffffff;
+  --primary: #2f6bff;
+  --primary-foreground: #000000;
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -119,15 +132,15 @@
 }
 
 .dark {
-  --background: #0c0c0d;
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: #1a74a9;
-  --primary-foreground: #ffffff;
-  --secondary: #1c80ba;
+  --background: #000000;
+  --foreground: #ffffff;
+  --card: #101012;
+  --card-foreground: #ffffff;
+  --popover: #101012;
+  --popover-foreground: #ffffff;
+  --primary: #2f6bff;
+  --primary-foreground: #000000;
+  --secondary: #2f6bff;
   --secondary-foreground: #ffffff;
   --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
@@ -136,7 +149,7 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: #1c80ba;
+  --ring: #2f6bff;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

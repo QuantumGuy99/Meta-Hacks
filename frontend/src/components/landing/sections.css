@@ -1,0 +1,410 @@
+/* Landing sections added for the eight-part page: nav action, facts strip, problem/answer,
+   credibility and the functional footer. Black, blue and white only; Space Grotesk for anything
+   that labels, Inter for reading text, mono for terminal cues; hairlines instead of filled cards. */
+
+/* ---------- 1. nav ---------- */
+.lp .lp-nav {
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+.lp .nav-cta {
+  min-height: 36px;
+}
+
+/* ---------- 2. hero ---------- */
+.lp .hero h1 {
+  text-wrap: balance;
+}
+.lp .hero-actions .ui-btn-lg {
+  min-height: 48px;
+  font-size: 14px;
+}
+
+/* ---------- 3. facts strip ---------- */
+.facts {
+  margin: clamp(72px, 8vw, 112px) var(--margin) 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.facts-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 28px 24px 30px;
+}
+.fact + .fact {
+  border-left: 1px solid var(--line);
+}
+.fact:first-child {
+  padding-left: 0;
+}
+/* the number reads first; the dt stays first in the DOM so the list is valid */
+.fact-num {
+  order: -1;
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(2.4rem, 1.6rem + 2vw, 3.5rem);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+.fact:nth-child(odd) .fact-num {
+  color: var(--cobalt);
+}
+.fact-label {
+  max-width: 24ch;
+  color: var(--muted-ink);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.facts-models {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 0;
+  padding: 16px 0 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--muted-ink);
+}
+.facts-models-label {
+  margin-right: 16px;
+  color: var(--blue-dim);
+}
+.facts-model {
+  white-space: nowrap;
+}
+.facts-model + .facts-model::before {
+  content: "/";
+  margin: 0 12px;
+  color: var(--line-2);
+}
+
+/* ---------- 4. problem and answer ---------- */
+.story-rows {
+  margin-top: 56px;
+  border-top: 1px solid var(--line);
+}
+.story-row {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  column-gap: 24px;
+  padding: 36px 0;
+  border-bottom: 1px solid var(--line);
+}
+.story-claim {
+  grid-column: 1 / 6;
+  font-family: var(--display);
+  font-size: clamp(1.15rem, 0.95rem + 0.6vw, 1.5rem);
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+.story-detail {
+  grid-column: 7 / 13;
+  max-width: 58ch;
+  color: #c9c9d0;
+  line-height: 1.6;
+}
+.story-answer {
+  margin: clamp(64px, 7vw, 104px) 0 0 auto;
+  width: min(100%, 58%);
+}
+.story-answer-text {
+  font-size: clamp(1.5rem, 1rem + 1.6vw, 2.5rem);
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+/* ---------- 6. credibility ---------- */
+.cred-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  column-gap: 24px;
+  row-gap: 48px;
+  margin-top: 56px;
+  align-items: start;
+}
+.cred-quote {
+  grid-column: 1 / 6;
+  margin: 0;
+  padding-top: 8px;
+}
+.cred-quote blockquote {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.cred-quote blockquote p {
+  font-size: clamp(1.35rem, 1rem + 1vw, 1.9rem);
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  text-wrap: pretty;
+}
+.cred-quote blockquote p + p {
+  color: var(--muted-ink);
+}
+.cred-quote em {
+  font-style: normal;
+  color: var(--cobalt);
+}
+.cred-quote figcaption {
+  margin-top: 32px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--display);
+  font-size: 13px;
+}
+.cred-meta {
+  color: var(--muted-ink);
+}
+.cred-quote .lp-link {
+  margin-top: 12px;
+  align-self: flex-start;
+  color: var(--blue-dim);
+  font-size: 13px;
+}
+.cred-term {
+  grid-column: 7 / 13;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.cred-term-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted-ink);
+}
+.cred-term-bar::before {
+  content: "> cat";
+  color: var(--blue-dim);
+}
+.cred-rules {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+  counter-reset: none;
+}
+.cred-rules li {
+  display: grid;
+  grid-template-columns: 2ch 1fr;
+  column-gap: 8px;
+  row-gap: 4px;
+  padding: 14px 20px;
+  font-size: 14px;
+  line-height: 1.55;
+  transition: background 200ms var(--ease-out);
+}
+.cred-rules li::before {
+  content: "-";
+  grid-row: 1 / 3;
+  font-family: var(--mono);
+  color: var(--cobalt);
+}
+.cred-rules strong {
+  font-family: var(--mono);
+  font-weight: 500;
+  color: #fff;
+}
+.cred-rules span {
+  color: var(--muted-ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  .cred-rules li:hover {
+    background: #0b0b10;
+  }
+}
+
+/* ---------- 8. footer ---------- */
+.site-foot {
+  margin-top: 0;
+  padding: clamp(56px, 6vw, 80px) var(--margin) 8px;
+}
+.foot-top {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  column-gap: 24px;
+  row-gap: 40px;
+  padding-bottom: 48px;
+}
+.foot-brand {
+  grid-column: 1 / 5;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.foot-brand p {
+  max-width: 32ch;
+  color: var(--muted-ink);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.foot-links {
+  grid-column: 7 / 13;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+.foot-links > div {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 14px;
+}
+.foot-head {
+  margin-bottom: 4px;
+  font-family: var(--display);
+  font-size: 12px;
+  color: var(--blue-dim);
+}
+.foot-links a {
+  align-self: flex-start;
+  color: #d6d6dc;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 4px;
+  transition: color 160ms, text-decoration-color 160ms var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .foot-links a:hover {
+    color: #fff;
+    text-decoration-color: var(--cobalt);
+  }
+}
+.site-foot .tile-word {
+  min-height: 0;
+  padding: clamp(24px, 3vw, 40px) 20px;
+}
+
+/* ---------- tablet and phone ---------- */
+@media (max-width: 900px) {
+  .facts-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .fact {
+    padding: 22px 16px 24px;
+  }
+  .fact:nth-child(odd) {
+    padding-left: 0;
+  }
+  .fact:nth-child(3) {
+    border-left: 0;
+  }
+  .fact:nth-child(n + 3) {
+    border-top: 1px solid var(--line);
+  }
+  .story-claim,
+  .story-detail,
+  .cred-quote,
+  .cred-term,
+  .foot-brand,
+  .foot-links {
+    grid-column: 1 / -1;
+  }
+  .story-row {
+    row-gap: 14px;
+    padding: 28px 0;
+  }
+  .story-answer {
+    width: 100%;
+    max-width: none;
+    margin-left: 0;
+  }
+}
+@media (max-width: 480px) {
+  .lp .lp-nav {
+    flex-wrap: nowrap;
+  }
+  .lp .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .lp .hero-actions .ui-btn-lg {
+    width: 100%;
+  }
+  .foot-links {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .cred-rules li {
+    padding: 12px 16px;
+  }
+}
+
+/* ---------- 5. the two modes share one header layout, so neither reads as secondary ---------- */
+.mode-head {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  column-gap: 24px;
+  row-gap: 24px;
+  align-items: end;
+}
+.mode-head h2 {
+  grid-column: 1 / 7;
+}
+.mode-copy {
+  grid-column: 7 / 13;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 20px;
+}
+.lp .mode-copy .sec-lead {
+  margin-top: 0;
+  align-self: stretch; /* landing.css right-aligns the old defense lead */
+}
+.lp .mode-copy .ui-btn-lg {
+  min-height: 44px;
+  font-size: 14px;
+}
+
+/* ---------- 7. start dialog: the project picker matches the topic field ---------- */
+.lp .dlg-field select {
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  background: var(--panel);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+}
+
+@media (max-width: 900px) {
+  .mode-head h2,
+  .mode-copy {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ---------- emphasis: a few key phrases per block, never whole sentences ---------- */
+.lp :is(.hero-sub, .sec-lead, .story-detail, .cta-copy p, .fr-line) strong {
+  font-weight: 600;
+  color: #fff;
+}
+/* titles carry the weight the copy points at */
+:root .lp :is(.hero h1, .sec h2, .cta h2) {
+  font-weight: 600;
+}
+.lp :is(.story-claim, .hiw-title, .cred-rules strong, .foot-head) {
+  font-weight: 600;
+}

@@ -1,0 +1,538 @@
+/* Crucible "vivid" theme. Solid black page, bright solid colour blocks, high contrast.
+   Rule: every surface is ONE solid colour. The only gradient/translucency allowed is the
+   liquid glass, and only on small subpanels that sit over a solid colour block
+   (hero interviewer panel, tour panel, metric tiles). Selectors start with `:root .lp` to
+   win over the per-screen stylesheets without !important. */
+
+/* ---------- page ---------- */
+body,
+:root .lp,
+:root .lp :is(.rm, .df, .rp) {
+  background: #000;
+  color: var(--ink);
+}
+
+/* ---------- liquid glass: the panel's own tint and rim always win over older fills ---------- */
+:root .lp .liquid-glass {
+  background: linear-gradient(180deg, var(--glass-tint-top), var(--glass-tint-bottom));
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    var(--glass-shadow),
+    inset 0 1px 0 var(--glass-rim-top),
+    inset 0 0 0 1px var(--glass-rim-hairline),
+    inset 0 -1px 0 var(--glass-rim-bottom);
+}
+
+/* ---------- headline reveal (HeadlineReveal) ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .js .hl-reveal {
+    visibility: hidden; /* shown by GSAP once the letters are split */
+  }
+}
+.hl-char-mask {
+  padding: 0 0.06em 0.12em;
+  margin: 0 -0.06em -0.12em;
+}
+
+/* ---------- accent words: serif italic + one bright colour each ---------- */
+.fx-serif {
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-style: italic;
+  font-weight: 400;
+}
+:is(h1, h2) .fx-serif {
+  font-size: 1.1em;
+  letter-spacing: -0.02em;
+}
+.fx-lead {
+  font-size: 1.15em;
+}
+.fx-lime {
+  color: var(--lime);
+}
+.fx-pink {
+  color: var(--pink);
+}
+.fx-cyan {
+  color: var(--cyan);
+}
+.fx-orange {
+  color: var(--orange);
+}
+
+/* ---------- buttons (Emil: 0.97 press, hover only with a mouse) ---------- */
+:root .lp .ui-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--surface-2);
+  color: #fff;
+  border-radius: 8px;
+  font-weight: 500;
+  transition:
+    transform 160ms var(--ease-out),
+    background 160ms ease,
+    color 160ms ease;
+}
+:root .lp .ui-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+:root .lp .ui-btn-primary {
+  background: var(--lime);
+  border-color: var(--lime);
+  color: #000;
+}
+@media (hover: hover) and (pointer: fine) {
+  :root .lp .ui-btn:hover:not(:disabled) {
+    background: #2a2a30;
+  }
+  :root .lp .ui-btn-primary:hover:not(:disabled) {
+    background: #fff;
+    border-color: #fff;
+  }
+  :root .lp .lp-nav nav a:hover,
+  :root .lp .lp-link:hover {
+    color: var(--lime);
+  }
+}
+:root .lp :is(a, button, input, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+/* ---------- nav ---------- */
+:root .lp .lp-nav {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  padding-top: 16px;
+  padding-bottom: 16px;
+  background: #000;
+  border-bottom: 1px solid var(--surface-2);
+}
+
+/* ---------- hero: the room sits straight on the black page, no frame ---------- */
+:root .lp .hero-stage .room {
+  position: relative;
+  background: transparent;
+  border: 1px solid var(--surface-2);
+  border-radius: 14px;
+  overflow: hidden;
+}
+:root .lp .room-bar {
+  background: #000;
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+}
+:root .lp .room-editor {
+  background: #0b0b0d;
+  border-right: 0;
+  border-radius: 0 0 0 14px;
+}
+:root .lp .room-file {
+  background: #000;
+  border-color: var(--ui-line);
+}
+:root .lp .room-phases li[aria-current] {
+  background: var(--lime);
+  color: #000;
+}
+/* Interviewer panel: a solid dark-blue surface now that there's no blue stage behind it
+   for glass to show (glass over plain black reads as a grey box). */
+:root .lp .room-side {
+  margin: 0;
+  background: #0d1a3d;
+  border: 0;
+  border-radius: 0 0 14px 0;
+  color: #fff;
+}
+:root .lp .room-side .msg {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: 14px;
+}
+:root .lp .room-side .msg-who {
+  color: rgb(255 255 255 / 0.8);
+  font-weight: 500;
+}
+:root .lp .room-side .msg-nudge .msg-who {
+  color: #fff;
+}
+:root .lp .room-side .msg-nudge .msg-who::before,
+:root .lp .room-side .msg-ok .msg-who::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--pink);
+}
+:root .lp .room-side .msg-ok .msg-who::before {
+  background: var(--lime);
+}
+:root .lp .room-who {
+  color: rgb(255 255 255 / 0.85);
+}
+:root .lp .dot-live {
+  background: #fff;
+}
+:root .lp .room-side .ui-btn {
+  background: #000;
+  border-color: #000;
+}
+
+/* status chips: small solid fills, black text */
+:root .lp .st {
+  font-weight: 500;
+  color: #000;
+}
+:root .lp .st-done {
+  background: var(--lime);
+}
+:root .lp .st-miss {
+  background: var(--pink);
+}
+:root .lp .st-prog {
+  background: var(--surface-2);
+  color: #fff;
+}
+
+/* ---------- defense rows: whole cards in solid bright colours, black text ---------- */
+:root .lp .fr {
+  border: 0;
+  border-radius: 14px;
+  color: #000;
+  background: var(--cyan);
+}
+:root .lp .fr-broke {
+  background: var(--pink);
+}
+:root .lp .fr-held {
+  background: var(--lime);
+}
+:root .lp .fr-defended {
+  background: var(--cobalt);
+}
+:root .lp .fr :is(.fr-file, .fr-foot, .fr-live-label, .fr-metrics dt) {
+  color: rgb(0 0 0 / 0.7);
+}
+:root .lp .fr .sev {
+  background: #000;
+  color: #fff;
+}
+:root .lp .fr-line b {
+  color: #000;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+:root .lp .fr .gate {
+  color: #000;
+  font-weight: 600;
+}
+:root .lp .fr .ui-btn-primary {
+  background: #000;
+  border-color: #000;
+  color: #fff;
+}
+:root .lp .fr-metrics {
+  gap: 10px;
+}
+:root .lp .fr-metrics .liquid-glass {
+  padding: 10px 12px;
+  border-radius: 12px;
+}
+:root .lp .fr-metrics :is(.is-bad, .is-ok, dd) {
+  color: #000;
+}
+:root .lp .fr-state {
+  color: #fff;
+  font-weight: 500;
+}
+
+/* ---------- how it works: white active tab, solid lime stage, glass panel ---------- */
+:root .lp .hiw-step {
+  border-radius: 12px;
+}
+:root .lp .hiw-step.is-active {
+  background: #fff;
+}
+:root .lp .hiw-step.is-active :is(.hiw-title, .hiw-line) {
+  color: #000;
+}
+:root .lp .hiw-title::before {
+  background: #3a3a42;
+}
+:root .lp .hiw-step.is-active .hiw-title::before {
+  background: var(--cobalt);
+}
+@media (hover: hover) and (pointer: fine) {
+  :root .lp .hiw-step:not(.is-active):hover {
+    background: var(--surface);
+  }
+}
+:root .lp .hiw-stage {
+  background: var(--lime);
+  border-radius: 16px;
+}
+:root .lp .hiw-frag.liquid-glass {
+  border-radius: 14px;
+  color: #000;
+}
+:root .lp .hiw-frag .msg {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: #000;
+}
+:root .lp .hiw-frag :is(.msg-who, .hf-plan, .hf-legend, .hf-runs, .hf-overall span) {
+  color: rgb(0 0 0 / 0.65);
+}
+:root .lp .hiw-frag .hf-code pre {
+  background: #000; /* code keeps its own dark slab so the syntax colours read */
+  border-radius: 10px;
+}
+:root .lp .hiw-frag :is(.hf-track span, .hf-scrub .mk, .hf-head) {
+  background: #000;
+}
+:root .lp .hiw-frag .hf-scrub .mk-n {
+  background: var(--pink);
+}
+:root .lp .hiw-frag :is(.hf-track, .hf-scrub) {
+  background: rgb(0 0 0 / 0.12);
+}
+
+/* ---------- CTA: solid cobalt field, solid black dialog ---------- */
+:root .lp .cta {
+  background: var(--cobalt);
+  color: #fff;
+}
+:root .lp .dlg {
+  background: #000;
+  border: 0;
+  border-radius: 16px;
+  color: #fff;
+  box-shadow: 0 30px 70px -30px rgb(0 0 0 / 0.7);
+}
+:root .lp .dlg-field input {
+  background: var(--surface);
+  border-color: var(--ui-line-2);
+  color: #fff;
+  border-radius: 8px;
+}
+:root .lp .dlg-seg {
+  background: var(--surface);
+  border-radius: 10px;
+}
+:root .lp .dlg-seg label {
+  border-radius: 8px;
+}
+:root .lp .dlg-seg label.is-on {
+  background: var(--lime);
+  color: #000;
+}
+
+/* ---------- footer: one solid lime block ---------- */
+:root .lp .tile-word {
+  background: var(--lime);
+  color: #000;
+  border-radius: 16px;
+}
+
+/* ---------- room demo ---------- */
+:root .lp .rm-top {
+  background: #000;
+  border-color: var(--surface-2);
+}
+:root .lp :is(.rm-panel, .rm-tests) {
+  background: #0b0b0d;
+}
+:root .lp .rm-panel-head {
+  background: #000;
+  border-color: var(--ui-line);
+}
+:root .lp .rm-msgs .msg {
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+:root .lp .rm-msgs .msg-ai {
+  background: var(--cobalt);
+  color: #fff;
+}
+:root .lp .rm-msgs .msg-ai .msg-who {
+  color: rgb(255 255 255 / 0.85);
+}
+:root .lp .rm-msgs .msg-nudge {
+  background: var(--pink);
+  color: #000;
+}
+:root .lp .rm-msgs .msg-nudge .msg-who {
+  color: rgb(0 0 0 / 0.7);
+}
+:root .lp .rm-msgs .msg-you {
+  background: var(--surface-2);
+}
+:root .lp .rm-ask input {
+  background: var(--surface);
+  border-color: var(--ui-line-2);
+  border-radius: 8px;
+}
+:root .lp .rm-state-speaking {
+  background: var(--cobalt);
+}
+:root .lp .rm-pass,
+:root .lp .rm-cases .is-pass .rm-case-status {
+  color: var(--lime);
+}
+:root .lp .rm-fail,
+:root .lp .rm-cases .is-fail .rm-case-status {
+  color: var(--pink);
+}
+
+/* ---------- defense demo ---------- */
+:root .lp .df-stages button[aria-current] {
+  background: var(--lime);
+  color: #000;
+}
+:root .lp :is(.df-side, .df-topo, .df-chart) {
+  background: #0b0b0d;
+  border-color: var(--ui-line);
+  border-radius: 14px;
+}
+:root .lp .df-banner {
+  border: 0;
+  border-radius: 14px;
+  color: #000;
+}
+:root .lp .df-banner.is-broke {
+  background: var(--pink);
+}
+:root .lp .df-banner.is-held {
+  background: var(--lime);
+}
+:root .lp .df-banner strong {
+  color: #000;
+}
+/* metrics: liquid-glass tiles over a solid cobalt strip */
+:root .lp .df-metrics {
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--cobalt);
+}
+:root .lp .df-metrics .liquid-glass {
+  padding: 12px 14px;
+  border-radius: 12px;
+}
+:root .lp .df-metrics :is(dt, dd, .is-bad, .is-ok) {
+  color: #fff;
+}
+:root .lp .df-q {
+  background: var(--cobalt);
+  border: 0;
+  border-radius: 14px;
+  color: #fff;
+}
+:root .lp .df-q .df-muted {
+  color: rgb(255 255 255 / 0.85);
+}
+:root .lp .df-gate {
+  border: 0;
+  border-radius: 16px;
+  color: #000;
+}
+:root .lp .df-gate.is-pass {
+  background: var(--lime);
+}
+:root .lp .df-gate.is-fail {
+  background: var(--pink);
+}
+:root .lp .df-gate :is(strong, .df-muted) {
+  color: #000;
+}
+:root .lp .df-finding.is-on {
+  border-color: var(--pink);
+}
+:root .lp .topo-node.is-flagged {
+  background: var(--pink);
+  border-color: var(--pink);
+  color: #000;
+}
+:root .lp .topo-node.is-flagged :is(.topo-kind, .topo-file, .topo-flag) {
+  color: rgb(0 0 0 / 0.75);
+}
+
+/* ---------- report demo ---------- */
+:root .lp .rp-overall {
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: var(--lime);
+  color: #000;
+}
+:root .lp .rp-overall :is(strong, .df-muted) {
+  color: #000;
+}
+:root .lp :is(.rp-chart, .rp-code, .rp-transcript) {
+  background: #0b0b0d;
+  border-color: var(--ui-line);
+  border-radius: 14px;
+}
+:root .lp .rp-transcript li.is-now {
+  background: var(--cobalt);
+}
+:root .lp .rp-moment {
+  border-radius: 12px;
+  background: var(--kind);
+  color: #000;
+}
+:root .lp .rp-moment .df-muted {
+  color: rgb(0 0 0 / 0.7);
+}
+:root .lp .rp-moment-time::before {
+  background: #000;
+}
+@media (hover: hover) and (pointer: fine) {
+  :root .lp .rp-moment:hover {
+    background: #fff;
+  }
+}
+:root .lp .mk-nudge {
+  --kind: var(--pink);
+}
+:root .lp .mk-run {
+  --kind: var(--cyan);
+}
+:root .lp .mk-hint {
+  --kind: var(--orange);
+}
+:root .lp .mk-good {
+  --kind: var(--lime);
+}
+:root .lp .mk-milestone {
+  --kind: #fff;
+}
+:root .lp .mk-issue {
+  --kind: #fff;
+}
+:root .lp .mk-integrity {
+  --kind: #6b6b75;
+}
+:root .lp .rp-scrub [data-slot="slider-range"] {
+  background: var(--lime);
+}
+:root .lp .rp-scrub [data-slot="slider-thumb"] {
+  background: #fff;
+  border-color: var(--lime);
+}
+
+/* ---------- browser surfaces (impeccable craft floor) ---------- */
+::selection {
+  background: var(--cobalt);
+  color: #fff;
+}
+:root {
+  caret-color: var(--lime);
+  scrollbar-color: #2a2a30 #000;
+  scrollbar-width: thin;
+}

@@ -6,71 +6,111 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bar, BarChart, LabelList, XAxis, YAxis } from "recharts";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import { Slider } from "@/components/ui/slider";
+import { HeadlineReveal } from "@/components/motion/HeadlineReveal";
 import { CodeEditor } from "@/components/room/CodeEditor";
+import { codeAt } from "@/lib/replay";
+import {
+  analysis,
+  CLARIFY_QUESTION,
+  clock,
+  codingReport,
+  dimensionLabel,
+  DRAFT_CODE,
+  FIXED_CODE,
+  nudge,
+  problem,
+  tabFlag,
+  transcript,
+  visibleRun,
+  WRAP_UP_QUESTION,
+} from "@/lib/fixtures";
+import type { EditorEvent, Moment, TimelineEvent } from "@/types/contracts";
 
-// Report + replay demo (FE-7 shape) for a recorded coding session, on mock timeline data.
+// Report + replay demo (FE-7 shape) for the shared Quiet Streak session: scores, moments and
+// metrics come from the report fixture. The code pane replays a timeline of editor events through the
+// shared codeAt (lib/replay.ts), the same function the real report will use.
 
-const DURATION = 31 * 60; // seconds
+const report = codingReport;
+const metrics = report.metrics;
+const DURATION = metrics.duration_s;
+const sec = (ms: number) => Math.round(ms / 1000);
 
-const DIMENSIONS = [
-  { name: "Problem solving", score: 8 },
-  { name: "Correctness", score: 7 },
-  { name: "Code quality", score: 8 },
-  { name: "Communication", score: 9 },
-  { name: "Independence", score: 6 },
-];
+const DIMENSIONS = report.dimensions.map((d) => ({ name: dimensionLabel(d.name), score: d.score, evidence: d.evidence }));
+const chartConfig = { score: { label: "Score", color: "#2f6bff" } } satisfies ChartConfig;
 
-const chartConfig = { score: { label: "Score", color: "#1c80ba" } } satisfies ChartConfig;
+type Kind = Moment["kind"] | "run";
+type Mark = { t: number; kind: Kind; title: string; detail: string };
 
-type Kind = "milestone" | "nudge" | "run" | "hint" | "good";
-type Moment = { t: number; kind: Kind; title: string; detail: string };
-
-const MOMENTS: Moment[] = [
-  { t: 72, kind: "good", title: "Stated a plan", detail: "Sliding window with two deques, linear time." },
-  { t: 410, kind: "run", title: "Run 1: 3 of 4", detail: "Empty input returned 1." },
-  { t: 432, kind: "nudge", title: "Nudge on empty input", detail: "“You mentioned handling an empty list. I don’t see that yet.”" },
-  { t: 610, kind: "hint", title: "Asked for a hint", detail: "Hint ladder level 1 (nudge)." },
-  { t: 905, kind: "run", title: "Run 2: 4 of 4", detail: "All visible tests pass." },
-  { t: 1520, kind: "milestone", title: "Submitted: 22 of 22", detail: "Hidden tests pass." },
-  { t: 1700, kind: "good", title: "Wrap-up answer", detail: "Explained O(n) time, O(k) space." },
-];
-
-const SNAPSHOTS: { t: number; code: string }[] = [
-  { t: 0, code: "def longest_steady_run(temps: list[int], k: int) -> int:\n    pass\n" },
+// Report moments, plus the timeline's run and integrity events as extra markers.
+const MARKS: Mark[] = [
+  ...report.moments.map((mo) => ({ t: sec(mo.t), kind: mo.kind, title: mo.title, detail: mo.tip ? `${mo.detail} ${mo.tip}` : mo.detail })),
   {
-    t: 180,
-    code: "def longest_steady_run(temps: list[int], k: int) -> int:\n    best = 1\n    left = 0\n    for right in range(len(temps)):\n        pass\n    return best\n",
+    t: sec(visibleRun.t),
+    kind: "run" as const,
+    title: `Run 1: ${visibleRun.passed} of ${visibleRun.total}`,
+    detail: "Visible tests pass.",
   },
-  {
-    t: 400,
-    code: "def longest_steady_run(temps: list[int], k: int) -> int:\n    best = 1\n    left = 0\n    for right in range(len(temps)):\n        window = temps[left:right + 1]\n        while max(window) - min(window) > k:\n            left += 1\n            window = temps[left:right + 1]\n        best = max(best, right - left + 1)\n    return best\n",
-  },
-  {
-    t: 880,
-    code: "def longest_steady_run(temps: list[int], k: int) -> int:\n    if not temps:\n        return 0\n    best = 1\n    left = 0\n    for right in range(len(temps)):\n        window = temps[left:right + 1]\n        while max(window) - min(window) > k:\n            left += 1\n            window = temps[left:right + 1]\n        best = max(best, right - left + 1)\n    return best\n",
-  },
-];
+  { t: sec(tabFlag.t), kind: "integrity" as const, title: "Noted", detail: tabFlag.detail },
+].sort((a, b) => a.t - b.t);
 
-const TRANSCRIPT: { t: number; who: "Interviewer" | "You"; text: string }[] = [
-  { t: 10, who: "Interviewer", text: "Read the problem, ask anything unclear, then talk me through your approach." },
-  { t: 48, who: "You", text: "Can readings be negative? Is k inclusive?" },
-  { t: 55, who: "Interviewer", text: "Yes to both." },
-  { t: 72, who: "You", text: "Sliding window with two deques for min and max. Linear time." },
-  { t: 432, who: "Interviewer", text: "You mentioned handling an empty list. I don’t see that yet." },
-  { t: 610, who: "Interviewer", text: "Look at what best starts as." },
-  { t: 1700, who: "Interviewer", text: "What’s the time complexity of your window?" },
-  { t: 1712, who: "You", text: "O(n) amortised; each index enters and leaves each deque once." },
+const FILE = "solution.py";
+
+/** One Monaco-style change turning `a` into `b` (common prefix and suffix kept). */
+function change(a: string, b: string) {
+  let pre = 0;
+  while (pre < a.length && pre < b.length && a[pre] === b[pre]) pre++;
+  let suf = 0;
+  while (suf < a.length - pre && suf < b.length - pre && a[a.length - 1 - suf] === b[b.length - 1 - suf]) suf++;
+  return { range_offset: pre, range_length: a.length - pre - suf, text: b.slice(pre, b.length - suf) };
+}
+
+// The session's code over time: the starter code, the draft growing a few lines at a time from the first
+// edit (time_to_first_edit_s), and the trailing-streak fix right after the nudge.
+const draftLines = DRAFT_CODE.split("\n");
+const upTo = (n: number) => draftLines.slice(0, n).join("\n") + "\n";
+const STATES: [t: number, code: string][] = [
+  [metrics.time_to_first_edit_s ?? 131, upTo(2)],
+  [175, upTo(3)],
+  [205, upTo(5)],
+  [245, upTo(8)],
+  [300, DRAFT_CODE],
+  [sec(nudge.t) + 48, FIXED_CODE],
+];
+const REPLAY: TimelineEvent[] = [
+  { seq: 1, t: 0, kind: "snapshot", payload: { t: 0, file: FILE, version: 1, code: problem.starter_code } },
+];
+STATES.reduce((prev, [t, code], i) => {
+  const edit: EditorEvent = { t: t * 1000, file: FILE, version: i + 2, kind: "change", changes: [change(prev, code)] };
+  REPLAY.push({ seq: i + 2, t: t * 1000, kind: "editor", payload: edit as unknown as TimelineEvent["payload"] });
+  return code;
+}, problem.starter_code);
+
+type Line = { t: number; who: "Interviewer" | "You"; text: string };
+const LINES: Line[] = [
+  { t: 60, who: "You", text: CLARIFY_QUESTION },
+  { t: 66, who: "Interviewer", text: "No. Quiet means strictly below the threshold." },
+  ...transcript.map((turn) => ({
+    t: sec(turn.end_ms),
+    who: turn.speaker === "candidate" ? ("You" as const) : ("Interviewer" as const),
+    text: turn.text,
+  })),
+  { t: 110, who: "You", text: analysis.stated_plan ?? "" },
+  { t: sec(nudge.t), who: "Interviewer", text: nudge.text },
+  { t: 1010, who: "Interviewer", text: WRAP_UP_QUESTION },
+  { t: 1018, who: "You", text: "O(n) time and O(1) space, one pass with a counter." },
+];
+const TRANSCRIPT = LINES.sort((a, b) => a.t - b.t);
+
+const TILES: [label: string, value: number, suffix: string][] = [
+  ["Duration", Math.round(DURATION / 60), " min"],
+  ["Runs", metrics.runs, ""],
+  ["Hidden tests", metrics.hidden_passed ?? 0, ` of ${metrics.hidden_total ?? 0}`],
+  ["Nudges", metrics.interventions_shown, ""],
+  ["Talk time", Math.round(metrics.talk_time_s / 60), " min"],
+  ["Longest silence", Math.round(metrics.longest_silence_s / 60), " min"],
 ];
 
 const SPEEDS = [1, 4, 16];
-
-const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
-
-function codeAt(t: number) {
-  let code = SNAPSHOTS[0].code;
-  for (const s of SNAPSHOTS) if (s.t <= t) code = s.code;
-  return code;
-}
 
 export function ReportDemo() {
   const [overall, setOverall] = useState(0);
@@ -81,7 +121,7 @@ export function ReportDemo() {
 
   // Roll the overall score up once on load.
   useEffect(() => {
-    const id = requestAnimationFrame(() => setOverall(78));
+    const id = requestAnimationFrame(() => setOverall(report.overall));
     return () => cancelAnimationFrame(id);
   }, []);
 
@@ -108,7 +148,7 @@ export function ReportDemo() {
     return () => cancelAnimationFrame(raf);
   }, [playing, speed]);
 
-  const code = useMemo(() => codeAt(t), [t]);
+  const code = useMemo(() => codeAt(REPLAY, FILE, t * 1000), [t]);
   const currentLine = TRANSCRIPT.reduce((idx, line, i) => (line.t <= t ? i : idx), -1);
 
   // Keep the current transcript line in view by scrolling the list only, never the page.
@@ -122,13 +162,18 @@ export function ReportDemo() {
     }
   }, [currentLine]);
 
+  const seek = (to: number) => {
+    setPlaying(false);
+    setT(to);
+  };
+
   return (
     <div className="rp">
       <header className="rm-top">
         <Link href="/" className="rm-brand" translate="no">
           Crucible
         </Link>
-        <span className="rp-crumb">Report · Longest Steady Run · Demo</span>
+        <span className="rp-crumb">Report · {problem.title} · Demo</span>
       </header>
 
       <div className="rp-body">
@@ -140,26 +185,25 @@ export function ReportDemo() {
             </strong>
           </div>
           <div className="rp-text">
-            <h1 id="rp-title">Solid process, one missed edge case</h1>
-            <p>
-              You stated a clear plan before coding and explained your complexity well. The empty-input case slipped
-              until the interviewer pointed at it, and one hint was needed to close it.
-            </p>
+            <HeadlineReveal as="h1" id="rp-title" onLoad>
+              {problem.title}
+            </HeadlineReveal>
+            <p>{report.summary}</p>
             <div className="rp-lists">
               <div>
                 <h2>Strengths</h2>
                 <ul>
-                  <li>Asked clarifying questions before coding</li>
-                  <li>Clean sliding-window structure</li>
-                  <li>Clear complexity explanation at wrap-up</li>
+                  {report.strengths.map((s) => (
+                    <li key={s}>{s}</li>
+                  ))}
                 </ul>
               </div>
               <div>
                 <h2>Improve</h2>
                 <ul>
-                  <li>List edge cases before the first run</li>
-                  <li>Avoid re-slicing the window each step</li>
-                  <li>Talk through fixes while you type</li>
+                  {report.improvements.map((s) => (
+                    <li key={s}>{s}</li>
+                  ))}
                 </ul>
               </div>
             </div>
@@ -169,28 +213,29 @@ export function ReportDemo() {
             <ChartContainer config={chartConfig} className="rp-chart-box">
               <BarChart data={DIMENSIONS} layout="vertical" margin={{ left: 8, right: 28 }} accessibilityLayer>
                 <XAxis type="number" domain={[0, 10]} hide />
-                <YAxis type="category" dataKey="name" width={120} tickLine={false} axisLine={false} tick={{ fill: "#a2a2a8", fontSize: 13 }} />
+                <YAxis type="category" dataKey="name" width={120} tickLine={false} axisLine={false} tick={{ fill: "#b4b4bc", fontSize: 13 }} />
                 <Bar dataKey="score" fill="var(--color-score)" radius={2} barSize={14} isAnimationActive={false}>
                   <LabelList dataKey="score" position="right" fill="#f2f2f0" fontSize={13} />
                 </Bar>
               </BarChart>
             </ChartContainer>
+            <dl className="rp-evidence">
+              {DIMENSIONS.map((d) => (
+                <div key={d.name}>
+                  <dt>{d.name}</dt>
+                  <dd>{d.evidence}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
         </section>
 
         <dl className="rp-metrics fr-metrics">
-          {[
-            ["Duration", 31, " min"],
-            ["Runs", 4, ""],
-            ["Hints", 1, ""],
-            ["Pasted chars", 0, ""],
-            ["Talk time", 9, " min"],
-            ["Longest silence", 3, " min"],
-          ].map(([label, value, suffix]) => (
-            <div key={label as string}>
+          {TILES.map(([label, value, suffix]) => (
+            <div key={label}>
               <dt>{label}</dt>
               <dd>
-                <NumberFlow value={value as number} suffix={suffix as string} />
+                <NumberFlow value={value} suffix={suffix} />
               </dd>
             </div>
           ))}
@@ -223,22 +268,16 @@ export function ReportDemo() {
               max={DURATION}
               step={1}
               thumbLabel="Replay position"
-              onValueChange={(v) => {
-                setPlaying(false);
-                setT(Array.isArray(v) ? v[0] : (v as number));
-              }}
+              onValueChange={(v) => seek(Array.isArray(v) ? v[0] : (v as number))}
             />
             <div className="rp-markers">
-              {MOMENTS.map((mo) => (
+              {MARKS.map((mo) => (
                 <button
                   key={mo.t}
                   type="button"
                   className={`rp-marker mk-${mo.kind}`}
                   style={{ left: `${(mo.t / DURATION) * 100}%` }}
-                  onClick={() => {
-                    setPlaying(false);
-                    setT(mo.t);
-                  }}
+                  onClick={() => seek(mo.t)}
                   aria-label={`${clock(mo.t)}: ${mo.title}`}
                   title={`${clock(mo.t)} · ${mo.title}`}
                 />
@@ -263,17 +302,10 @@ export function ReportDemo() {
           </div>
 
           <ul className="rp-moments" aria-label="Moments">
-            {MOMENTS.map((mo) => (
+            {MARKS.map((mo) => (
               <li key={mo.t}>
-                <button
-                  type="button"
-                  className={`rp-moment mk-${mo.kind}`}
-                  onClick={() => {
-                    setPlaying(false);
-                    setT(mo.t);
-                  }}
-                >
-                  <span className="df-muted">{clock(mo.t)}</span>
+                <button type="button" className={`rp-moment mk-${mo.kind}`} onClick={() => seek(mo.t)}>
+                  <span className="df-muted rp-moment-time">{clock(mo.t)}</span>
                   <strong>{mo.title}</strong>
                   <span>{mo.detail}</span>
                 </button>

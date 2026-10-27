@@ -17,6 +17,8 @@ export function CodeEditor({
   flagged = [],
   readOnly = false,
   onRun,
+  onEditor,
+  path,
   height = "100%",
 }: {
   value: string;
@@ -24,6 +26,10 @@ export function CodeEditor({
   flagged?: FlaggedLine[];
   readOnly?: boolean;
   onRun?: () => void;
+  /** The mounted Monaco editor, e.g. for `attachEditorCapture` (lib/capture/editor.ts). */
+  onEditor?: (editor: StandaloneEditor) => void;
+  /** One model per path (defense file tabs): switching keeps each file's edits and isn't an edit itself. */
+  path?: string;
   height?: string | number;
 }) {
   const editorRef = useRef<StandaloneEditor | null>(null);
@@ -48,6 +54,7 @@ export function CodeEditor({
     // Ctrl/Cmd+Enter runs the visible tests, same as the Run button.
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => runRef.current?.());
     applyFlags();
+    onEditor?.(editor);
   };
 
   function applyFlags() {
@@ -73,6 +80,7 @@ export function CodeEditor({
   return (
     <Editor
       height={height}
+      path={path}
       defaultLanguage="python"
       value={value}
       theme="crucible"

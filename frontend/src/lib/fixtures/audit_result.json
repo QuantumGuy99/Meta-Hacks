@@ -1,0 +1,58 @@
+{
+  "summary": "A small FastAPI service with a transfer route that updates account balances held in memory.",
+  "nodes": [
+    {"id": "n1", "label": "POST /transfer", "kind": "route", "file": "app/main.py", "flagged": true},
+    {"id": "n2", "label": "accounts service", "kind": "service", "file": "app/accounts.py", "flagged": false},
+    {"id": "n3", "label": "balances (in memory)", "kind": "store", "file": null, "flagged": false}
+  ],
+  "edges": [
+    {"source": "n1", "target": "n2", "label": "transfer()"},
+    {"source": "n2", "target": "n3", "label": "read / write"}
+  ],
+  "findings": [
+    {
+      "id": "f1",
+      "title": "Balance transfers under load",
+      "category": "race_condition",
+      "severity": "critical",
+      "file": "app/main.py",
+      "line_start": 41,
+      "line_end": 58,
+      "node_id": "n1",
+      "explanation": "The route reads the sender balance, awaits the fraud check, then writes balance - amount. Concurrent transfers read the same balance, so later writes overwrite earlier ones and money disappears.",
+      "chaos": {
+        "endpoint": "/transfer",
+        "method": "POST",
+        "body_example": "{\"from\": \"acc-1\", \"to\": \"acc-2\", \"amount\": 10}",
+        "concurrency": 200,
+        "duration_s": 10,
+        "invariant": "the sum of all balances stays 10000",
+        "p95_threshold_ms": null
+      },
+      "grill": {
+        "question": "Under load, money disappeared from this service. Why did that happen?",
+        "expected_points": [
+          "the balance is read, then written after an await, with nothing guarding it (read-modify-write race)",
+          "concurrent requests read the same stale balance and overwrite each other's writes",
+          "make the read and write atomic: a lock per account or a database transaction"
+        ],
+        "follow_up": "What would you change so two transfers can't interleave like that?"
+      },
+      "fix_steps": [
+        {
+          "id": "x1",
+          "title": "Make the balance update atomic",
+          "description": "No await between reading and writing a balance without a lock or transaction.",
+          "required": true,
+          "order": 1,
+          "look_for": ["asyncio.Lock around the read and write", "a single transaction"],
+          "hints": [
+            "Look at what can run between line 44 and line 52.",
+            "What happens if a second transfer reads the balance during the fraud check?",
+            "The read and the write need to happen as one step."
+          ]
+        }
+      ]
+    }
+  ]
+}

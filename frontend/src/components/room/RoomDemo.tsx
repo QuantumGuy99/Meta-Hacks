@@ -7,76 +7,83 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import { toast } from "sonner";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { attachEditorCapture, type EditorCapture } from "@/lib/capture/editor";
+import {
+  analysis,
+  clock,
+  codingReport,
+  codingSession,
+  DRAFT_CODE,
+  levelLabel,
+  nudge,
+  pasteFlag,
+  problem,
+  recordsTrailingStreak,
+  S2_HINTS,
+  sessionState,
+  STEP_TITLES,
+  submitResult,
+  visibleRun,
+  WRAP_UP_QUESTION,
+} from "@/lib/fixtures";
+import type { ClientMessage, InterventionLevel, RunResult, StepStatus } from "@/types/contracts";
 import { CodeEditor, type FlaggedLine } from "./CodeEditor";
-import { InterviewerPanel, type InterviewerState, type RoomMessage } from "./InterviewerPanel";
-import { TestPanel, type RunResult } from "./TestPanel";
+import { InterviewerPanel, type InterviewerState, type RoomMessage, type RoomNote } from "./InterviewerPanel";
+import { TestPanel } from "./TestPanel";
 
-// Scripted demo of the interview room. Everything the backend will drive over the session
-// WebSocket (interviewer messages, run results, notes) is faked locally here.
+// Scripted demo of the interview room on the shared Quiet Streak fixture. Everything the
+// backend will drive over the session WebSocket (messages, run results, notes) is replayed
+// from those fixtures locally. Edits go through the real capture lib (lib/capture/editor.ts); with no
+// backend yet, its messages are counted here and pastes become the same neutral note the server would send.
 
-const PROBLEM = `Given hourly temperature readings \`temps\` and a tolerance \`k\`, return the length of the
-**longest run of consecutive readings** where the highest and lowest reading differ by at most \`k\`.
-
-**Example**
-- \`temps = [4, 6, 5, 9, 8]\`, \`k = 2\` → \`3\` (the run \`4, 6, 5\`)
-
-**Constraints**
-- \`0 ≤ len(temps) ≤ 10⁵\`
-- Readings can be negative; \`k ≥ 0\``;
-
-const STARTER = `def longest_steady_run(temps: list[int], k: int) -> int:
-    best = 1
-    left = 0
-    for right in range(len(temps)):
-        window = temps[left:right + 1]
-        while max(window) - min(window) > k:
-            left += 1
-            window = temps[left:right + 1]
-        best = max(best, right - left + 1)
-    return best
-`;
-
-const HINTS = [
-  "Look at what `best` starts as.",
-  "What should the function return when `temps` is empty?",
-  "Guard the empty case before the loop, or start `best` at 0.",
-];
+const PROBLEM_MD = [
+  problem.statement_md,
+  "**Example**",
+  ...problem.examples.map((e) => `- \`${e.input}\` → \`${e.output}\`${e.explanation ? `: ${e.explanation}` : ""}`),
+  "**Constraints**",
+  ...problem.constraints.map((c) => `- \`${c}\``),
+].join("\n\n");
 
 const PHASES = ["Clarify", "Coding", "Wrap up"] as const;
-const LIMIT_S = 30 * 60;
+const issue = analysis.issues[0];
 
 let seq = 0;
 const nextId = () => `m${++seq}`;
 
-function handlesEmpty(code: string) {
-  return /if\s+not\s+temps\s*:/.test(code) || /len\(\s*temps\s*\)\s*==\s*0/.test(code) || /best\s*=\s*0\b/.test(code);
-}
+// The same submission once the trailing streak is recorded: every case passes.
+const passingSubmit: RunResult = {
+  ...submitResult,
+  run_id: "r3",
+  passed: submitResult.total,
+  cases: submitResult.cases.map((c) => ({ ...c, passed: true, error: null, actual_repr: c.expected_repr })),
+};
 
-function fakeRun(code: string, kind: "run" | "submit"): RunResult {
-  const empty = handlesEmpty(code);
-  return {
-    kind,
-    runtimeMs: 38 + Math.round(Math.random() * 20),
-    cases: [
-      { id: "t1", passed: true, input: "[4, 6, 5, 9, 8], k=2", expected: "3", actual: "3" },
-      { id: "t2", passed: true, input: "[1, 1, 1], k=0", expected: "3", actual: "3" },
-      { id: "t3", passed: empty, input: "[], k=3", expected: "0", actual: empty ? "0" : "1" },
-      { id: "t4", passed: true, input: "[-2, 5, -1, 0], k=3", expected: "3", actual: "3" },
-    ],
-  };
+function reply(text: string) {
+  if (/equal|threshold/i.test(text)) return "No. Quiet means strictly below the threshold.";
+  if (/empty|no readings/i.test(text)) return "Good: an empty list returns 0.";
+  if (/count|single pass|one pass|loop/i.test(text))
+    return "That plan works. Keep an eye on when you record the best length.";
+  return "Good. State your approach in a sentence, then start coding. I’ll stay quiet unless something needs a look.";
 }
 
 export function RoomDemo() {
-  const [code, setCode] = useState(STARTER);
-  const [phase, setPhase] = useState(0);
-  const [remaining, setRemaining] = useState(LIMIT_S);
-  const [messages, setMessages] = useState<RoomMessage[]>([]);
+  const [code, setCode] = useState(DRAFT_CODE);
+  const [phase, setPhase] = useState(1);
+  const [remaining, setRemaining] = useState(sessionState.remaining_s ?? codingSession.time_limit_s);
+  // Pick up mid-session: the candidate's stated plan is already on record.
+  const [messages, setMessages] = useState<RoomMessage[]>(() => [
+    { id: "plan", who: "you", text: analysis.stated_plan ?? "" },
+  ]);
   const [streamingId, setStreamingId] = useState<string | null>(null);
-  const [state, setState] = useState<InterviewerState>("thinking");
+  const [state, setState] = useState<InterviewerState>(sessionState.interviewer_state);
   const [hintsUsed, setHintsUsed] = useState(0);
   const [result, setResult] = useState<RunResult | null>(null);
   const [running, setRunning] = useState(false);
   const [flagged, setFlagged] = useState<FlaggedLine[]>([]);
+  const [sent, setSent] = useState(0);
+  const [pasteNotes, setPasteNotes] = useState<string[]>([]);
+  const capture = useRef<EditorCapture | null>(null);
+  const editorRef = useRef<Parameters<NonNullable<Parameters<typeof CodeEditor>[0]["onEditor"]>>[0] | null>(null);
   const queue = useRef<RoomMessage[]>([]);
   const streaming = useRef<string | null>(null);
   const router = useRouter();
@@ -95,23 +102,43 @@ export function RoomDemo() {
   }, []);
 
   const say = useCallback(
-    (text: string, level?: RoomMessage["level"]) => {
+    (text: string, level?: InterventionLevel) => {
       queue.current.push({ id: nextId(), who: "interviewer", level, text });
       if (!streaming.current) startNext();
     },
     [startNext],
   );
 
-  const onStreamDone = startNext;
-
-  // Intro.
   useEffect(() => {
     const id = window.setTimeout(
-      () => say("Hi, I’m your interviewer today. Read the problem on the left, ask anything that’s unclear, then talk me through your approach before you code.", "Info"),
-      500,
+      () => say("Sounds good. Go ahead and code it; I’ll stay quiet unless something needs a look.", "info"),
+      600,
     );
     return () => window.clearTimeout(id);
   }, [say]);
+
+  // Stand-in for the session socket: count what the capture lib sends, and turn pastes into notes.
+  const send = useCallback((msg: ClientMessage) => {
+    setSent((n) => n + (msg.type === "editor.events" ? msg.events.length : 1));
+    if (msg.type !== "editor.events") return;
+    for (const e of msg.events) {
+      if (e.kind === "paste" && e.pasted_chars) {
+        setPasteNotes((list) => [...list, `Pasted ${e.pasted_chars} chars at ${clock(e.t / 1000)}`]);
+      }
+    }
+  }, []);
+
+  const onEditor = useCallback(
+    (editor: NonNullable<typeof editorRef.current>) => {
+      editorRef.current = editor;
+      capture.current?.dispose();
+      // The session is already this far in: event times continue from the fixture's clock.
+      const elapsedMs = (codingSession.time_limit_s - (sessionState.remaining_s ?? 0)) * 1000;
+      capture.current = attachEditorCapture(editor, send, { startedAtMs: Date.now() - elapsedMs });
+    },
+    [send],
+  );
+  useEffect(() => () => capture.current?.dispose(), []);
 
   // Countdown.
   useEffect(() => {
@@ -119,52 +146,72 @@ export function RoomDemo() {
     return () => window.clearInterval(id);
   }, []);
 
-  // The flag disappears as soon as the empty case is handled.
-  const emptyHandled = useMemo(() => handlesEmpty(code), [code]);
-  const shownFlags = emptyHandled ? [] : flagged;
+  // The flag clears as soon as the trailing streak is recorded.
+  const fixed = useMemo(() => recordsTrailingStreak(code), [code]);
+  const shownFlags = fixed ? [] : flagged;
+
+  const steps = analysis.steps.map((s) => {
+    const done = s.step_id === "s2" && fixed;
+    const after = codingReport.coding?.steps.find((r) => r.step_id === s.step_id);
+    return {
+      title: STEP_TITLES[s.step_id] ?? s.step_id,
+      status: (done ? "done" : s.status) as StepStatus,
+      evidence: done ? (after?.evidence ?? s.evidence) : s.evidence,
+    };
+  });
+  const notes: RoomNote[] = [
+    ...steps,
+    { title: pasteFlag.detail.charAt(0).toUpperCase() + pasteFlag.detail.slice(1), status: "noted" },
+    ...pasteNotes.map((title) => ({ title, status: "noted" as const })),
+  ];
+
+  // Resetting is a programmatic edit: the capture lib snapshots it instead of logging it as typing.
+  const reset = () => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    if (capture.current) capture.current.programmatic(() => editor.setValue(problem.starter_code));
+    else editor.setValue(problem.starter_code);
+    setFlagged([]);
+    setResult(null);
+  };
 
   const ask = (text: string) => {
     setMessages((list) => [...list, { id: nextId(), who: "you", text }]);
-    if (phase === 0) setPhase(1);
     setState("thinking");
-    const reply = /negative/i.test(text)
-      ? "Yes, readings can be negative. A run where max minus min equals `k` still counts."
-      : /window|deque|two pointer/i.test(text)
-        ? "That approach works. What will you return for an empty list?"
-        : "Good. State your approach in a sentence, then start coding. I’ll stay quiet unless something needs a look.";
-    window.setTimeout(() => say(reply), 700);
+    window.setTimeout(() => say(reply(text)), 700);
   };
 
   const hint = () => {
-    if (hintsUsed >= HINTS.length) return;
-    const levels = ["Nudge", "Question", "Hint"] as const;
-    say(HINTS[hintsUsed], levels[hintsUsed]);
+    if (hintsUsed >= S2_HINTS.length) return;
+    const h = S2_HINTS[hintsUsed];
+    say(h.text, h.level);
     setHintsUsed((n) => n + 1);
   };
 
   const run = (kind: "run" | "submit") => {
     if (running) return;
-    if (phase === 0) setPhase(1);
+    // The backend must see the exact code being run.
+    capture.current?.snapshot();
     setRunning(true);
     setResult(null);
     window.setTimeout(() => {
-      const r = fakeRun(code, kind);
+      const r = kind === "run" ? visibleRun : fixed ? passingSubmit : submitResult;
       setResult(r);
       setRunning(false);
-      const failed = r.cases.filter((c) => !c.passed).length;
+      const failed = r.total - r.passed;
       if (failed) {
-        toast.error(`${failed} of ${r.cases.length} tests failed`, { description: "The interviewer flagged a line." });
-        setFlagged([{ line: 2, note: "What does this return for an empty list?" }]);
-        say("You mentioned handling an empty list. I don’t see that yet.", "Nudge");
+        toast.error(`${failed} of ${r.total} tests failed`, { description: "The interviewer flagged a line." });
+        if (issue?.line) setFlagged([{ line: issue.line, note: issue.description }]);
+        say(nudge.text, nudge.level);
       } else if (kind === "submit") {
         setPhase(2);
-        toast.success("Submitted: 22 of 22 hidden tests passed", {
+        toast.success(`Submitted: ${r.passed} of ${r.total} tests passed`, {
           action: { label: "See Report", onClick: () => router.push("/report/demo") },
         });
-        say("All hidden tests pass. Last question: what’s the time complexity of your window, and could you avoid re-slicing?", "Question");
+        say(`All tests pass. Last question: ${WRAP_UP_QUESTION}`, "question");
       } else {
         toast.success("All visible tests passed");
-        say("Visible tests pass. Submit when you’re ready.", "Info");
+        say("Visible tests pass. Submit when you’re ready.", "info");
       }
     }, 800);
   };
@@ -185,7 +232,7 @@ export function RoomDemo() {
             </li>
           ))}
         </ol>
-        <span className="room-badge">Active feedback · Demo</span>
+        <span className="room-badge">{levelLabel(codingSession.config.feedback ?? "active")} feedback · Demo</span>
         <span className="rm-timer" aria-label={`${mins} minutes ${secs} seconds left`}>
           <NumberFlowGroup>
             <NumberFlow value={mins} format={{ minimumIntegerDigits: 2 }} />
@@ -201,11 +248,13 @@ export function RoomDemo() {
         <ResizablePanel defaultSize="26%" minSize="18%">
           <section className="rm-panel rm-problem" aria-label="Problem">
             <header className="rm-panel-head">
-              <span>Longest Steady Run</span>
-              <span className="rm-tag">Medium · Sliding window</span>
+              <span>{problem.title}</span>
+              <span className="rm-tag">
+                {levelLabel(problem.difficulty)} · {problem.topics.map(levelLabel).join(", ")}
+              </span>
             </header>
             <Streamdown className="rm-md" mode="static" controls={false}>
-              {PROBLEM}
+              {PROBLEM_MD}
             </Streamdown>
           </section>
         </ResizablePanel>
@@ -216,7 +265,13 @@ export function RoomDemo() {
               <section className="rm-panel rm-editor" aria-label="Editor">
                 <header className="rm-panel-head">
                   <span translate="no">solution.py</span>
+                  <span className="rm-capture" aria-live="off" title="Edit events sent by the capture library">
+                    Capture · <NumberFlow value={sent} /> events
+                  </span>
                   <span className="rm-actions">
+                    <button type="button" className="ui-btn" onClick={reset}>
+                      Reset Code
+                    </button>
                     <button type="button" className="ui-btn" onClick={() => run("run")} disabled={running}>
                       Run
                     </button>
@@ -226,15 +281,7 @@ export function RoomDemo() {
                   </span>
                 </header>
                 <div className="rm-editor-host">
-                  <CodeEditor
-                    value={code}
-                    onChange={(v) => {
-                      setCode(v);
-                      if (phase === 0) setPhase(1);
-                    }}
-                    flagged={shownFlags}
-                    onRun={() => run("run")}
-                  />
+                  <CodeEditor value={code} onChange={setCode} flagged={shownFlags} onRun={() => run("run")} onEditor={onEditor} />
                 </div>
               </section>
             </ResizablePanel>
@@ -250,10 +297,11 @@ export function RoomDemo() {
             messages={messages}
             state={state}
             streamingId={streamingId}
-            onStreamDone={onStreamDone}
+            onStreamDone={startNext}
             onAsk={ask}
             onHint={hint}
-            hintsLeft={HINTS.length - hintsUsed}
+            hintsLeft={S2_HINTS.length - hintsUsed}
+            notes={notes}
           />
         </ResizablePanel>
       </ResizablePanelGroup>

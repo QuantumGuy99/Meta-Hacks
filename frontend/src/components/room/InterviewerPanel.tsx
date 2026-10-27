@@ -4,12 +4,26 @@ import { AnimatePresence, m } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import "streamdown/styles.css";
+import { levelLabel } from "@/lib/fixtures";
+import type { InterventionLevel, StepStatus } from "@/types/contracts";
 
 export type RoomMessage = {
   id: string;
   who: "interviewer" | "you";
-  level?: "Info" | "Nudge" | "Question" | "Hint" | "Concept";
+  level?: InterventionLevel;
   text: string;
+};
+
+/** A line in the interviewer's notes: a rubric step's progress, or a neutral integrity note. */
+export type RoomNote = { title: string; status: StepStatus | "noted"; evidence?: string };
+
+const NOTE_CHIP: Record<RoomNote["status"], [label: string, className: string]> = {
+  done: ["Done", "st-done"],
+  in_progress: ["Watching", "st-prog"],
+  not_started: ["Missing", "st-miss"],
+  incorrect: ["Missing", "st-miss"],
+  skipped: ["Skipped", "st-prog"],
+  noted: ["Noted", "st-prog"],
 };
 
 export type InterviewerState = "idle" | "listening" | "thinking" | "speaking";
@@ -70,6 +84,7 @@ export function InterviewerPanel({
   onAsk,
   onHint,
   hintsLeft,
+  notes = [],
 }: {
   messages: RoomMessage[];
   state: InterviewerState;
@@ -78,6 +93,7 @@ export function InterviewerPanel({
   onAsk: (text: string) => void;
   onHint: () => void;
   hintsLeft: number;
+  notes?: RoomNote[];
 }) {
   const [draft, setDraft] = useState("");
   const list = useRef<HTMLDivElement>(null);
@@ -101,7 +117,7 @@ export function InterviewerPanel({
           {messages.map((msg) => (
             <m.div
               key={msg.id}
-              className={`msg ${msg.who === "you" ? "msg-you" : "msg-ai"} ${msg.level === "Nudge" ? "msg-nudge" : ""}`}
+              className={`msg ${msg.who === "you" ? "msg-you" : "msg-ai"} ${msg.level === "nudge" ? "msg-nudge" : ""}`}
               layout="position"
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -109,7 +125,7 @@ export function InterviewerPanel({
             >
               <span className="msg-who">
                 {msg.who === "you" ? "You" : "Interviewer"}
-                {msg.level ? ` · ${msg.level}` : ""}
+                {msg.level ? ` · ${levelLabel(msg.level)}` : ""}
               </span>
               {msg.who === "you" ? (
                 <p>{msg.text}</p>
@@ -120,6 +136,20 @@ export function InterviewerPanel({
           ))}
         </AnimatePresence>
       </div>
+
+      {notes.length > 0 && (
+        <div className="room-notes rm-notes" aria-label="Interviewer's notes" aria-live="polite">
+          {notes.map((n) => {
+            const [label, cls] = NOTE_CHIP[n.status];
+            return (
+              <div key={n.title} className="note" title={n.evidence}>
+                <span className={`st ${cls}`}>{label}</span>
+                {n.title}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <form
         className="rm-ask"

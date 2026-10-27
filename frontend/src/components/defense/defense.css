@@ -117,7 +117,7 @@
 }
 .topo-flag {
   font-size: 13px;
-  color: #ff7b72;
+  color: #ffffff;
 }
 .df-side {
   display: flex;
@@ -181,7 +181,7 @@
   border: 1px solid var(--danger);
 }
 .df-banner.is-broke strong {
-  color: #ff7b72;
+  color: #ffffff;
 }
 .df-banner.is-held {
   background: #111a15;
@@ -213,7 +213,7 @@
   background: currentColor;
 }
 .lg-bad {
-  color: #ff7b72;
+  color: #ffffff;
 }
 .lg-ok {
   color: var(--ok);
@@ -237,9 +237,10 @@
   flex-direction: column;
   gap: 8px;
   padding: 18px;
-  border-left: 3px solid var(--secondary-blue);
-  background: var(--surface);
-  border-radius: 0 6px 6px 0;
+  /* the interviewer's tint, matching .msg-ai, instead of a side stripe */
+  background: rgb(22 112 166 / 0.1);
+  border: 1px solid rgb(22 112 166 / 0.32);
+  border-radius: 6px;
 }
 .df-answer {
   display: flex;
@@ -282,7 +283,14 @@
   color: var(--ok);
 }
 .is-miss > span {
-  color: #ff7b72;
+  color: #ffffff;
+}
+/* the interviewer's follow-up when the fix point was missed */
+.df-follow {
+  padding: 12px 14px;
+  border: 1px solid var(--ui-line-2);
+  border-radius: 4px;
+  color: var(--ink);
 }
 
 /* verdict */
@@ -319,13 +327,205 @@
   border: 1px solid var(--danger);
 }
 .df-gate.is-fail strong {
-  color: #ff7b72;
+  color: #ffffff;
+}
+
+/* stage label derived from phase + data (Auditing, Broke, Fixing, Merge approved…) */
+.df-label {
+  padding: 3px 10px;
+  border: 1px solid var(--ui-line-2);
+  border-radius: 3px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12.5px;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+/* chaos: the generated attack, collapsed by default */
+.df-script summary {
+  cursor: pointer;
+  color: var(--muted-ink);
+}
+.df-script p {
+  margin: 10px 0 8px;
+}
+.df-script pre {
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-line);
+  border-radius: 6px;
+  background: var(--ui-bg);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+/* grill: question and answer on the left, the diagram to circle on the right */
+.df-grill-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.df-circle {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.df-circle-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.df-topo-grill {
+  position: relative;
+  height: 420px;
+}
+.df-pen {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+.topo-node.is-pulsing {
+  outline: 2px solid var(--secondary-blue);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .topo-node.is-pulsing {
+    animation: node-pulse 1.4s var(--ease-out) infinite;
+  }
+}
+@keyframes node-pulse {
+  50% {
+    outline-offset: 8px;
+    outline-color: transparent;
+  }
+}
+/* the finding's explanation, only after the grill is graded */
+.df-reveal {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--ui-line);
+  border-radius: 6px;
+  background: var(--ui-bg);
+  line-height: 1.5;
+}
+
+/* fix: file tabs + editor, the fix rubric beside it */
+.df-fix {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 16px;
+  height: calc(100svh - 140px);
+  min-height: 480px;
+}
+.df-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--ui-line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--ui-bg);
+}
+.df-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.df-tabs button {
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted-ink);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.df-tabs button.is-on {
+  background: var(--surface);
+  color: var(--ink);
+}
+.df-tabs button:focus-visible {
+  outline: 2px solid var(--secondary-blue);
+  outline-offset: 1px;
+}
+.df-tabs .rm-capture {
+  margin-left: auto;
+  padding-right: 6px;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--muted-ink);
+  font-variant-numeric: tabular-nums;
+}
+.df-editor-host {
+  flex: 1;
+  min-height: 0;
+}
+.df-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+.lg-before {
+  color: var(--muted-ink);
+}
+
+/* verdict: the gate beside the merge-gate card */
+.df-gate-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.df-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 240px;
+  margin: 0;
+  padding: 18px 20px;
+  border: 1px solid var(--ui-line-2);
+  border-radius: 6px;
+  background: var(--ui-bg);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 13px;
+  color: var(--muted-ink);
+}
+.df-card-app {
+  color: var(--ink);
+}
+.df-card strong {
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+.df-card strong.is-pass {
+  color: var(--ok);
+}
+.df-card strong.is-fail {
+  color: #ffffff;
 }
 
 @media (max-width: 900px) {
-  .df-audit {
+  .df-audit,
+  .df-fix,
+  .df-grill-grid {
     grid-template-columns: 1fr;
     height: auto;
+  }
+  .df-editor {
+    height: 420px;
   }
   .df-topo {
     height: 420px;
