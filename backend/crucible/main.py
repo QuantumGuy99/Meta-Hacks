@@ -10,6 +10,7 @@ still boots with just /api/health. TODO(S-0): drop the import guard once #5, #6 
 from __future__ import annotations
 
 import importlib
+import inspect
 import logging
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -75,23 +76,28 @@ def _engine() -> _EngineParts | None:
     )
     if not all((api, hub, coding, common, repo)):
         return None
-    controllers = {common.Mode.CODING: coding.CodingController}
+    if hasattr(coding, "CodingMode"):  # ENG-4 (#9): the hub takes mode factories
+        problems = _import("crucible.coding.problems")
+        controllers = {common.Mode.CODING: coding.CodingMode(problems.ProblemBank.load(strict=False))}
+    else:  # ENG-1 (#8): the hub takes controller classes
+        controllers = {common.Mode.CODING: coding.CodingController}
     defense = _import("crucible.defense.controller")  # DEF-6; until then defense sessions get 400
     if defense is not None:
-        controllers[common.Mode.DEFENSE] = defense.DefenseController
+        controllers[common.Mode.DEFENSE] = defense.make_mode()
     return _EngineParts(
         router=api.router, hub_cls=hub.SessionHub, controllers=controllers, store_cls=repo.SqliteStore
     )
 
 
-def _configure_models(s: Settings) -> None:
+def _configure_models(s: Settings) -> Any | None:
+    """Configure the model wrapper (#6); returns the LLM, or None without a key or before #6 merges."""
     llm = _import("crucible.models.llm")
     if llm is None:
-        return
+        return None
     if not s.has_meta_key:
         logger.warning("MODEL_API_KEY is empty: model calls will fail until it's set in .env")
-        return
-    llm.configure(
+        return None
+    return llm.configure(
         llm.LLMSettings(
             api_key=s.MODEL_API_KEY,
             base_url=s.META_BASE_URL,
@@ -120,9 +126,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.settings = s
         store = hub = None
         if engine is not None:
-            _configure_models(s)
+            model = _configure_models(s)
             store = await engine.store_cls.open(s.database_path)
-            hub = engine.hub_cls(store, engine.controllers)
+            params = inspect.signature(engine.hub_cls).parameters
+            hub = engine.hub_cls(store, engine.controllers, **({"model": model} if "model" in params else {}))
             app.state.store, app.state.hub = store, hub
         try:
             yield
