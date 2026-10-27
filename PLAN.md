@@ -982,54 +982,82 @@ every step done" can't steer it.
 
 **ENG-4 ships a thin policy** for IC1: only `MISSED_STEP` (with `incorrect` counting as a later step being
 under way, as Spark at `minimal` marks a buggy loop), the 45 s cooldown, the 2.5 s quiet window and no
-repeats, delivered at nudge level with the analyzer's wording or the rubric's first hint. ENG-5 replaces it
+repeats, delivered at nudge level with the analyzer's wording or the rubric's first hint. ENG-5 replaced it
 with the full §9.5 table. The leak guard's code check catches fences and two or more statement lines,
 including block headers like `if not xs:`.
 
 ### 9.5 Policy (`policy.py`): code decides
 
-State per session: `last_unsolicited_t`, `unsolicited_count`, `ladder_level[step_id]` (0–3),
-`fired_once: set`, `issue_seen: dict[key → (first_t, count)]`, `plan_mismatch_count`.
+`PolicyState` (one per session) collects what happened (`observe_analysis`, `observe_run`, `observe_edit`,
+`ask`, `request_hint`) and what was already said: the ladder per step, `hints_by_level`, the cooldown clock, the
+unsolicited times for the cap, the `(trigger, subject, level)` set already used, and the held message. `decide(state,
+facts)` returns at most one `Decision`. `Facts` is the session right now (time, phase, feedback mode, voice,
+time limit, steps, the main file's code, lines written beyond the starter code, last edit, last speech,
+speech in progress). Neither does I/O or reads a clock. `engine/live.py` feeds the state from the timeline
+and calls `decide()` in one policy task: every 0.5 s for the time rules, and at once on a question, a hint
+request, a run or an analysis.
 
-**Global guards (active mode):**
-- Never deliver an unsolicited message within **2.5 s** of the last edit or while candidate speech is in
-  progress. Hold it in a one-slot queue and deliver when quiet (drop if stale > 20 s).
-- **45 s** minimum between unsolicited interventions; at most **8 unsolicited per 30 min**.
-- Never repeat the same `(trigger, step_id)` at the same ladder level.
+**Global guards (unsolicited messages, both modes):**
+- Never deliver within **2.5 s** of the last edit or while candidate speech is in progress. Hold it in a
+  one-slot queue, re-check the rules each tick, and deliver when quiet. If it's held for more than **20 s**,
+  drop it; the rule then waits for fresh evidence (2 new analyses, or a new run).
+- **45 s** minimum between unsolicited messages; answers (`ASKED`, `HINT_REQUESTED`) restart that clock too,
+  so a nudge never lands right after an answer. At most **8 unsolicited per 30 min**.
+- Never repeat the same `(trigger, subject)` at the same level. The subject is the step for ladder rules, the
+  issue for `BUG_SUSPECTED` and the plan for `PLAN_MISMATCH`. `SILENT` and `IDLE` repeat on their own clocks.
+- An analysis rule fires again for the same step or issue only after **2 analyses newer than its last fire**,
+  so the ladder climbs on fresh evidence, not on a timer.
+- `ASKED`, `HINT_REQUESTED` and `TIME_WARNING` skip these guards: they answer the candidate or tell the time.
 
 **Rules** (evaluated in this order; the first match wins):
 
 | Rule | Fires when | Level | Once? |
 |---|---|---|---|
-| `ASKED` | `chat.send` / voice question to the interviewer | answer (§9.6) | — |
-| `HINT_REQUESTED` | `hint.request` | next ladder level for the step (analyzer's proposal step, else the first not-done required step) | — |
-| `TIME_WARNING` | 50% and 80% of the time limit elapsed | INFO | each once |
-| `PASTE` | paste ≥ 40 chars or ≥ 2 lines, or a bulk insert | INFO, neutral ("I noticed a pasted block. I'll focus my feedback on the parts you wrote.") | spoken once; every flag logged |
-| `CODED_BEFORE_PLAN` (P1) | first ≥ 3 non-blank lines written while `stated_plan` is null, voice on | QUESTION ("Before you go further, what's your approach?") | once |
-| `RUN_FAILED` | the same visible test failed on 2 runs, or 1 failure followed by 30 s idle | ladder for the related step/mistake | — |
-| `MISSED_STEP` | a required step is `skipped`/`not_started` while a step with higher `order` is `in_progress`/`done`, seen in **2 consecutive analyses**, confidence ≥ 0.7 | ladder | — |
-| `BUG_SUSPECTED` | an issue with confidence ≥ 0.75, seen in 2 consecutive analyses, its line unchanged for 20 s | NUDGE (point at the region, never the fix) | per issue |
-| `PLAN_MISMATCH` (P1) | `plan_matches_code == false` in 2 consecutive analyses | QUESTION | per plan |
-| `SILENT` (P1, voice on) | in `coding`, ≥ 120 s without candidate speech | NUDGE ("Talk me through what you're doing.") | every 5 min max |
-| `IDLE` | no edit and no speech ≥ 75 s | QUESTION ("Where are you at?") | every 3 min max |
+| `ASKED` | a `chat.send` that reads as a question: it ends in "?" or opens with a question word (`is_question`; statements typed in chat are thinking aloud) | QUESTION; a canned Socratic reply until ENG-6's `answer()` | — |
+| `HINT_REQUESTED` | `hint.request` | next ladder level for the step (the requested step, else the analyzer's proposal step, else the first not-done required step) | — |
+| `TIME_WARNING` | 50% and 80% of the time limit elapsed | INFO, text only | each once (both at once give one) |
+| `PASTE` | paste ≥ 40 chars or ≥ 2 non-blank lines, or a bulk insert (≥ 80 chars in one change) | INFO, text only, neutral ("I noticed a pasted block. I'll focus my feedback on the parts you wrote.") | said once; COD-4 logs every flag |
+| `CODED_BEFORE_PLAN` (P1) | ≥ 3 non-blank lines written beyond the starter code (the editor's first snapshot) while the latest analysis has `stated_plan` null, voice on, in `clarify`/`coding` | QUESTION ("Before you go further, what's your approach?") | once |
+| `RUN_FAILED` | the same visible test failed on 2 runs in a row, or 1 failure then 30 s with no edit or speech (hidden tests never count) | ladder for the step: the analyzer's `RUN_FAILED` step, else the first `incorrect` step, else the first required step not done | — |
+| `MISSED_STEP` | a required step is `skipped`/`not_started` while a step with higher `order` is `in_progress`/`done`/`incorrect`, seen in **2 consecutive analyses**; waits while the analyzer's own proposal for it is below 0.7 | ladder | — |
+| `BUG_SUSPECTED` | a `bug` or `edge_case` issue with a line and confidence ≥ 0.75, seen in 2 consecutive analyses, its line's text unchanged for 20 s | NUDGE, canned "Take another look around line N" (never the analyzer's draft, which may hint at the fix) | per issue |
+| `PLAN_MISMATCH` (P1) | `plan_matches_code == false` in 2 consecutive analyses, with a stated plan | QUESTION | per plan |
+| `SILENT` (P1, voice on) | in `coding`, ≥ 120 s without a final candidate turn (voice or chat) | NUDGE ("Talk me through what you're doing.") | every 5 min max |
+| `IDLE` | in `coding` (or defense `fix`), no edit and no speech ≥ 75 s | QUESTION ("Where are you at?") | every 3 min max |
 | `PRAISE` | a step marked tricky in the rubric becomes `done` | INFO | max 1 per 10 min |
 
-**Hint ladder:** `ladder_level[step]` advances 0→1→2→3 each time a ladder rule fires for that step:
-`1 = nudge` (rubric `hints[0]`: point at the area), `2 = question` (`hints[1]`: Socratic), `3 = hint`
-(`hints[2]`: names the technique), and beyond that `concept` (explain the idea in general terms, no code). The
-LLM may rephrase the rubric hint to fit the candidate's code but must stay at the level. Every ladder step
-counts toward `hints_by_level` (independence score).
+`PRAISE` isn't built: `RubricStep` has no "tricky" flag, so it needs a contract change (SG + SS). It's a
+`TODO(ENG-5)` in `policy.py`.
 
-**Passive mode:** every rule is still evaluated and logged as `Intervention(suppressed=True)`. Only `ASKED`,
-`HINT_REQUESTED` and `TIME_WARNING` are delivered.
+**Hint ladder:** `ladder[step]` advances 0→1→2→3 each time a ladder rule (`HINT_REQUESTED`, `RUN_FAILED`,
+`MISSED_STEP`) is shown for that step: `1 = nudge` (rubric `hints[0]`: point at the area), `2 = question`
+(`hints[1]`: Socratic), `3 = hint` (`hints[2]`: names the technique), and beyond that `concept` (explain the
+idea in general terms, no code; a canned line until ENG-6 phrases it). The LLM may rephrase the rubric hint
+to fit the candidate's code but must stay at the level. Every shown ladder message counts toward
+`hints_by_level` (independence score); suppressed ones don't.
 
-**Tests:** `tests/engine/test_policy.py` drives the policy with synthetic `Analysis` sequences and clocks.
-Each rule needs a "fires" test and a "doesn't fire" test.
+**Text** (`interviewer.deliver`): the analyzer's draft when its proposal matches the trigger, step and level
+(for `HINT_REQUESTED`, any trigger); else the rubric hint for a ladder rule; else the trigger's canned line
+from `engine/prompts/canned.md`. Every text passes the leak guard's code check; on a hit it falls back to the
+rubric or canned text, then to a generic line. `PASTE` and `TIME_WARNING` are text only (`speak=False`).
+
+**Passive mode:** every rule is still evaluated, through the same guards, and logged as
+`Intervention(suppressed=True)`, so the log matches what active mode would have shown. Suppressed messages
+don't climb the ladder. Only `ASKED`, `HINT_REQUESTED` and `TIME_WARNING` are delivered.
+
+**Wiring:** the hub routes `hint.request` to `LiveEngine.request_hint` (an `unsupported` error when no live
+interviewer is attached, e.g. without a model). Partial transcripts aren't stored (§9.7), so ENG-7's
+VoiceBridge calls `LiveEngine.heard_speech()` to hold messages while the candidate talks.
+
+**Tests:** `tests/engine/test_policy.py` drives `decide()` with synthetic `Analysis` sequences, runs, edits
+and clocks: a "fires" and a "doesn't fire" test per rule, and a test per guard (cooldown, cap, no repeat,
+quiet window and hold, stale drop), the ladder and passive mode. `tests/engine/test_live.py` covers the
+wiring; `test_first_nudge.py` runs the hint button end to end.
 
 ### 9.6 Interviewer (`interviewer.py`)
 - `phrase(rule, proposal, context) -> InterventionText{text}`: uses the analyzer's draft text when present
   and the level matches; otherwise one Spark call (`reasoning_effort="low"`, timeout 6 s). Fallback: the
-  rubric hint text, or a canned line per trigger (`prompts/canned.yaml`).
+  rubric hint text, or a canned line per trigger (`prompts/canned.md`, built in ENG-5).
 - `answer(question, context)`: replies to `ASKED`. It answers clarifying questions from the problem spec
   only; for "is this right?" it answers with a question; it never confirms correctness of hidden tests.
 - Phase lines: intro (problem presentation, ≤ 60 words), wrap-up questions (from `rubric.wrap_up_questions`),
@@ -1058,7 +1086,8 @@ Each rule needs a "fires" test and a "doesn't fire" test.
   Partials → `transcript.update` (final=false, not stored); completed turns → a `TranscriptTurn` (final=true)
   in the timeline, which triggers the analyzer.
 - **Is the candidate talking to the interviewer?** P0: only `chat.send` or the **Ask** button (hold to talk)
-  counts as a question. P1: a cheap classifier (Spark, `reasoning_effort="minimal"`, timeout 3 s) labels
+  counts as a question, and a `chat.send` only when it reads as one (`policy.is_question`: ends in "?" or
+  opens with a question word). P1: a cheap classifier (Spark, `reasoning_effort="minimal"`, timeout 3 s) labels
   final turns `question_to_interviewer | thinking_aloud`.
 - Close codes: `1000` done; `1011` → reconnect with backoff (also when the reason is "Max session duration
   reached"; sessions are capped at 60 min); `1013` → back off 5 s, then reconnect; `1008` → stop and report a
