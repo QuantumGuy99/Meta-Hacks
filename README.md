@@ -12,11 +12,18 @@ Crucible has two modes that share one live AI interviewer:
 | **What happens** | You code in a real editor and think out loud. The interviewer watches every edit as it happens, nudges you when you skip a step or drift from your stated plan, and notices pasted code | Crucible audits the code, then **breaks it under load** in a cloud sandbox. You explain the failure out loud, fix it yourself, and Crucible re-runs the attack to prove the fix |
 | **You get** | A replay of your session (code playback synced with your voice and every nudge) plus scored feedback | A pass/fail **"merge gate"** verdict, the before/after load charts, and the same replay and feedback |
 
-> **Status (Tue Oct 27, hackathon day 1):** the foundation is on `main`: shared contracts with generated
-> TypeScript types, the Meta model wrapper (checked live against the API), the session hub and timeline over
-> WebSocket, the first analyzer → nudge path, SQLite storage, dev commands and CI. Project Defense (audit,
-> chaos lab, grill, verify) runs end to end on a branch and is going into review. The landing page is live in
-> `frontend/`; the interview room comes next.
+> **Status (end of Tue Oct 27, hackathon day 1):** on `main`:
+> - **The foundation:** shared contracts with generated TypeScript types; the Meta model wrapper, checked live
+>   against the API; the session hub and timeline over WebSocket; the first analyzer → nudge path; SQLite
+>   storage; dev commands; CI.
+> - **Project Defense, end to end over the WebSocket:** audit → attack under load in a sandbox → grill →
+>   fix → verify with the same attack → merge gate. Tested on real Modal sandboxes.
+> - **For coding interviews:** the test harness that runs candidate code.
+> - **For the frontend:** MOCK replay of a recorded Defense session.
+> - **Deploy:** a Docker image that CI builds and boots.
+>
+> The landing page and the Defense design demo are in `frontend/`. The interview room and the live Defense
+> screens come next (Wed–Fri). Deployment is set for Sat Nov 1.
 >
 > The full build plan for humans and coding agents is **[PLAN.md](PLAN.md)**, and each teammate's part of it is
 > in **[plan/](plan/README.md)**.
@@ -146,8 +153,8 @@ All Meta Model API calls go through `https://api.meta.ai/v1` with the OpenAI-com
 │       ├── runner/          # code execution: Modal sandboxes (+ local dev runner)
 │       ├── store/           # SQLite persistence
 │       ├── datatools/       # (coming) problem generation + validation CLIs
-│       └── mock/            # (coming) fixture replay for frontend development (MOCK=1)
-├── data/                    # (coming)
+│       └── mock/            # recorded sessions replayed for frontend development (MOCK=1)
+├── data/                    # (filling in: problems and sample apps land this week)
 │   ├── problems/            # original interview problems with tests, rubrics, reference solutions
 │   ├── defense_apps/        # sample "vibe-coded" apps with seeded, documented flaws
 │   └── evals/               # scripted sessions to test the interviewer's behavior
@@ -187,9 +194,20 @@ make test         # backend tests + the capture/replay Node tests
 make contracts    # regenerate frontend/src/types/contracts.ts after changing a Pydantic contract
 ```
 
-Coming soon: `MOCK=1 make dev` (replays recorded sessions, so the frontend works without keys), `make validate`
-(checks every problem and sample app in `data/`) and `make evals` (scripted sessions through the real models;
-costs credits).
+**No keys? Two ways to see Crucible run:**
+
+```bash
+MOCK=1 make dev   # the frontend gets a recorded Defense session over the real WebSocket
+                  # (session id: defense-bank-transfer)
+cd backend && RUNNER=local ALLOW_LOCAL_RUNNER=1 LOCAL_RUNNER_ISOLATE=0 uv run python -m crucible.defense \
+  --project bank-transfer-min --apps-dir tests/fixtures/apps --duration 4 \
+  --answer "The balances are read before the await and written after it, so concurrent transfers overwrite each other. Make it atomic with a lock."
+                  # the whole Defense pipeline in the terminal: break → grill → fix → verify → merge gate
+```
+
+Coming soon: `make validate` (checks every problem and sample app in `data/`) and `make evals` (scripted
+sessions through the real models; costs credits). Deploying: see [docs/DEPLOY.md](docs/DEPLOY.md). It stays
+on free tiers and credits.
 
 **Working with coding agents:** Claude Code and Muse Code read [CLAUDE.md](CLAUDE.md) (team rules) and
 [.muse/instructions.md](.muse/instructions.md). Areas can add their own rules in a nested `CLAUDE.md`, as
