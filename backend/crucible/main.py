@@ -24,6 +24,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from crucible.config import Settings, get_settings
+from crucible.defense import router as defense
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,7 @@ def _import(name: str):
         raise
 
 
-def _engine() -> _EngineParts | None:
+def _engine(s: Settings) -> _EngineParts | None:
     api, hub, coding, common, repo = (
         _import(m)
         for m in (
@@ -83,7 +84,7 @@ def _engine() -> _EngineParts | None:
         controllers = {common.Mode.CODING: coding.CodingController}
     defense = _import("crucible.defense.controller")  # DEF-6; until then defense sessions get 400
     if defense is not None:
-        controllers[common.Mode.DEFENSE] = defense.make_mode()
+        controllers[common.Mode.DEFENSE] = defense.make_mode(s)
     return _EngineParts(
         router=api.router, hub_cls=hub.SessionHub, controllers=controllers, store_cls=repo.SqliteStore
     )
@@ -117,15 +118,16 @@ def _error(status: int, code: str, message: str) -> JSONResponse:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     s = settings or get_settings()
-    engine = _engine()
+    engine = _engine(s)
     if engine is None:
         logger.warning("engine not merged yet (#5/#8): serving /api/health only")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.settings = s
+        await defense.startup(app, s)
         store = hub = None
-        if engine is not None:
+        if engine is not None and not s.MOCK:
             model = _configure_models(s)
             store = await engine.store_cls.open(s.database_path)
             params = inspect.signature(engine.hub_cls).parameters
@@ -138,6 +140,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await hub.close()
             if store is not None:
                 await store.close()
+            await defense.shutdown(app)
 
     app = FastAPI(title="Crucible", version=_app_version(), lifespan=lifespan)
     app.add_middleware(
@@ -164,8 +167,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """`Health` in contracts/common.py: {ok, version, mock}."""
         return {"ok": True, "version": app.version, "mock": s.MOCK}
 
-    if engine is not None:
+    if s.MOCK:
+        # Recorded sessions instead of the live hub (PLAN §14.6). Only ever on when MOCK=1 is set.
+        from crucible.mock.replay import router as mock_router
+
+        app.include_router(mock_router)
+    elif engine is not None:
         app.include_router(engine.router)
+    app.include_router(defense.router)
+    if s.DEFENSE_DEV_API:
+        app.include_router(defense.dev_router)
     return app
 
 

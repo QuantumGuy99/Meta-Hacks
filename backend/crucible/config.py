@@ -44,10 +44,17 @@ class Settings(BaseSettings):
     # App
     RUNNER: Literal["modal", "local"] = "modal"
     ALLOW_LOCAL_RUNNER: bool = False
+    LOCAL_RUNNER_ISOLATE: bool = True  # True: app deps via `uv run --with-requirements`; False: this venv
     DATABASE_URL: str = "sqlite:///./var/crucible.db"
     MOCK: bool = False
+    MOCK_SPEED: float = 1.0  # MOCK replays at this speed (2 = twice as fast)
     CORS_ORIGINS: str = "http://localhost:3000"
     MAX_SESSIONS_PER_IP_PER_DAY: int = 10
+
+    # Defense
+    DEFENSE_APPS_DIR: Path = REPO_ROOT / "data" / "defense_apps"
+    DEFENSE_EXTRA_APPS_DIR: Path | None = None  # dev: e.g. backend/tests/fixtures/apps
+    DEFENSE_DEV_API: bool = False  # enables /api/defense/dev/* (standalone pipeline runs)
 
     @property
     def cors_origins(self) -> list[str]:

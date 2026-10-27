@@ -23,39 +23,42 @@ session. Update it before you finish any session that changed code, decisions or
 ## Status
 | WP | What | State | Notes |
 |---|---|---|---|
-| S-0 | Scaffold, Makefile, CI, store | PR #10 open, CI green | Handles #8's and #9's hub shapes; delete the import guard in main.py once #5/#6/#8 merge |
-| S-1 | Contracts v1 | SG's PR #5, approved | Defense uses them as is |
-| RUN-1 (projects) | Runner protocol, LocalRunner, Modal runner | built on `feat/defense` | ModalRunner untested (no Modal token yet, V7). run_tests (coding) not built yet |
-| DEF-1..5 core | projects, audit, attack writer + validator, chaos, grill, verdict | built on `feat/defense`, 44 tests | Pipeline only; DefenseController (hub) not built yet |
-| DEF-6 | DefenseController on the hub | next | Needs #9's ModeFactory: `defense.controller.make_mode()` (main.py already looks for it) |
-| OPS-2 | MOCK replay | not started | |
-| PR #4 | Spec, role plans, agent docs | SG requested changes, all addressed, awaiting re-review | |
+| S-0 | Scaffold, Makefile, CI, store | merged (#10) | Delete main.py's import guard once nothing on main needs it |
+| RUN-1 | Runner protocol, harness (`run_tests.py`), LocalRunner | done (PR #15) | 21 harness tests + a real problem (contracts fixture: reference 3/3, starter fails). Re-run on Sharvil's 3 gold problems when they land |
+| RUN-3 (projects) | ModalRunner start/put/stream/stop | verified on real Modal 2026-10-27 | Two bugs fixed: stray port arg; stdout chunks → lines |
+| RUN-2 | Warm Modal sandbox for coding tests | not started (Thu) | ModalRunner.run_tests raises a clear "RUN-2" error until then |
+| DEF-1..5 | projects, audit, attack, chaos, grill, verdict | done on `feat/defense` | |
+| DEF-6 | DefenseController on the hub | done on `feat/defense`, WebSocket e2e tests | Resume rebuilds state from the timeline |
+| OPS-2 | MOCK replay + recorder | done on `feat/defense` | `defense-bank-transfer.jsonl` recorded from a real run |
+| OPS-1 | Deploy | config in PR #14 | Railway signup was down 2026-10-27; deploy ~Sat; free credit only |
+| Glimmer | dropped | PR #13 | Attacker = Spark |
 
 ## Handoff (overwrite every session)
-- **Last done:** 2026-10-27 [claude] Pushed `feat/defense` (5689a3d): Defense ported onto #5 contracts, #6
-  wrapper (WrapperModelClient), #8 public_audit; branch = S-0 + #5–#9 merged + Defense. Chaos template now
-  spreads the attack over pools of 10 with a 0.4 s ramp (110 → ~1,500 req/s, 0 errors) and ends with a final
-  metric line. CLI demo: broken "$8,827 disappeared", fixed holds, MERGE GATE PASS in ~12 s, no keys.
-- **Next step:** DEF-6 `defense/controller.py` (`make_mode()` returning a ModeFactory; plan_session picks the
-  sample; on_start runs audit + baselines; chat answers during grill → answer_grill; defense.verify →
-  verify; report_extra). Then OPS-2 MOCK fixtures for Likhil. Open the Defense PR once #5–#10 are on main
-  (rebase `feat/defense` onto main first).
-- **Blocked on:** SG + LG approval of the contract changes in PR #4 before S-1 is final.
+- **Last done:** 2026-10-27 [claude] Consolidated everything into the single `MetaDevHack` folder (no more
+  worktrees; old copy in `git stash`). On `feat/defense`: DefenseController, RUN-1 harness, MOCK replay +
+  recorder, Modal runner verified live. Meta key works (2 calls ≈ $0.0005). Modal token: shreyas-sahoo-15.
+- **Next step:** open the Defense PR from `feat/defense`. Then Wed: IC1 (bank-transfer audit renders: needs
+  Sharvil's app, #11), lib/defense.ts selectors for Likhil, RUN-2 Thu.
+- **Blocked on:** Sharvil's `data/defense_apps/bank-transfer` (due Wed noon; write it Wed morning if missing).
 
 ## Open questions for teammates
+- SG: `models/registry.py` still lists a Glimmer provider (harmless); drop it when convenient (#13).
 - ST: a fan-in attack (every transfer pays one account) drains $1,000 senders in ~1 s and the 409s count as errors. Use larger balances or amounts that can't run out (fixture uses $100,000 per account).
-- SG: PR #5 defense contracts match ours field for field; OK to keep `FindingPublic.of` / `AuditPublic.of` helpers in defense code, not contracts.
-- SG: OK for SS to write `models/sam.py` and `models/image.py` (DEF-9, DEF-10)?
-- LG / SG: GitHub usernames, so PRs can request reviews.
+- ST: confirm `QuantumGuy99` is your account (#11). LG: open a PR for `feat/fe-visual-stack` (#12).
 
 ## Verified facts and gotchas
 <!-- e.g. "2026-10-28 [claude] Modal Sandbox.open() writes files into a running sandbox (V7)" -->
+- 2026-10-27 [claude] Modal `block_network=True` blocks egress and keeps loopback (V7 done).
+- 2026-10-27 [claude] Modal stdout arrives in chunks, not lines; ModalRunner.stream_exec splits them (V7).
 - 2026-10-27 [claude] Main moves under you: PR #2 landed while PR #4 was open. `git fetch` and check
   `git log HEAD..origin/main` before starting work and before pushing.
 - 2026-10-27 [claude] MOCK fixture line format is `{"dt_ms": ..., "msg": <ServerMessage>}`; in MOCK mode
   the session id is the scenario name (PLAN §14.6).
 
 ## Session log (keep the last 10, newest first)
+- 2026-10-27 [claude] SG approved #13–#15. Attack containment in 3 layers (validator bans, loopback hook, Modal block_network); V7 done; samples load once.
+- 2026-10-27 [claude] Day 0 + Day 1 checklist complete; RUN-1 "done when" checked on a real problem.
+- 2026-10-27 [claude] DEF-6, RUN-1, OPS-2 built; Modal verified; deploy config PR #14; Glimmer dropped PR #13; folders consolidated.
 - 2026-10-27 [claude] S-0 PR #10 (CI green); Defense built on SG's stack in `feat/defense`, 194 tests pass; reviews posted on #5–#7.
 - 2026-10-27 [claude] Merged main into PR #4, resolved conflicts, controller.py rename, role plan + README synced.
 - 2026-10-27 [claude] Cloned repo; wrote CLAUDE.md + DEFENSE_AGENT_SPEC.txt; reconciled 24 conflicts
