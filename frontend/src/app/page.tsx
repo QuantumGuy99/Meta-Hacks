@@ -2,7 +2,7 @@ import Link from "next/link";
 import { DefenseRows } from "@/components/landing/DefenseRows";
 import { HeroRoom } from "@/components/landing/HeroRoom";
 import { HowItWorks } from "@/components/landing/HowItWorks";
-import { EasternClock, RevealObserver } from "@/components/landing/Motion";
+import { RevealObserver } from "@/components/landing/Motion";
 import { StartDialog } from "@/components/landing/StartDialog";
 import "@/components/landing/landing.css";
 
@@ -68,17 +68,19 @@ export default function Home() {
                 </span>
               </span>
             </h1>
-            <p className="hero-sub">
-              Crucible is an AI technical interviewer. It follows every edit and every word, nudges
-              you when you skip a step, and grades how you got there.
-            </p>
-            <div className="hero-actions">
-              <Link href="/coding" className="ui-btn ui-btn-primary ui-btn-lg">
-                Start a Coding Interview
-              </Link>
-              <Link href="/defense" className="lp-link">
-                Or Defend a Project
-              </Link>
+            <div className="hero-aside">
+              <p className="hero-sub">
+                Crucible is an AI technical interviewer. It follows every edit and every word, nudges
+                you when you skip a step, and grades how you got there.
+              </p>
+              <div className="hero-actions">
+                <Link href="/coding" className="ui-btn ui-btn-primary ui-btn-lg">
+                  Start a Coding Interview
+                </Link>
+                <Link href="/defense" className="lp-link">
+                  Or Defend a Project
+                </Link>
+              </div>
             </div>
           </div>
           <div className="hero-stage">
@@ -151,34 +153,9 @@ export default function Home() {
       </main>
 
       <footer className="tiles">
-        <div className="tile tile-statement">
-          <p>Built during the Meta Global AI Developer Hackathon, Oct 26 to Nov 4, 2026.</p>
-          <small>MIT licence. Every problem is original, none copied from problem sites.</small>
-        </div>
-        <nav className="tile tile-nav" aria-label="Footer">
-          <Link href="/coding">Coding Interview</Link>
-          <Link href="/defense">Project Defense</Link>
-          <a href="#models">Models</a>
-          <a href={REPO}>Source on GitHub</a>
-        </nav>
-        <div className="tile tile-time">
-          <small>Eastern Time now</small>
-          <EasternClock />
-          <small>Submissions close Nov 4, 9 PM</small>
-        </div>
-        <div className="tile tile-repo">
-          <small>Team</small>
-          <span>Srinithin Ganesh, Shreyas Sahoo, Likhil Gudipati, Sharvil Talware</span>
-        </div>
         <div className="tile tile-word" aria-hidden translate="no">
           Crucible
         </div>
-        <Link href="/coding" className="tile tile-go">
-          <span>Start an Interview</span>
-          <svg viewBox="0 0 48 48" width="56" height="56" aria-hidden>
-            <path d="M8 40 L40 8 M16 8 H40 V32" fill="none" stroke="currentColor" strokeWidth="4" />
-          </svg>
-        </Link>
       </footer>
     </div>
   );

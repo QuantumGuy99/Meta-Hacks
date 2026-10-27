@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 // Adds .is-in to [data-reveal] elements once as they enter (taste-skill "Reveal on scroll" recipe).
 export function RevealObserver() {
@@ -21,20 +21,4 @@ export function RevealObserver() {
     return () => io.disconnect();
   }, []);
   return null;
-}
-
-export function EasternClock() {
-  const [now, setNow] = useState<string | null>(null);
-  useEffect(() => {
-    const fmt = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/New_York",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-    const tick = () => setNow(fmt.format(new Date()));
-    tick();
-    const id = setInterval(tick, 15_000);
-    return () => clearInterval(id);
-  }, []);
-  return <span className="tile-big">{now ?? "Eastern Time"}</span>;
 }

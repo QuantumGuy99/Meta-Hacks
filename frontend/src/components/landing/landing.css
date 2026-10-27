@@ -101,11 +101,21 @@
   position: relative;
   padding: 0 var(--margin);
 }
+/* Two clean rows: headline left with intro + actions right, then the room stage below.
+   Nothing overlaps at any width. */
 .hero-copy {
-  padding-top: clamp(64px, 11vh, 150px);
-  max-width: 48vw;
-  position: relative;
-  z-index: 1;
+  padding-top: clamp(56px, 9vh, 120px);
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  column-gap: 24px;
+  align-items: end;
+}
+.hero-copy h1 {
+  grid-column: 1 / 8;
+}
+.hero-aside {
+  grid-column: 8 / 13;
+  padding-bottom: 6px;
 }
 .hero h1 {
   font-size: var(--step-display);
@@ -120,31 +130,51 @@
   display: block;
 }
 .hero-sub {
-  margin-top: 36px;
-  max-width: 40ch;
+  max-width: 44ch;
 }
 .hero-actions {
-  margin-top: 32px;
+  margin-top: 28px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 24px;
+  gap: 16px 24px;
 }
-/* In normal flow so the whole room always shows: it starts at column 5, tucks up beside the
-   hero actions, and bleeds off the right edge with the room sized to fit inside it. */
+/* Full-width stage below the copy, bleeding off the right edge; the room always fits inside. */
 .hero-stage {
   position: relative;
-  margin: -96px calc(-1 * var(--margin)) 0 calc((100% - 11 * 24px) / 12 * 4 + 4 * 24px);
+  margin: clamp(48px, 7vh, 72px) calc(-1 * var(--margin)) 0 0;
   background: var(--signal);
   clip-path: polygon(96px 0, 100% 0, 100% 100%, 0 100%, 0 96px);
   padding: 56px var(--margin) 56px 56px;
 }
 .hero-stage .room {
-  width: min(860px, 100%);
+  width: min(1040px, 100%);
+  margin-left: auto;
+  margin-right: auto;
 }
-@media (max-width: 1200px) {
-  .hero-stage {
-    margin-top: 48px;
-    margin-left: 0;
+.lp-nav nav a {
+  white-space: nowrap;
+}
+/* phones: links get their own row under the wordmark instead of squeezing beside it */
+@media (max-width: 600px) {
+  .lp-nav {
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
+  .lp-nav nav {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+  }
+}
+@media (max-width: 1100px) {
+  .hero-copy h1,
+  .hero-aside {
+    grid-column: 1 / -1;
+  }
+  .hero-aside {
+    margin-top: 32px;
+    padding-bottom: 0;
   }
 }
 
@@ -828,7 +858,7 @@
   font-size: 16px;
 }
 
-/* footer: two rows of tiles */
+/* footer: one row, the wordmark and a last way into an interview */
 .tiles {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
@@ -841,71 +871,20 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  min-height: 220px;
 }
-.tile small {
-  font-size: 13px;
-  color: var(--muted-ink);
-}
-.tile-statement {
-  grid-column: 1 / 5;
-  justify-content: space-between;
-}
-.tile-statement p {
-  font-size: var(--step-lead);
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-}
-.tile-nav {
-  grid-column: 5 / 8;
-  font-size: 16px;
-}
-.tile-nav a:hover {
-  color: var(--signal);
-}
-.tile-time {
-  grid-column: 8 / 10;
-}
-.tile-big {
-  font-size: var(--step-lead);
-  letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
-}
-.tile-repo {
-  grid-column: 10 / 13;
-  justify-content: space-between;
-  font-size: 18px;
-}
+/* the wordmark runs the full width of the page as the closing line */
 .tile-word {
-  grid-column: 1 / 9;
+  grid-column: 1 / -1;
   min-height: 320px;
   background: var(--field-1);
   color: var(--field-1-ink);
-  font-size: 9vw;
+  font-size: 16vw;
   font-weight: 500;
+  line-height: 1;
   letter-spacing: -0.05em;
   align-items: center;
   justify-content: center;
-}
-.tile-go {
-  grid-column: 9 / 13;
-  min-height: 320px;
-  background: var(--signal);
-  color: var(--signal-ink);
-  justify-content: space-between;
-  font-size: var(--step-lead);
-  letter-spacing: -0.02em;
-  transition: background 200ms;
-}
-.tile-go svg {
-  align-self: flex-end;
-  transition: transform 300ms var(--ease-out);
-}
-.tile-go:hover {
-  background: var(--signal-hover);
-}
-.tile-go:hover svg {
-  transform: translate(6px, -6px);
+  overflow: hidden;
 }
 
 /* ---------- motion ---------- */
@@ -1052,9 +1031,6 @@
   .hiw-frag {
     width: 100%;
   }
-  .tile-statement p {
-    font-size: 18px;
-  }
   .models-note {
     margin-top: 48px;
   }
@@ -1075,27 +1051,11 @@
     max-width: none;
   }
   .tiles {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 6px;
     padding: 6px;
   }
-  .tile {
-    min-height: 160px;
-  }
   .tile-word {
-    grid-column: 1 / -1;
-    order: -2;
-    font-size: 18vw;
-  }
-  .tile-go {
-    grid-column: 1 / -1;
-    order: -1;
     min-height: 160px;
-  }
-  .tile-nav,
-  .tile-repo,
-  .tile-time,
-  .tile-statement {
-    grid-column: auto;
   }
 }
