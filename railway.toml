@@ -1,0 +1,13 @@
+# Railway deploy for the backend (OPS-1, PLAN §19). Frontend goes to Vercel.
+# Free-credit settings: one replica, sleep when idle. Never add a payment method for this project.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "backend/Dockerfile"
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 60
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+numReplicas = 1
+sleepApplication = true

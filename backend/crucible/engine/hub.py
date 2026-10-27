@@ -333,8 +333,11 @@ class SessionRuntime:
                     )
             case ChatSend(text=text):
                 await self._chat(text)
-            case HintRequest():
-                logger.info("hint requested in %s", self.session.id)  # TODO(ENG-5): HINT_REQUESTED rule
+            case HintRequest(step_id=step_id):
+                if self._engine is None:
+                    await self.error(connection, "unsupported", "hints aren't available right now")
+                    return
+                self._engine.request_hint(step_id)
             case PhaseAdvance(to=to):
                 if (self.session.phase, to) not in CANDIDATE_ADVANCES:
                     await self.error(
