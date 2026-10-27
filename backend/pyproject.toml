@@ -35,7 +35,7 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC", "SIM", "RUF"]
-ignore = ["RUF001", "RUF002", "RUF003"]
+ignore = ["E501", "RUF001", "RUF002", "RUF003"]  # line length: `ruff format` enforces 110 where it can
 
 [tool.ruff.lint.isort]
 known-first-party = ["crucible"]
