@@ -163,6 +163,7 @@ class SessionRuntime:
         self._anchor: float | None = None  # monotonic time of session.started_at
         self._connections: dict[int, Connection] = {}
         self.sender: Connection | None = None  # the tab whose message the mode is handling right now
+        self.resume_pending = False  # reopened after expiry; the mode resumes on the next connect
         self._phase_lock = asyncio.Lock()
         self._flusher: asyncio.Task[None] | None = None
         if session.started_at is not None:
@@ -206,6 +207,10 @@ class SessionRuntime:
             self._flusher = asyncio.create_task(self._flush_loop(), name=f"timeline-flush-{self.session.id}")
 
     async def close(self) -> None:
+        # Optional mode hook: cancel the mode's own background tasks (timers, long stages).
+        on_close = getattr(self.controller, "on_close", None)
+        if on_close is not None:
+            await on_close(self)
         await self.detach()
         if self._flusher is not None:
             self._flusher.cancel()
@@ -446,6 +451,9 @@ class SessionHub:
         connection = runtime.add(socket)
         if runtime.session.phase == Phase.SETUP:
             await runtime.start()
+        elif runtime.resume_pending:
+            runtime.resume_pending = False
+            await runtime.controller.on_resume(runtime)
         return runtime, connection
 
     async def disconnect(self, session_id: str, connection: Connection) -> None:
@@ -494,9 +502,9 @@ class SessionHub:
             )
             runtime.restore(events)
             runtime.start_flusher()
+            # Resume once a socket is attached (in connect), so whatever the mode says reaches someone.
+            runtime.resume_pending = runtime.live and session.phase != Phase.SETUP
             self.runtimes[session_id] = runtime
-            if runtime.live and session.phase != Phase.SETUP:
-                await runtime.controller.on_resume(runtime)
             return runtime
 
     async def close(self) -> None:

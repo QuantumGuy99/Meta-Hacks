@@ -1,7 +1,7 @@
 """Turns a policy decision into what the candidate sees and hears (PLAN §9.6).
 
-So far: the code check of the leak guard, the analyzer's draft or a rubric hint or canned line, and delivery.
-ENG-6 adds phrasing, answers to questions, phase lines, the reference-overlap check and `say()`.
+So far: the code check of the leak guard, the analyzer's draft or a rubric hint or canned line, delivery, and
+`say()` for lines a mode chooses. ENG-6 adds phrasing, answers to questions and the reference-overlap check.
 """
 
 from __future__ import annotations
@@ -99,6 +99,44 @@ async def deliver(rt: SessionRuntime, decision: Decision, context: RubricContext
         speak=config.speak_replies and decision.trigger not in TEXT_ONLY,
         suppressed=decision.suppressed or passive,
     )
+    await _record_and_show(rt, intervention)
+    return intervention
+
+
+async def say(
+    rt: SessionRuntime,
+    text: str,
+    trigger: InterventionTrigger,
+    level: InterventionLevel,
+    *,
+    speak: bool | None = None,
+    step_id: str | None = None,
+    fallback: str | None = None,
+) -> Intervention:
+    """Say a line the caller chose (phase lines, grill questions) through the same leak guard (PLAN §9.6).
+
+    On a rejection it sends `fallback`, or the trigger's canned line. Shown in passive mode too: these lines run
+    the interview, they aren't feedback. `speak` defaults to the session's "speak replies" setting.
+    """
+    if looks_like_code(text):
+        logger.warning("leak guard replaced a %s line in %s", trigger, rt.session.id)
+        await rt.note("info", f"leak guard replaced the wording of a {trigger} line")
+        text = fallback if fallback and not looks_like_code(fallback) else CANNED.get(trigger.value, _GENERIC)
+    intervention = Intervention(
+        id=new_id(),
+        t=rt.now_ms(),
+        trigger=trigger,
+        level=level,
+        text=text,
+        step_id=step_id,
+        speak=rt.session.config.speak_replies if speak is None else speak,
+        suppressed=False,
+    )
+    await _record_and_show(rt, intervention)
+    return intervention
+
+
+async def _record_and_show(rt: SessionRuntime, intervention: Intervention) -> None:
     await rt.record(TimelineKind.INTERVENTION, intervention)
     if not intervention.suppressed:
         await rt.broadcast(InterviewerMessage(type="interviewer.message", intervention=intervention))
@@ -106,11 +144,10 @@ async def deliver(rt: SessionRuntime, decision: Decision, context: RubricContext
         turn = TranscriptTurn(
             turn_id=new_id(),
             speaker="interviewer",
-            text=text,
+            text=intervention.text,
             start_ms=intervention.t,
             end_ms=intervention.t,
             final=True,
             source="text",
         )
         await rt.record(TimelineKind.TRANSCRIPT, turn)
-    return intervention

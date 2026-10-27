@@ -905,7 +905,16 @@ Owner: **SG**. Used by coding mode (whole session) and defense mode (grill + fix
   `plan_session` raises `SessionSetupError` for a bad config (→ `400 bad_config`).
   `await rt.attach(RubricContext)` / `await rt.detach()` start and stop the live engine (analyzer → policy →
   interviewer) for a rubric: coding at `clarify`, defense at `fix`. Ending a session detaches it.
-  `RubricContext` is in `engine/context.py`. `Interviewer.say()` arrives with ENG-6.
+  `RubricContext` is in `engine/context.py`.
+  - **`on_resume`** runs on the first *connect* after a runtime is reopened, once the socket is attached, so
+    what the mode says reaches the tab. Ending a session over REST doesn't resume it.
+  - **`on_close(rt)`** is optional: if a controller defines it, the hub awaits it when the runtime closes, to
+    cancel the mode's own timers and tasks.
+  - **`rt.sender`** is the connection whose message `on_client_message` is handling, so a mode can answer just
+    that tab (`rt.error(rt.sender, …)`).
+  - **`say(rt, text, trigger, level, *, speak=None, step_id=None, fallback=None)`** in `engine/interviewer.py`
+    sends a line the mode chose, through the leak guard's code check. Coding uses it for phase lines; Defense
+    can use it for grill lines. ENG-6 adds the reference-overlap check and model phrasing.
 - Routes live in `engine/api.py` (`router`); `main.py` includes it and puts
   `SessionHub(store, {Mode.CODING: CodingMode(ProblemBank.load()), …}, model=llm)` on `app.state.hub`. Until
   `crucible.store` lands, `engine/store.py` has an in-memory `MemoryStore` with the same interface.
@@ -1129,6 +1138,21 @@ Owner: **SG**. Data: **ST**.
 - `wrap_up → ended`: after both wrap-up answers (or 3 min).
 - Time limits: easy 20 min, medium 30, hard 40 (`time_limit_min` in the problem overrides). **Demo preset:**
   10 min.
+- **As built (COD-2, `coding/session.py`):**
+  - **Intro:** the interviewer says a phase line from `coding/prompts/phase_lines.md` (problem title, minutes)
+    through `say()`, then moves straight to `clarify` and attaches the rubric. ENG-6 may phrase the intro with
+    the model.
+  - **"Started coding"** = 3 new non-blank lines compared with the starter code, typed or pasted. Programmatic
+    snapshots don't count.
+  - **Time limit:** a 0.5 s timer moves `clarify` or `coding` to `wrap_up` when `remaining_s` reaches 0.
+    `clarify → wrap_up` is allowed only for this.
+  - **Wrap-up:** entered for any of three reasons, each with its own opener line ("passes every test",
+    "That's time", or a plain one for "I'm done"). The live engine is detached, so chat answers aren't treated
+    as questions. The rubric's `wrap_up_questions` are asked one per candidate answer, then the closing line,
+    and the session ends. With no answer for 3 min (`wrap_up_limit_s`), it closes anyway.
+  - **Resuming during the wrap-up** recounts the questions already asked from the timeline and waits for the
+    next answer.
+  - Phase lines show in passive mode too: they run the interview, they aren't feedback.
 
 ### 10.2 ProblemBank (`problems.py`)
 - Loads `data/problems/*/problem.json` (+ `statement.md`, `reference.py`, `brute.py`) at startup and
@@ -1165,6 +1189,11 @@ Owner: **SG**. Data: **ST**.
 - `hidden` → `visible` lasting ≥ 10 s → `tab_hidden` with the duration.
 - P2 proctor mode: §10.6.
 - Copy in the UI and the report is neutral: "pasted 32 lines at 06:14".
+- **As built (COD-4):** `IntegrityDetector` turns editor events into flags. Each flag is recorded as an
+  `integrity` timeline event and sent as `integrity.flag`. The wording is factual only: "pasted 2 lines at
+  06:14", "120 characters appeared at once at 03:02", "switched away for 14 s at 08:40" (a tab-away flag carries
+  the time it started). The policy's `PASTE` rule (ENG-5) still decides whether the interviewer mentions a
+  paste; the flags are the record.
 
 ### 10.5 Coding report extras
 Final step statuses, chosen approach, whether the complexity answer matched an acceptable approach.
