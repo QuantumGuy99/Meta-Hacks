@@ -201,7 +201,7 @@ One folder per app, `data/defense_apps/<slug>/`:
 |---|---|
 | `app/` | FastAPI, 150–400 lines, in a realistic "AI-generated" style: plausible, readable, subtly wrong |
 | `requirements.txt` | Pinned |
-| `crucible.json` | `{"entrypoint": "uvicorn app.main:app --host 127.0.0.1 --port 8000", "port": 8000}` |
+| `crucible.json` | `{"entrypoint": "uvicorn app.main:app --host 127.0.0.1 --port 8080", "port": 8080}` (8080 keeps clear of the backend's :8000 when LocalRunner runs the app) |
 | `flaws.json` | Ground truth: `[{id, category, file, line_start, line_end, explanation, expected_fix, grill_expected_points, chaos_invariant}]` |
 | `fix.patch` | The reference fix, as a unified diff that `git apply` accepts |
 | `reference_attack.json` | Proposed (agree with Shreyas): `{"concurrency": 200, "duration_s": 10, "functions": <AttackFunctions>}`, the three template bodies that prove the flaw (PLAN §11.4) |
@@ -211,11 +211,19 @@ proves the validator accepts a good script.
 
 | Slug | Seeded flaw | Invariant | P |
 |---|---|---|---|
-| `bank-transfer` | Read-modify-write on balances with an `await` between the read and the write; no lock | Total balance stays constant | P0, demo |
-| `ticket-drop` | Check-then-insert on seat capacity | Sold ≤ capacity | P0 |
+| `bank-transfer` | `/transfer` reads the sender's balance, awaits a "fraud check" (`await asyncio.sleep(0.03)`), then writes `balance - amount`; no transaction or lock. Target headline: "Under 200 concurrent transfers, $1,240 disappeared" | Total balance stays constant | P0, demo |
+| `ticket-drop` | Check-then-insert on seat availability. Target: "Under 150 concurrent checkouts, 38 seats double-booked". **Second finding:** an O(n²) unindexed seat-recommendation loop (its own `flaws.json` entry) | Each seat sold at most once; sold ≤ capacity | P0 |
 | `report-service` | Blocking `time.sleep` or CPU work inside an `async def` route | `/health` p95 < 200 ms while `/report` is loaded | P0 |
 | `search-api` | O(n²) dedupe per request | p95 grows with dataset size | P1 |
 | `rate-limiter` | Unsynchronized counter + unbounded dict | Allowed ≤ limit per window | P1 |
+
+**Reference attacks** use the PLAN §11.4 template: `check_invariant` returns **`(ok, violations, detail)`**.
+`violations` is a count people understand (dollars missing, seats double-booked) and is charted live;
+`detail` is the headline with the real numbers. Optional extras in a `flaws.json` entry that the audit
+fallback uses: `title` (neutral, names the area not the cause), `severity`, `grill_question`, `grill_follow_up`,
+`fix_steps`, and `chaos: {endpoint, method, body_example, concurrency, duration_s, p95_threshold_ms}`
+(`p95_threshold_ms` for latency flaws like `report-service`). A working example lives in
+`backend/tests/fixtures/apps/bank-transfer-min/` once Shreyas's Defense PR lands.
 
 **`bank-transfer` tips (it's the demo):** make the `await` look natural (an `await fraud_check(...)` or an
 audit-log call between reading and writing the balance), so the race reproduces on **every** run at 200
