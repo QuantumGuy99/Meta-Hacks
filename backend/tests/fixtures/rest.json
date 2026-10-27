@@ -1,0 +1,5 @@
+{
+  "health": {"ok": true, "version": "0.1.0", "mock": false},
+  "api_error": {"error": {"code": "session_not_found", "message": "No session with id zzz999zzz999."}},
+  "report_pending": {"status": "generating"}
+}
