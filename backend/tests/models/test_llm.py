@@ -108,7 +108,7 @@ async def test_falls_back_when_the_retry_also_fails() -> None:
     wrapper, sleeps, records = make_llm({"meta": meta})
 
     assert await wrapper.complete_json("audit", MESSAGES, Verdict) == OK
-    assert sent(meta) == [(WONDER, "high"), (WONDER, "high"), (SPARK, "high")]
+    assert sent(meta) == [(WONDER, "xhigh"), (WONDER, "xhigh"), (SPARK, "high")]
     assert len(sleeps) == 1
     assert [r.error for r in records] == ["HTTP 500", "HTTP 503", None]
 
@@ -119,7 +119,7 @@ async def test_timeout_falls_back_without_retrying() -> None:
     wrapper, sleeps, records = make_llm({"meta": meta})
 
     assert await wrapper.complete_json("audit", MESSAGES, Verdict, timeout_s=0.01) == OK
-    assert sent(meta) == [(WONDER, "high"), (SPARK, "high")]
+    assert sent(meta) == [(WONDER, "xhigh"), (SPARK, "high")]
     assert sleeps == []
     assert records[0].error == "timeout after 0.01s"
 
@@ -194,10 +194,10 @@ async def test_without_the_contributor_switch_spark_gets_max() -> None:
 @pytest.mark.asyncio
 async def test_role_override_replaces_the_primary_and_skips_a_repeated_fallback() -> None:
     meta = FakeClient({SPARK: [http_error(openai.BadRequestError, 400)]})
-    wrapper, _, _ = make_llm({"meta": meta}, role_models={"audit": SPARK})
+    wrapper, _, _ = make_llm({"meta": meta}, role_models={"report": SPARK})
 
     with pytest.raises(AllModelsFailed):
-        await wrapper.complete_json("audit", MESSAGES, Verdict)
+        await wrapper.complete_json("report", MESSAGES, Verdict)
     assert sent(meta) == [(SPARK, "high")]  # the Spark (high) fallback would repeat the primary
 
 
