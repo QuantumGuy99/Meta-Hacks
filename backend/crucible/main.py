@@ -24,6 +24,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from crucible.config import Settings, get_settings
+from crucible.defense import router as defense
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +125,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.settings = s
+        await defense.startup(app, s)
         store = hub = None
         if engine is not None:
             model = _configure_models(s)
@@ -138,6 +140,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await hub.close()
             if store is not None:
                 await store.close()
+            await defense.shutdown(app)
 
     app = FastAPI(title="Crucible", version=_app_version(), lifespan=lifespan)
     app.add_middleware(
@@ -166,6 +169,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     if engine is not None:
         app.include_router(engine.router)
+    app.include_router(defense.router)
+    if s.DEFENSE_DEV_API:
+        app.include_router(defense.dev_router)
     return app
 
 

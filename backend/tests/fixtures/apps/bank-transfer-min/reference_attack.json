@@ -1,0 +1,11 @@
+{
+  "flaw_id": "f1",
+  "concurrency": 200,
+  "duration_s": 8,
+  "functions": {
+    "setup_body": "r = await client.post(f\"{BASE}/reset\")\nr.raise_for_status()\naccounts = (await client.get(f\"{BASE}/accounts\")).json()\nreturn {\"ids\": sorted(accounts), \"initial_total\": sum(accounts.values())}",
+    "request_body": "ids = ctx[\"ids\"]\nsrc = ids[1 + i % (len(ids) - 1)]\nreturn await client.post(f\"{BASE}/transfer\", json={\"src\": src, \"dst\": ids[0], \"amount\": 7})",
+    "invariant_body": "total = (await client.get(f\"{BASE}/total\")).json()[\"total\"]\nmissing = ctx[\"initial_total\"] - total\nif missing == 0:\n    return True, 0, f\"all ${total:,} accounted for\"\nverb = \"disappeared\" if missing > 0 else \"appeared from nowhere\"\nreturn False, abs(missing), f\"${abs(missing):,} {verb} across {len(ctx['ids'])} accounts\"",
+    "rationale": "Every transfer pays into one account, so concurrent credits to it read the same stale balance across the fraud-check await and overwrite each other: each lost update is money that disappears."
+  }
+}
