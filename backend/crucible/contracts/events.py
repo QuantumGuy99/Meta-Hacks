@@ -1,0 +1,149 @@
+"""Live events and timeline records (PLAN §7.2). Times `t` are int ms since the session started."""
+
+from enum import StrEnum
+from typing import Any, Literal
+
+from pydantic import Field
+
+from crucible.contracts.common import Phase, Strict
+
+
+class EditorChange(Strict):
+    range_offset: int  # Monaco rangeOffset (offset in the model BEFORE this event)
+    range_length: int  # Monaco rangeLength
+    text: str  # inserted text
+
+
+class EditorEvent(Strict):
+    t: int
+    file: str = "solution.py"
+    version: int  # Monaco model versionId after the event
+    kind: Literal["change", "paste", "undo", "redo", "focus", "blur", "hidden", "visible"]
+    changes: list[EditorChange] = Field(default_factory=list)
+    pasted_chars: int | None = None
+
+
+class CodeSnapshot(Strict):
+    t: int
+    file: str
+    version: int
+    code: str
+
+
+class TranscriptTurn(Strict):
+    turn_id: str
+    speaker: Literal["candidate", "interviewer"]
+    text: str
+    start_ms: int
+    end_ms: int
+    final: bool
+    source: Literal["voice", "text"]
+
+
+class CaseResult(Strict):  # not named Test*, so pytest won't try to collect it
+    id: str
+    visible: bool
+    passed: bool
+    input_repr: str | None  # hidden tests: None (never sent to the browser)
+    expected_repr: str | None
+    actual_repr: str | None
+    error: str | None
+    runtime_ms: int
+
+
+class RunResult(Strict):
+    run_id: str
+    t: int
+    kind: Literal["run", "submit"]
+    passed: int
+    total: int
+    cases: list[CaseResult]
+    stdout: str  # truncated to 4 KB
+    stderr: str  # truncated to 4 KB
+    timed_out: bool
+    compile_error: str | None
+
+
+class InterventionTrigger(StrEnum):
+    IDLE = "idle"
+    SILENT = "silent"
+    RUN_FAILED = "run_failed"
+    MISSED_STEP = "missed_step"
+    BUG_SUSPECTED = "bug_suspected"
+    PLAN_MISMATCH = "plan_mismatch"
+    CODED_BEFORE_PLAN = "coded_before_plan"
+    PASTE = "paste"
+    ASKED = "asked"
+    HINT_REQUESTED = "hint_requested"
+    TIME_WARNING = "time_warning"
+    PHASE = "phase"
+    PRAISE = "praise"
+    GRILL = "grill"
+
+
+class InterventionLevel(StrEnum):
+    INFO = "info"
+    NUDGE = "nudge"
+    QUESTION = "question"
+    HINT = "hint"
+    CONCEPT = "concept"
+
+
+class Intervention(Strict):
+    id: str
+    t: int
+    trigger: InterventionTrigger
+    level: InterventionLevel
+    text: str
+    step_id: str | None
+    speak: bool
+    suppressed: bool  # passive mode: decided but not shown; still in the report
+
+
+class InterventionText(Strict):  # LLM output of Interviewer.phrase()
+    text: str
+
+
+class IntegrityFlag(Strict):
+    id: str
+    t: int
+    kind: Literal["paste", "bulk_insert", "tab_hidden", "phone_in_frame", "extra_person"]
+    detail: str  # neutral wording: "pasted 32 lines at 06:14"
+    chars: int | None
+    duration_ms: int | None
+
+
+class PhaseChange(Strict):  # timeline payload for kind=phase
+    from_phase: Phase
+    to_phase: Phase
+    reason: str
+
+
+class SystemNote(Strict):  # timeline payload for kind=system: fallbacks, warnings, model errors
+    level: Literal["info", "warning", "error"]
+    message: str
+
+
+class TimelineKind(StrEnum):
+    PHASE = "phase"
+    EDITOR = "editor"
+    SNAPSHOT = "snapshot"
+    TRANSCRIPT = "transcript"
+    RUN = "run"
+    ANALYSIS = "analysis"
+    INTERVENTION = "intervention"
+    INTEGRITY = "integrity"
+    AUDIT = "audit"
+    CHAOS_METRIC = "chaos_metric"
+    CHAOS_RUN = "chaos_run"
+    GRILL = "grill"
+    SAM_HIGHLIGHT = "sam_highlight"
+    VERDICT = "verdict"
+    SYSTEM = "system"
+
+
+class TimelineEvent(Strict):
+    seq: int
+    t: int
+    kind: TimelineKind
+    payload: dict[str, Any]  # validated against PAYLOAD_MODELS[kind] in engine/timeline.py
