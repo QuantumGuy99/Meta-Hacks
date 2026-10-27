@@ -910,7 +910,7 @@ Owner: **SG**. Used by coding mode (whole session) and defense mode (grill + fix
 - 30 s have passed with any change.
 If a call is in flight, set `dirty=True` and run once more when it returns.
 
-**Call:** model role `analyzer` (default `muse-spark-1.3`), `reasoning_effort="low"`, timeout 12 s,
+**Call:** model role `analyzer` (default `muse-spark-1.3`), `reasoning_effort="minimal"`, timeout 12 s,
 structured output `Analysis`, `beta.chat.completions.parse`. On timeout or error: skip this tick (no
 intervention), log a `system` note, and keep the changes so the next tick looks at them again.
 The analyzer depends only on a `StructuredModel` protocol (the slice of `models/llm.py` it calls), passed to
@@ -919,7 +919,9 @@ The analyzer depends only on a `StructuredModel` protocol (the slice of `models/
 **Measured (Oct 27, quiet-streak, a buggy loop with no clarification; 1,751 input tokens):** `low` took 7.7 s
 and 11.7 s on two calls; `minimal` took 4.1 s. Both found the missed step and the line-8 bug and proposed the
 same nudge. `low` blows the pause → nudge budget (§18: ≤ 6 s, of which 2.5 s is the pause) and sits on the
-12 s timeout, so **`minimal` is the proposed default** pending the gold-problem evals (decision: SG).
+12 s timeout, so **the analyzer runs at `minimal`** (decided by SG on Oct 27; set in `models/registry.py`,
+PR #6). Re-check the quality on the gold-problem evals, and only raise the effort if `minimal` misses
+steps that `low` catches.
 
 **Prompt layout** (static first, so cached-input pricing can apply; ⚠️ VERIFY how caching triggers):
 1. System: `engine/prompts/analyzer_system.md` (role, rules: never write solution code, judge only from the
