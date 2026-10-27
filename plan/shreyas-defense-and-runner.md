@@ -33,10 +33,10 @@ a second interviewer. Your job is to feed it a `RubricContext` and drive the sta
 `data/` (Sharvil). If you need a change there, note it in your PR or ask the owner. Exception to agree with
 Srinithin: you write `models/sam.py` and `models/image.py` for DEF-9 / DEF-10 if he's OK with it.
 
-**Agent docs** (for Claude Code and Muse Code): `CLAUDE.md`, `DEFENSE_AGENT_SPEC.txt` (Defense briefing + the
-decision log for how it was reconciled with PLAN), `docs/defense/MEMORY.md` (shared working memory: file
-claims, status, handoff), `backend/CLAUDE.md` (how backend code is written), `.claude/skills/crucible-code/`
-(file templates).
+**Agent docs** (for Claude Code and Muse Code on this area): `backend/crucible/defense/CLAUDE.md` (area
+rules; also loaded from `runner/`), `docs/defense/DEFENSE_AGENT_SPEC.txt` (Defense briefing + the decision log for
+how it was reconciled with PLAN), `docs/defense/MEMORY.md` (shared working memory: file claims, status,
+handoff). Team-wide: root `CLAUDE.md`, `backend/CLAUDE.md` (code style), `.claude/skills/crucible-code/`.
 
 ## Setup (Day 0, Mon Oct 26)
 

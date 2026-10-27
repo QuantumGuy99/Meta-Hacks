@@ -74,4 +74,5 @@ this file is about the code itself. For file skeletons and templates, use the `c
 1. `uv run ruff format backend/ && uv run ruff check backend/`
 2. `uv run pytest backend/tests/<area>/` then `MOCK=1 uv run pytest`
 3. If contracts changed: `make contracts` and updated fixtures.
-4. Update `docs/defense/MEMORY.md` (status, handoff, session log; release your claim).
+4. If your area keeps a working-memory file (Defense + Runner: `docs/defense/MEMORY.md`), update it:
+   status, handoff, session log; release your claim.

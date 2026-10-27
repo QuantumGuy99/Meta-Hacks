@@ -231,7 +231,8 @@ Shared builders go in `tests/factories.py`; fakes (`fake_llm`, `fake_runner`, `t
 ## 10. Finishing a work package
 
 1. Run the checks in `backend/CLAUDE.md` ("Before you say you're done").
-2. Update `docs/defense/MEMORY.md`: status row, handoff, session log line, release your claim. Add any
+2. If your area keeps a working-memory file (Defense + Runner: `docs/defense/MEMORY.md`), update its
+   status row, handoff and session log, and release your claim. Add any
    ⚠️ VERIFY results to PLAN.md §23 as well.
 3. Commit on `feat/<area>-<thing>` with a Conventional Commit (`feat(defense): grill scoring`), PR
    < 400 changed lines, naming the work package ID (e.g. "Closes DEF-5 (scoring part)").
