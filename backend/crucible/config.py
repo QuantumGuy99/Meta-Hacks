@@ -34,9 +34,6 @@ class Settings(BaseSettings):
     USE_CONTRIBUTOR_MODELS: bool = False  # dev only, synthetic data only
 
     # Partners
-    GLIMMER_BASE_URL: str = ""
-    GLIMMER_API_KEY: str = Field(default="", repr=False)
-    GLIMMER_MODEL: str = ""
     BASETEN_BASE_URL: str = ""
     BASETEN_API_KEY: str = Field(default="", repr=False)
     SPARK_OPEN_MODEL: str = "meta-models/muse-spark-open-1026"
