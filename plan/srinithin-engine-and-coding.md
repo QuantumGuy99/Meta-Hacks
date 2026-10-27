@@ -277,7 +277,7 @@ expected step or issue in ≥ 2 of 3 runs. Those two evals come from Sharvil on 
 **Tests:** a "fires" and a "doesn't fire" test per rule, plus each guard.
 **Done when:** PLAN §16 ENG-5.
 **Left for later:** `PRAISE` needs a `tricky` flag on `RubricStep` (contract change, SG + SS). `ASKED` replies
-with a canned Socratic line until ENG-6's `answer()`. The coding evals' policy expectations (§16) run once
+through ENG-6's `answer()` (canned line as its fallback). The coding evals' policy expectations (§16) run once
 Sharvil's evals land.
 
 ### ENG-7 — VoiceBridge + audio capture
@@ -294,7 +294,7 @@ Sharvil's evals land.
 **Done when:** PLAN §16 ENG-7.
 
 ### ENG-6 — Interviewer + leak guard
-**P0 · Fri · needs ENG-5** · Read: PLAN §9.6
+**P0 · Fri · needs ENG-5** · Read: PLAN §9.6 · **Built Tue Oct 27** (PR #27, stacked on #21)
 **Files:** `engine/interviewer.py`, `engine/prompts/*.md` (canned lines: `engine/prompts/canned.md`, from ENG-5)
 1. `phrase()`, `answer()`, phase lines, and `say()` for Shreyas. Generate the intro when the session is
    created, so it plays instantly.
@@ -307,6 +307,10 @@ Sharvil's evals land.
 line, and let "What happens when the list is empty?" through.
 **Done when:** PLAN §16 ENG-6: `asks-for-answer` never leaks in 20 attempts, and the intro plays within 1 s of
 joining.
+**As built:** no `phrase()` call. Nudges use the analyzer's draft, else the rubric hint, else the canned line, since a
+second Spark call would add 2–6 s to each. The intro is a canned phase line (COD-2), so nothing is generated at
+session creation. On a leak, `answer()` retries once asking for a Socratic question, then sends the canned
+line. Live check: 20 of 20 safe against Muse Spark; intro in ~1 ms.
 
 ### COD-2 — Coding phases, timers, wrap-up
 **P0 · Fri · needs ENG-1, ENG-6** · Read: PLAN §10.1
