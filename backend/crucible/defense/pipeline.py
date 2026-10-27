@@ -7,6 +7,7 @@ client messages to these methods. Standalone, the dev API and the CLI drive it d
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 from crucible.contracts.common import Phase
@@ -32,6 +33,7 @@ from crucible.runner.base import Runner
 
 logger = logging.getLogger(__name__)
 
+PhaseSetter = Callable[[Phase, str], Awaitable[None]]
 MAX_CHAOS_FINDINGS = 3
 MAX_FIX_ROUNDS = 3  # the first fix + 2 extra rounds (PLAN §11.2)
 
@@ -61,18 +63,27 @@ class DefensePipeline:
         sink: EventSink,
         *,
         duration_override_s: int | None = None,
+        phase_setter: PhaseSetter | None = None,
     ) -> None:
+        """`phase_setter`: in a live session the hub owns phases (it validates and records them), so the
+        controller passes `rt.set_phase`. Standalone, phase changes are emitted to the sink."""
         self.sample = sample
         self.runner = runner
         self.llm = llm
         self.sink = sink
+        self._phase_setter = phase_setter
         self.duration_override_s = duration_override_s
         self.state = DefenseState()
 
     async def set_phase(self, to: Phase, reason: str) -> None:
-        await self.sink.emit(
-            TimelineKind.PHASE, PhaseChange(from_phase=self.state.phase, to_phase=to, reason=reason)
-        )
+        if self.state.phase == to:
+            return
+        if self._phase_setter is not None:
+            await self._phase_setter(to, reason)
+        else:
+            await self.sink.emit(
+                TimelineKind.PHASE, PhaseChange(from_phase=self.state.phase, to_phase=to, reason=reason)
+            )
         self.state.phase = to
 
     def finding(self, finding_id: str) -> Finding:

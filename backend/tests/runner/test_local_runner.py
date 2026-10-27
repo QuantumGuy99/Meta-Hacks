@@ -3,8 +3,8 @@
 import pytest
 
 from crucible.config import Settings
-from crucible.runner.base import RunnerError
-from crucible.runner.local import LocalRunner, _with_port
+from crucible.runner.base import RunnerError, uvicorn_args
+from crucible.runner.local import LocalRunner
 
 
 def test_refuses_without_explicit_opt_in():
@@ -14,21 +14,13 @@ def test_refuses_without_explicit_opt_in():
         LocalRunner(Settings(_env_file=None, RUNNER="modal", ALLOW_LOCAL_RUNNER=True))
 
 
-def test_port_is_rewritten():
-    assert _with_port(["app.main:app", "--host", "127.0.0.1", "--port", "8080"], 5555) == [
-        "app.main:app",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        "5555",
-    ]
-    assert _with_port(["app.main:app", "--port=8080"], 1) == [
-        "app.main:app",
-        "--host",
-        "127.0.0.1",
-        "--port",
-        "1",
-    ]
+def test_host_and_port_are_rewritten():
+    expected = ["app.main:app", "--host", "127.0.0.1", "--port", "5555"]
+    assert uvicorn_args("uvicorn app.main:app --host 0.0.0.0 --port 8080", 5555) == expected
+    assert uvicorn_args("uvicorn app.main:app --port=8080 --host=0.0.0.0", 5555) == expected
+    assert uvicorn_args("uvicorn app.main:app", 5555) == expected
+    with pytest.raises(RunnerError):
+        uvicorn_args("python serve.py", 1)
 
 
 async def test_rejects_path_escape(local_settings, bank):

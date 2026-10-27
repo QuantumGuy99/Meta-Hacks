@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     LOCAL_RUNNER_ISOLATE: bool = True  # True: app deps via `uv run --with-requirements`; False: this venv
     DATABASE_URL: str = "sqlite:///./var/crucible.db"
     MOCK: bool = False
+    MOCK_SPEED: float = 1.0  # MOCK replays at this speed (2 = twice as fast)
     CORS_ORIGINS: str = "http://localhost:3000"
     MAX_SESSIONS_PER_IP_PER_DAY: int = 10
 
@@ -77,10 +78,6 @@ class Settings(BaseSettings):
     @property
     def has_meta_key(self) -> bool:
         return bool(self.MODEL_API_KEY)
-
-    @property
-    def has_glimmer(self) -> bool:
-        return bool(self.GLIMMER_BASE_URL and self.GLIMMER_MODEL)
 
     @property
     def has_modal(self) -> bool:

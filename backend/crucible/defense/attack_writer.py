@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import logging
 import textwrap
@@ -90,3 +91,27 @@ def _messages(finding: Finding, files: dict[str, str]) -> list[dict]:
         {"role": "system", "content": PROMPTS["attacker_system"]},
         {"role": "user", "content": json.dumps(user)},
     ]
+
+
+def extract_functions(script: str) -> AttackFunctions:
+    """Recover the three bodies from a rendered attack (ChaosRun.script), so a resumed session re-runs
+    exactly the attack its baseline used."""
+    tree = ast.parse(script)
+    lines = script.splitlines()
+    bodies: dict[str, str] = {}
+    for node in tree.body:
+        if isinstance(node, ast.AsyncFunctionDef) and node.name in _TEMPLATE_FUNCTIONS:
+            first, last = node.body[0], node.body[-1]
+            bodies[node.name] = textwrap.dedent("\n".join(lines[first.lineno - 1 : last.end_lineno]))
+    missing = _TEMPLATE_FUNCTIONS - set(bodies)
+    if missing:
+        raise ValueError(f"not a rendered attack: missing {sorted(missing)}")
+    return AttackFunctions(
+        setup_body=bodies["setup"],
+        request_body=bodies["make_request"],
+        invariant_body=bodies["check_invariant"],
+        rationale="recovered from the baseline run",
+    )
+
+
+_TEMPLATE_FUNCTIONS = frozenset({"setup", "make_request", "check_invariant"})
