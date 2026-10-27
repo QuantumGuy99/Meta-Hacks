@@ -1,0 +1,19 @@
+[
+  {"type": "hello", "client_now_ms": 1761696005000},
+  {"type": "editor.events", "events": [
+    {"t": 131000, "file": "solution.py", "version": 2, "kind": "change", "changes": [{"range_offset": 72, "range_length": 8, "text": "best = cur = 0"}]},
+    {"t": 133000, "version": 3, "kind": "paste", "changes": [{"range_offset": 87, "range_length": 0, "text": "for r in readings:\n        pass\n"}], "pasted_chars": 31},
+    {"t": 140000, "version": 3, "kind": "hidden"}
+  ]},
+  {"type": "editor.snapshot", "snapshot": {"t": 135000, "file": "solution.py", "version": 3, "code": "def longest_quiet_streak(readings, threshold):\n    best = cur = 0\n"}},
+  {"type": "code.run", "file": "solution.py", "code": "def longest_quiet_streak(readings, threshold):\n    return 0\n"},
+  {"type": "code.submit", "file": "solution.py", "code": "def longest_quiet_streak(readings, threshold):\n    return 0\n"},
+  {"type": "chat.send", "text": "Can a reading equal to the threshold count as quiet?"},
+  {"type": "hint.request"},
+  {"type": "hint.request", "step_id": "s2"},
+  {"type": "phase.advance", "to": "coding"},
+  {"type": "defense.run_chaos", "finding_id": "f1"},
+  {"type": "defense.verify", "finding_id": "f1", "files": {"app/main.py": "# edited file contents"}},
+  {"type": "defense.circle", "finding_id": "f1", "source": "canvas", "image_b64": "iVBORw0KGgo=", "node_boxes": {"n1": [40, 60, 220, 120], "n2": [300, 60, 480, 120]}},
+  {"type": "session.end"}
+]

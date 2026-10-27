@@ -1,0 +1,6 @@
+{
+  "setup_body": "    r = await client.get(\"/accounts\")\n    return {\"total\": sum(a[\"balance\"] for a in r.json())}",
+  "request_body": "    return await client.post(\"/transfer\", json={\"from\": \"acc-1\", \"to\": \"acc-2\", \"amount\": 10})",
+  "invariant_body": "    r = await client.get(\"/accounts\")\n    total = sum(a[\"balance\"] for a in r.json())\n    return total == ctx[\"total\"], f\"total {total}, expected {ctx['total']}\"",
+  "rationale": "Many concurrent transfers from one account expose the read-modify-write race; the total balance must not change."
+}
