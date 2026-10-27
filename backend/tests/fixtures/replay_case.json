@@ -1,0 +1,337 @@
+{
+  "about": "Shared replay parity case (PLAN §9.3): engine/codestate.py code_at and frontend/src/lib/replay.ts codeAt must both produce every checkpoint.",
+  "events": [
+    {
+      "seq": 1,
+      "t": 0,
+      "kind": "snapshot",
+      "payload": {
+        "t": 0,
+        "file": "solution.py",
+        "version": 1,
+        "code": "def f(xs):\n    pass\n"
+      }
+    },
+    {
+      "seq": 2,
+      "t": 1000,
+      "kind": "editor",
+      "payload": {
+        "t": 1000,
+        "file": "solution.py",
+        "version": 2,
+        "kind": "change",
+        "changes": [
+          {
+            "range_offset": 15,
+            "range_length": 4,
+            "text": "total = 0"
+          }
+        ]
+      }
+    },
+    {
+      "seq": 3,
+      "t": 2000,
+      "kind": "editor",
+      "payload": {
+        "t": 2000,
+        "file": "solution.py",
+        "version": 3,
+        "kind": "change",
+        "changes": [
+          {
+            "range_offset": 25,
+            "range_length": 0,
+            "text": "    for x in xs:\n        total += x\n"
+          }
+        ]
+      }
+    },
+    {
+      "seq": 4,
+      "t": 2500,
+      "kind": "editor",
+      "payload": {
+        "t": 2500,
+        "file": "notes.py",
+        "version": 1,
+        "kind": "change",
+        "changes": [
+          {
+            "range_offset": 0,
+            "range_length": 0,
+            "text": "scratch"
+          }
+        ]
+      }
+    },
+    {
+      "seq": 5,
+      "t": 3000,
+      "kind": "editor",
+      "payload": {
+        "t": 3000,
+        "file": "solution.py",
+        "version": 4,
+        "kind": "paste",
+        "changes": [
+          {
+            "range_offset": 61,
+            "range_length": 0,
+            "text": "    return total\n"
+          }
+        ],
+        "pasted_chars": 17
+      }
+    },
+    {
+      "seq": 6,
+      "t": 4000,
+      "kind": "editor",
+      "payload": {
+        "t": 4000,
+        "file": "solution.py",
+        "version": 5,
+        "kind": "change",
+        "changes": [
+          {
+            "range_offset": 15,
+            "range_length": 5,
+            "text": "acc"
+          },
+          {
+            "range_offset": 50,
+            "range_length": 5,
+            "text": "acc"
+          },
+          {
+            "range_offset": 72,
+            "range_length": 5,
+            "text": "acc"
+          }
+        ]
+      }
+    },
+    {
+      "seq": 7,
+      "t": 5000,
+      "kind": "editor",
+      "payload": {
+        "t": 5000,
+        "file": "solution.py",
+        "version": 6,
+        "kind": "undo",
+        "changes": [
+          {
+            "range_offset": 15,
+            "range_length": 3,
+            "text": "total"
+          },
+          {
+            "range_offset": 48,
+            "range_length": 3,
+            "text": "total"
+          },
+          {
+            "range_offset": 68,
+            "range_length": 3,
+            "text": "total"
+          }
+        ]
+      }
+    },
+    {
+      "seq": 8,
+      "t": 6000,
+      "kind": "editor",
+      "payload": {
+        "t": 6000,
+        "file": "solution.py",
+        "version": 7,
+        "kind": "change",
+        "changes": [
+          {
+            "range_offset": 10,
+            "range_length": 0,
+            "text": "  # sum 🙂"
+          }
+        ]
+      }
+    },
+    {
+      "seq": 9,
+      "t": 7000,
+      "kind": "editor",
+      "payload": {
+        "t": 7000,
+        "file": "solution.py",
+        "version": 8,
+        "kind": "change",
+        "changes": [
+          {
+            "range_offset": 20,
+            "range_length": 0,
+            "text": "!"
+          }
+        ]
+      }
+    },
+    {
+      "seq": 10,
+      "t": 7500,
+      "kind": "editor",
+      "payload": {
+        "t": 7500,
+        "file": "solution.py",
+        "version": 8,
+        "kind": "hidden",
+        "changes": []
+      }
+    },
+    {
+      "seq": 11,
+      "t": 8000,
+      "kind": "snapshot",
+      "payload": {
+        "t": 8000,
+        "file": "solution.py",
+        "version": 8,
+        "code": "def f(xs):  # sum 🙂!\n    total = 0\n    for x in xs:\n        total += x\n    return total\n"
+      }
+    },
+    {
+      "seq": 12,
+      "t": 9000,
+      "kind": "editor",
+      "payload": {
+        "t": 9000,
+        "file": "solution.py",
+        "version": 9,
+        "kind": "change",
+        "changes": [
+          {
+            "range_offset": 10,
+            "range_length": 11,
+            "text": ""
+          }
+        ]
+      }
+    },
+    {
+      "seq": 13,
+      "t": 10000,
+      "kind": "snapshot",
+      "payload": {
+        "t": 10000,
+        "file": "solution.py",
+        "version": 12,
+        "code": "def f(xs):\n    return sum(xs)\n"
+      }
+    },
+    {
+      "seq": 14,
+      "t": 11000,
+      "kind": "editor",
+      "payload": {
+        "t": 11000,
+        "file": "solution.py",
+        "version": 13,
+        "kind": "change",
+        "changes": [
+          {
+            "range_offset": 30,
+            "range_length": 0,
+            "text": "# done\n"
+          }
+        ]
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "t": -1,
+      "file": "solution.py",
+      "code": "",
+      "note": "before any snapshot: nothing yet"
+    },
+    {
+      "t": 0,
+      "file": "solution.py",
+      "code": "def f(xs):\n    pass\n",
+      "note": "starter snapshot"
+    },
+    {
+      "t": 1500,
+      "file": "solution.py",
+      "code": "def f(xs):\n    total = 0\n",
+      "note": "single replace"
+    },
+    {
+      "t": 2600,
+      "file": "solution.py",
+      "code": "def f(xs):\n    total = 0\n    for x in xs:\n        total += x\n",
+      "note": "append; edits to other files ignored"
+    },
+    {
+      "t": 3500,
+      "file": "solution.py",
+      "code": "def f(xs):\n    total = 0\n    for x in xs:\n        total += x\n    return total\n",
+      "note": "paste"
+    },
+    {
+      "t": 4500,
+      "file": "solution.py",
+      "code": "def f(xs):\n    acc = 0\n    for x in xs:\n        acc += x\n    return acc\n",
+      "note": "multi-cursor edit with ascending offsets"
+    },
+    {
+      "t": 5500,
+      "file": "solution.py",
+      "code": "def f(xs):\n    total = 0\n    for x in xs:\n        total += x\n    return total\n",
+      "note": "undo"
+    },
+    {
+      "t": 6500,
+      "file": "solution.py",
+      "code": "def f(xs):  # sum 🙂\n    total = 0\n    for x in xs:\n        total += x\n    return total\n",
+      "note": "insert containing an emoji"
+    },
+    {
+      "t": 7999,
+      "file": "solution.py",
+      "code": "def f(xs):  # sum 🙂!\n    total = 0\n    for x in xs:\n        total += x\n    return total\n",
+      "note": "offset after an emoji; visibility events change nothing"
+    },
+    {
+      "t": 8000,
+      "file": "solution.py",
+      "code": "def f(xs):  # sum 🙂!\n    total = 0\n    for x in xs:\n        total += x\n    return total\n",
+      "note": "snapshot that agrees with the edits"
+    },
+    {
+      "t": 9500,
+      "file": "solution.py",
+      "code": "def f(xs):\n    total = 0\n    for x in xs:\n        total += x\n    return total\n",
+      "note": "delete across an emoji"
+    },
+    {
+      "t": 10500,
+      "file": "solution.py",
+      "code": "def f(xs):\n    return sum(xs)\n",
+      "note": "disagreeing snapshot wins"
+    },
+    {
+      "t": 11000,
+      "file": "solution.py",
+      "code": "def f(xs):\n    return sum(xs)\n# done\n",
+      "note": "edit after the snapshot"
+    },
+    {
+      "t": 10999,
+      "file": "solution.py",
+      "code": "def f(xs):\n    return sum(xs)\n",
+      "note": "nothing after t is applied"
+    }
+  ]
+}

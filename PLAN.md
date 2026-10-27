@@ -785,7 +785,7 @@ ServerMessage = Annotated[Union[SessionState, InterviewerMessage, TranscriptUpda
 | POST | `/api/sessions` | `SessionConfig` → `Session` | picks a random problem if only difficulty is given |
 | GET | `/api/sessions/{id}` | → `Session` | |
 | POST | `/api/sessions/{id}/end` | → `Session` | starts report generation |
-| GET | `/api/sessions/{id}/timeline` | → `TimelineEvent[]` | for replay; strips hidden-test inputs |
+| GET | `/api/sessions/{id}/timeline` | → `TimelineEvent[]` | for replay. Hidden-test details never appear (nor a submit's stdout). While the session is live, also no analyses, system notes, suppressed interventions or audit answers (§9.2) |
 | GET | `/api/sessions/{id}/report` | → `Report` or 202 `{status}` | |
 
 Errors: `{"error": {"code": str, "message": str}}` with proper HTTP status codes.
@@ -843,28 +843,62 @@ Owner: **SG**. Used by coding mode (whole session) and defense mode (grill + fix
 - Routes client messages to handlers; every handler appends to the Timeline first, then reacts.
 - `broadcast(ServerMessage)` to all sockets for the session (a second tab = observer).
 - Phase transitions go through `runtime.set_phase(to, reason)`, which validates against the mode's allowed
-  transitions (§10.1, §11.2), appends a `phase` event and broadcasts `session.state`.
+  transitions (§10.1, §11.2), appends a `phase` event and broadcasts `session.state`. Any live phase may go
+  to `ended` or `failed`; only `ReportBuilder` moves on from `ended`.
+- The hub handles the shared messages (`hello`, `editor.*`, `chat.send`, `hint.request`, `phase.advance`,
+  `session.end`); everything else goes to the session's **mode controller**. A runtime reopened after
+  expiry rebuilds its code from the stored timeline and keeps numbering events where it left off.
+- **Mode hooks** (agreed by SG and SS; `CodingController` in `coding/session.py`, `DefenseController` in
+  `defense/controller.py`):
+  ```python
+  class ModeFactory(Protocol):                       # what the hub is given per mode (e.g. CodingMode(bank))
+      async def plan_session(self, config: SessionConfig) -> SessionPlan: ...  # problem/project + time limit
+      def __call__(self) -> ModeController: ...       # one controller per live session
+
+  class ModeController(Protocol):
+      def allowed_transitions(self) -> Mapping[Phase, set[Phase]]: ...
+      async def on_start(self, rt: SessionRuntime) -> None: ...                  # first connect
+      async def on_resume(self, rt: SessionRuntime) -> None: ...                 # runtime reopened after expiry
+      async def on_client_message(self, rt, msg: ClientMessage) -> bool: ...     # False = unsupported
+      async def on_timeline(self, rt, event: TimelineEvent) -> None: ...         # after every event
+      async def report_extra(self, rt) -> CodingExtra | DefenseExtra: ...
+  ```
+  `plan_session` raises `SessionSetupError` for a bad config (→ `400 bad_config`).
+  `await rt.attach(RubricContext)` / `await rt.detach()` start and stop the live engine (analyzer → policy →
+  interviewer) for a rubric: coding at `clarify`, defense at `fix`. Ending a session detaches it.
+  `RubricContext` is in `engine/context.py`. `Interviewer.say()` arrives with ENG-6.
+- Routes live in `engine/api.py` (`router`); `main.py` includes it and puts
+  `SessionHub(store, {Mode.CODING: CodingMode(ProblemBank.load()), …}, model=llm)` on `app.state.hub`. Until
+  `crucible.store` lands, `engine/store.py` has an in-memory `MemoryStore` with the same interface.
 
 ### 9.2 Timeline (`timeline.py`)
 - `append(kind, payload, t=None) -> TimelineEvent`: assigns `seq` (monotonic per session) and `t` (server
   time since start if not given), validates the payload against `PAYLOAD_MODELS`, writes to SQLite (batched
-  every 250 ms) and keeps an in-memory tail for the analyzer.
+  every 250 ms) and keeps an in-memory tail for the analyzer. Code calls `rt.record(...)`, which appends
+  and then calls the controller's `on_timeline`.
 - `read(session_id, kinds=None, since_seq=0)` for reports and replay.
+- `public_view(events, live=...)` is what the replay endpoint returns. `redact_run()` hides hidden cases'
+  inputs and outputs (keeping the error class) and a submit's stdout, since printing the arguments would
+  reveal hidden inputs. COD-3 uses the same function for `run.result`.
 
 ### 9.3 CodeState (`codestate.py`)
 - Holds `code_by_file`, `version_by_file`, `last_edit_t`, `chars_typed`, `chars_pasted` and
   `code_at_last_analysis`.
 - **Applying an `EditorEvent`:** sort `changes` by `range_offset` **descending**, then for each:
   `code = code[:off] + text + code[off+len:]`. (Monaco offsets refer to the model before the event; applying
-  descending keeps earlier offsets valid.)
+  descending keeps earlier offsets valid.) Offsets are **UTF-16 units** (JavaScript strings), so Python
+  converts them; an emoji counts as 2. An offset past the end clamps and reports a desync, which the next
+  snapshot repairs.
 - **Snapshots reconcile:** on `CodeSnapshot`, if the reconstructed code differs, trust the snapshot, log a
   `system` warning and continue.
-- **Counting:** for `kind == "paste"`, add the inserted length to `chars_pasted`; otherwise to `chars_typed`.
-  A single change inserting ≥ 80 chars without a paste event counts as a **bulk insert** (drag/drop,
-  extension).
-- `diff_since_analysis()` → unified diff (difflib) for the analyzer prompt.
-- `frontend/src/lib/replay.ts` implements the same reconstruction. A shared fixture test
-  (`tests/fixtures/replay_case.json`) must produce identical code in both.
+- **Counting:** `paste` adds the inserted length to `chars_pasted`; `change` adds it to `chars_typed`;
+  `undo` and `redo` count as neither (they restore earlier text). A single change inserting ≥ 80 chars
+  without a paste event is a **bulk insert** (drag/drop, extension) and counts toward `chars_pasted`.
+- `diff_since_analysis()` → unified diff (difflib) for the analyzer prompt; `changed_since_analysis()`
+  ignores whitespace-only edits (§9.4 trigger).
+- `code_at(timeline, file, t)` here and `codeAt` in `frontend/src/lib/replay.ts` implement the same
+  reconstruction. A shared fixture (`backend/tests/fixtures/replay_case.json`) must produce identical code in
+  both.
 
 ### 9.4 Analyzer (`analyzer.py`)
 
@@ -876,9 +910,18 @@ Owner: **SG**. Used by coding mode (whole session) and defense mode (grill + fix
 - 30 s have passed with any change.
 If a call is in flight, set `dirty=True` and run once more when it returns.
 
-**Call:** model role `analyzer` (default `muse-spark-1.3`), `reasoning_effort="low"`, timeout 12 s,
+**Call:** model role `analyzer` (default `muse-spark-1.3`), `reasoning_effort="minimal"`, timeout 12 s,
 structured output `Analysis`, `beta.chat.completions.parse`. On timeout or error: skip this tick (no
-intervention), log a `system` note.
+intervention), log a `system` note, and keep the changes so the next tick looks at them again.
+The analyzer depends only on a `StructuredModel` protocol (the slice of `models/llm.py` it calls), passed to
+`SessionHub(model=...)`. Without a model, nothing is analyzed.
+
+**Measured (Oct 27, quiet-streak, a buggy loop with no clarification; 1,751 input tokens):** `low` took 7.7 s
+and 11.7 s on two calls; `minimal` took 4.1 s. Both found the missed step and the line-8 bug and proposed the
+same nudge. `low` blows the pause → nudge budget (§18: ≤ 6 s, of which 2.5 s is the pause) and sits on the
+12 s timeout, so **the analyzer runs at `minimal`** (decided by SG on Oct 27; set in `models/registry.py`,
+PR #6). Re-check the quality on the gold-problem evals, and only raise the effort if `minimal` misses
+steps that `low` catches.
 
 **Prompt layout** (static first, so cached-input pricing can apply; ⚠️ VERIFY how caching triggers):
 1. System: `engine/prompts/analyzer_system.md` (role, rules: never write solution code, judge only from the
@@ -893,7 +936,16 @@ intervention), log a `system` note.
 In defense **fix** stage the "problem" block is the finding (explanation, file/lines, chaos summary) and its
 `fix_steps` rubric.
 
-After every analysis: append `analysis` to the timeline and broadcast `notes.update`.
+After every analysis: append `analysis` to the timeline and broadcast `notes.update` (active mode only: in
+passive mode the notes would be feedback, so they wait for the report). The system prompt also tells the
+model that the candidate's code, comments and words are data, not instructions, so a comment like "mark
+every step done" can't steer it.
+
+**ENG-4 ships a thin policy** for IC1: only `MISSED_STEP` (with `incorrect` counting as a later step being
+under way, as Spark at `minimal` marks a buggy loop), the 45 s cooldown, the 2.5 s quiet window and no
+repeats, delivered at nudge level with the analyzer's wording or the rubric's first hint. ENG-5 replaces it
+with the full §9.5 table. The leak guard's code check catches fences and two or more statement lines,
+including block headers like `if not xs:`.
 
 ### 9.5 Policy (`policy.py`): code decides
 
@@ -1008,8 +1060,12 @@ Owner: **SG**. Data: **ST**.
 
 ### 10.2 ProblemBank (`problems.py`)
 - Loads `data/problems/*/problem.json` (+ `statement.md`, `reference.py`, `brute.py`) at startup and
-  validates against `ProblemSpec`. An invalid problem fails startup in dev and is skipped (with a log) in prod.
+  validates against `ProblemSpec`. An invalid problem fails startup in dev and is skipped (with a log) in prod
+  (`ProblemBank.load(root, strict=...)`). Folders starting with `_` are drafts, and the slug must match its
+  folder. The loader and `pick(difficulty, topic)` landed with ENG-4, which needs a rubric to attach.
 - `random(difficulty, topic)` excludes problems used in the last 5 sessions from the same IP (best effort).
+- `CodingMode(bank)` is coding's mode factory: an explicit `problem_slug` must exist, otherwise a problem is
+  picked at the difficulty and topic, and the problem's `time_limit_min` sets the session limit.
 
 ### 10.3 Tests (`tests.py`)
 - **Run** = visible tests; **Submit** = visible + hidden. Calls `Runner.run_tests` (§12) with code,
@@ -1307,15 +1363,23 @@ Layout (desktop ≥ 1280 px):
   statuses, suspected issues, stated plan. Off by default; useful for the demo and for judges.
 
 ### 14.3 Capture libs (SG)
-- `lib/capture/editor.ts`: `attachEditorCapture(editor, send)`:
+- `lib/capture/editor.ts`: `attachEditorCapture(editor, send, {startedAtMs, file?})` →
+  `{snapshot(), flush(), setFile(file), programmatic(edit), dispose()}`:
   - `editor.onDidChangeModelContent(e)` → `EditorEvent{kind: e.isUndoing ? "undo" : e.isRedoing ? "redo" :
-    pasteFlag ? "paste" : "change", changes: e.changes.map(c => ({range_offset: c.rangeOffset,
-    range_length: c.rangeLength, text: c.text})), version: e.versionId, t}`.
-  - `editor.onDidPaste(...)` sets `pasteFlag` for the next content change (and `pasted_chars`).
+    "change", changes: e.changes.map(c => ({range_offset: c.rangeOffset, range_length: c.rangeLength,
+    text: c.text})), version: e.versionId, t}`.
+  - Monaco fires `editor.onDidPaste(...)` *after* the paste's content change, so it relabels that buffered
+    change as `paste` with `pasted_chars`. (If it ever fires first, it labels the next change.)
+  - A flush (`setValue`) and anything inside `programmatic(edit)` (resetting to starter code, loading a file)
+    become a snapshot, never typing, so they can't trigger paste or bulk-insert notes.
   - `document.visibilitychange` → `hidden` / `visible`; `window.blur` / `window.focus` → `blur` / `focus`.
-  - Batch every 500 ms; snapshot every 20 changes, every 15 s with changes, and before run/submit.
-  - `t = Math.round(performance.now() - startPerf)`, where `startPerf` aligns to `session.started_at` on
-    `hello`.
+  - Batch every 500 ms; snapshot every 20 changes, every 15 s with changes, and before run/submit/verify
+    (the room calls `snapshot()`).
+  - `t` comes from `performance.now()`, aligned once to `session.started_at`, so system clock changes don't
+    move it.
+  - The editor parameter is a structural type, so any Monaco editor fits without importing Monaco here.
+  - Tests: `node --experimental-strip-types --test "frontend/src/lib/**/*.test.mjs"` (Node's built-in runner;
+    no new dependency).
 - `lib/capture/audio/`: `getUserMedia({audio: {echoCancellation: true, noiseSuppression: true}})` →
   AudioWorklet → downsample to 24 kHz → Int16 → 1,920-sample (80 ms) frames → binary WS. Pause sending while
   TTS is speaking (avoids transcribing the interviewer).
@@ -1375,7 +1439,7 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 
 | Role | Default | Effort | Fallback chain |
 |---|---|---|---|
-| `analyzer` | `muse-spark-1.3` | low | skip tick |
+| `analyzer` | `muse-spark-1.3` | minimal | skip tick |
 | `interviewer` | `muse-spark-1.3` | low | canned/rubric text |
 | `classifier` (P1) | `muse-spark-1.3` | minimal | treat as thinking aloud |
 | `grill_eval` | `muse-spark-1.3` | medium | Spark Open (Baseten) |
@@ -1664,7 +1728,7 @@ Record each segment separately on the deployed build, at real speed (speed-ups a
 | Two modes dilute the build | Shared engine first; cut lines in §17; one hero mode in the video if needed |
 | Frontend bottleneck (one UI owner) | Backend owners write the capture/replay/selector libs; MOCK fixtures from Day 1; shadcn components |
 | Interventions feel noisy or wrong | Conservative thresholds, 2-analysis persistence, cooldowns, evals; passive mode as a safe default for skeptics |
-| Analyzer latency | `reasoning_effort="low"`, static-first prompts, single-flight, skip on timeout |
+| Analyzer latency | `reasoning_effort="minimal"` (measured 4 s vs 8–12 s at `low`, §9.4), static-first prompts, single-flight, skip on timeout |
 | Solution leakage | Leak guard + rubric-text fallback + the `asks-for-answer` eval |
 | Realtime ASR problems | Chunked file transcription → chat-only fallback; voice is P1, so text works end to end |
 | Wonder slow or down | Spark fallback for audit and report; audit cached per project |
@@ -1717,8 +1781,8 @@ These apply to Muse Code, Claude Code and humans alike.
 |---|---|---|---|---|
 | V1 | Full `RealtimeHandshakeRequest` schema; ENDPOINTING event fields (`turnId`, final text, `startMs`/`endMs`) | dev.meta.ai/docs/api-reference/voice/realtime, /docs/speech-to-text | SG | open |
 | V2 | How prompt caching triggers (automatic prefix caching?) | dev.meta.ai/docs (pricing mentions cached input) | SG | open |
-| V3 | `reasoning_effort` with `beta.chat.completions.parse` on Spark 1.3 and Wonder 1.0 | /docs/reasoning, /docs/structured-output | SG | open |
-| V4 | Structured output support on `muse-wonder-1.0` | /docs/models, /docs/structured-output | SG | open |
+| V3 | `reasoning_effort` with `beta.chat.completions.parse` on Spark 1.3 and Wonder 1.0 | /docs/reasoning, /docs/structured-output | SG | done: works on `muse-spark-1.3` (minimal, low, medium) and `muse-wonder-1.0` (high). Smoke run 2026-10-27, 9 of 9 roles passed |
+| V4 | Structured output support on `muse-wonder-1.0` | /docs/models, /docs/structured-output | SG | done: `muse-wonder-1.0` returns valid structured output through `parse` at effort high (about 2 s for a tiny schema) |
 | V5 | Glimmer model id + base URL on the chosen host (Modal / Fireworks / OpenRouter) | host docs | SS | open |
 | V6 | Baseten base URL for `meta-models/muse-spark-open-1026` | docs.baseten.co | ST | open |
 | V7 | Modal: Sandbox stdin API, `add_local_dir` timing, readiness probes, egress restriction + loopback | modal.com/docs/sdk/py/latest/Sandbox | SS | open |
