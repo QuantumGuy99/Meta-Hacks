@@ -73,10 +73,9 @@ keystroke, every test run, every sentence you say) and holds you to what a stron
 
 | Model | Where it's used in Crucible | Why this model |
 |---|---|---|
-| **Muse Spark 1.3** (`muse-spark-1.3`) | Live code analyzer (runs on each typing pause), interviewer replies, grill answer grading, problem drafting | Fast, strong structured output, 1M-token context |
+| **Muse Spark 1.3** (`muse-spark-1.3`) | Live code analyzer (runs on each typing pause), interviewer replies, grill answer grading, the chaos-lab attack scripts, problem drafting | Fast, strong structured output, 1M-token context |
 | **Muse Wonder 1.0** (`muse-wonder-1.0`) | Whole-project audit in Project Defense; final session reports | The strongest reasoning model; 1M context fits a whole project |
 | **Muse Voice Transcribe** (`muse-voice-transcribe-1.0`) | Live think-aloud transcription and grill answers over the realtime WebSocket | Built for real-time speech; turn detection |
-| **Muse Glimmer** (open weights, 30B) | The chaos-lab attack agent: writes, runs and refines load scripts | Open weights we host and control; built for tool-calling agents |
 | **Muse Spark Open** (via Baseten) | Bulk drafting for the problem bank; failover when the main API is unavailable | Open-weight model, so we're never down when one provider is |
 | **Muse Image** (`muse-image-1.0`) | Illustrations for problems (grids, trees, graphs); shareable report and merge-gate cards | Problems with diagrams are easier to understand |
 | **SAM 3.1** (`sam-3.1`) | Project Defense grill: circle the broken service on the architecture diagram (or hold up a paper sketch) and Crucible finds which part you mean. *Stretch:* paper sketches in coding interviews; optional proctor check (phone in frame) | Segments any object from a short text prompt |
@@ -103,7 +102,7 @@ All Meta Model API calls go through `https://api.meta.ai/v1` with the OpenAI-com
 │   CodeState → Analyzer (LLM suggests) → Policy (code decides) ─┼─────► Muse Spark 1.3
 │   Interviewer replies · Report builder ────────────────────────┼─────► Muse Wonder 1.0
 │ Coding mode: problems · test runs · integrity notes            │
-│ Defense mode: ingest · audit · chaos lab · grill · verify ─────┼─────► Muse Wonder / Muse Glimmer
+│ Defense mode: ingest · audit · chaos lab · grill · verify ─────┼─────► Muse Wonder / Muse Spark
 │ Runner (code execution) ───────────────────────────────────────┼─────► Modal Sandboxes
 └────────────────────────────────────────────────────────────────┘
 ```
@@ -130,7 +129,7 @@ All Meta Model API calls go through `https://api.meta.ai/v1` with the OpenAI-com
 ├── backend/                 # Python 3.12 · FastAPI · uv
 │   └── crucible/
 │       ├── contracts/       # 🔒 shared Pydantic schemas → generates frontend/src/types/contracts.ts
-│       ├── models/          # Meta + partner model clients (LLM, ASR, image, SAM, Glimmer)
+│       ├── models/          # Meta + partner model clients (LLM, ASR, image, SAM)
 │       ├── engine/          # shared live interviewer (timeline, analyzer, policy, voice, report)
 │       ├── coding/          # Live Coding Interview mode
 │       ├── defense/         # Project Defense mode
