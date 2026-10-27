@@ -184,7 +184,9 @@ class DefenseController:
             self._spawn(rt, self._opening(rt, resumed=True))
         elif phase == Phase.GRILL:
             self._queue = [f for f in p.state.broken if f not in p.state.grill or p.needs_follow_up(f)]
-            await self._ask_next(rt)
+            # The hub resumes a runtime *before* it attaches the reconnecting socket, so ask from a task:
+            # it runs once the socket is in place instead of broadcasting the question to nobody.
+            self._spawn(rt, self._ask_next(rt))
         elif phase in (Phase.FIX, Phase.VERIFY):
             await self._enter_fix(rt, announce=False)
 
