@@ -66,7 +66,7 @@ _SPARK_OPEN = ModelTarget("baseten", SPARK_OPEN, None)
 _GLIMMER = ModelTarget("glimmer", None, None)
 
 ROLES: dict[ModelRole, RoleSpec] = {
-    "analyzer": RoleSpec(_spark("low"), timeout_s=12),
+    "analyzer": RoleSpec(_spark("minimal"), timeout_s=12),
     "interviewer": RoleSpec(_spark("low"), timeout_s=6),
     "classifier": RoleSpec(_spark("minimal"), timeout_s=3),
     "grill_eval": RoleSpec(_spark("medium"), timeout_s=10, fallbacks=(_SPARK_OPEN,)),
