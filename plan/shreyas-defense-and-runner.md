@@ -48,7 +48,7 @@ handoff). Team-wide: root `CLAUDE.md`, `backend/CLAUDE.md` (code style), `.claud
 ---
 
 ## Status (end of Tue Oct 27)
-- **Done and on `main`:** S-0 (#10), store, RUN-1, RUN-3 (verified on real Modal), DEF-1..6, OPS-2 (MOCK replay
+- **On `main`, first pass (review fixes in #29 and the #22 plan):** S-0 (#10), store, RUN-1, RUN-3 (verified on real Modal), DEF-1..6, OPS-2 (MOCK replay
   plus a recorder), OPS-1 prep (Dockerfile, Railway config, CI Docker job, `docs/DEPLOY.md`), attack containment
   (validator + loopback-only clients + `block_network`; V7 done).
 - **Open:** #17 (DEF-11 Muse fix assistant spec) and #18 (attacker prompt), both waiting on Srinithin.
