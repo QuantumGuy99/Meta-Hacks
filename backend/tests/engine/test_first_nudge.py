@@ -102,6 +102,21 @@ def test_a_missed_step_seen_twice_becomes_a_nudge(client: TestClient, model: Fak
     assert "Quiet Streak" in model.calls[0][1]["content"]
 
 
+def test_the_hint_button_gets_the_first_rubric_hint(client: TestClient) -> None:
+    _, socket = join(client)
+    with socket as ws:
+        receive_until(ws, lambda m: m["type"] == "session.state" and m["phase"] == "clarify")
+        ws.send_json({"type": "hint.request"})
+        message = receive_until(ws, lambda m: m["type"] == "interviewer.message")
+    intervention = message["intervention"]
+    assert (intervention["trigger"], intervention["level"], intervention["step_id"]) == (
+        "hint_requested",
+        "nudge",
+        "s1",
+    )
+    assert intervention["text"].startswith("Before you code")
+
+
 def test_passive_mode_shows_nothing_but_records_the_nudge(client: TestClient) -> None:
     sid, socket = join(client, feedback="passive")
     with socket as ws:
