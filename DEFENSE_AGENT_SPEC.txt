@@ -18,7 +18,7 @@ Shreyas owns the whole Project Defense vertical, the Runner (used by BOTH modes)
 and MOCK replay. Teammates: Srinithin (SG) engine + coding mode, Likhil (LG) frontend, Sharvil (ST) data.
 
 WRITE (SS-owned, PLAN §6):
-- `backend/crucible/defense/`   session.py projects.py audit.py chaos.py attack_writer.py validator.py
+- `backend/crucible/defense/`   controller.py projects.py audit.py chaos.py attack_writer.py validator.py
                                 grill.py verify.py verdict.py card.py prompts/*.md
 - `backend/crucible/runner/`    base.py local.py modal_runner.py harness/ (run_tests.py, chaos_template.py)
 - `backend/crucible/models/glimmer.py`
@@ -40,7 +40,10 @@ LICENSE NOTE: do NOT add MIT License headers or LICENSE references in code or do
 2. DEFENSE FLOW (PLAN §3.2, §11.2)
 ----------------------------------
 Phases use the shared `Phase` enum: setup → audit → chaos → grill → fix → verify → verdict → ended →
-reporting → reported. `defense/session.py` (DefenseSession) drives them via `runtime.set_phase()`.
+reporting → reported. `defense/controller.py` (DefenseController, implementing SG's ModeController hook:
+allowed_transitions, on_start, on_client_message, on_timeline, report_extra) drives them via
+`runtime.set_phase()`. Grill questions go out through `Interviewer.say()`; fix attaches a RubricContext.
+See plan/srinithin-engine-and-coding.md "Engine hooks for defense".
 
 1. setup   Ingest (projects.py): validate limits (§11.1), store files, content_hash, file tree + numbered lines.
 2. audit   muse-wonder-1.0 → AuditResult (nodes, edges, ≤ 5 findings). Browser gets AuditPublic only.
@@ -191,8 +194,8 @@ Format: topic — kept — why.
     lets the fix itself become the explanation.
  6. File names (meta_llm.py, voice_asr.py, sam_client.py, image_client.py, glimmer_agent.py,
     modal_sandbox.py, local_runner.py, harness.py, ingest.py, defense_fixtures.py) — PLAN names —
-    the spec's models/ files would duplicate SG's clients. Spec's service.py kept as defense/session.py
-    (PLAN had no Defense orchestrator; named to mirror coding/session.py).
+    the spec's models/ files would duplicate SG's clients. Spec's service.py became
+    defense/controller.py (DefenseController), matching SG's ModeController engine hook.
  7. Ownership of models/ and data/defense_apps/ — PLAN (SG, ST) — SS may write sam.py/image.py only with
     SG's OK; a test target in backend/tests/fixtures/ unblocks the Runner without touching ST's apps.
  8. Timeline event_type names (code_edit, asr_transcript, chaos_tick, interviewer_nudge, gate_verdict)
