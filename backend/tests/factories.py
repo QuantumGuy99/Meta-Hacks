@@ -2,7 +2,7 @@
 
 import json
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -112,8 +112,13 @@ class StubController:
         return None
 
 
-def runtime(model: FakeModel | None = None, *, feedback: str = "active") -> SessionRuntime:
-    """A started coding runtime in `clarify`, with no sockets."""
+def runtime(
+    model: FakeModel | None = None,
+    *,
+    feedback: str = "active",
+    monotonic: Callable[[], float] = time.monotonic,
+) -> SessionRuntime:
+    """A started coding runtime in `clarify`, with no sockets. Pass `monotonic` to drive its clock."""
     now = datetime.now(UTC)
     session = Session(
         id="s1",
@@ -130,7 +135,7 @@ def runtime(model: FakeModel | None = None, *, feedback: str = "active") -> Sess
         session,
         StubController(),
         MemoryStore(),
-        monotonic=time.monotonic,
+        monotonic=monotonic,
         wall=lambda: datetime.now(UTC),
         model=model,
     )
