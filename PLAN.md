@@ -867,8 +867,14 @@ Server → client:
 ### 8.3 WebSocket `/ws/sessions/{id}/audio` (binary)
 
 - The client sends **raw PCM, signed 16-bit little-endian, mono, 24 kHz**, in **80 ms frames (1,920 samples =
-  3,840 bytes)** at real-time pace. Text frames: `{"type":"start"}` / `{"type":"stop"}`.
+  3,840 bytes)** at real-time pace. Text frames: `{"type":"start"}` / `{"type":"stop"}`, and
+  `{"type":"ask","holding":true|false}` when the **Ask** button is pressed and released.
+- While TTS speaks, the client sends **silence** instead of the mic (not nothing): the stream keeps real-time
+  pace (Meta closes streams that fall behind) and the audio clock stays aligned with session time.
 - The server forwards the frames to Meta's realtime ASR (§9.7) and publishes transcripts on the JSON socket.
+- Close codes: `4404` unknown session, `4403` the session has voice off, `4503` voice unavailable (no key, or
+  realtime and file transcription both failed), `4409` another tab took the microphone, `1000` the session
+  ended. The browser shows "use chat" for the 44xx/45xx codes.
 
 ---
 
@@ -1098,28 +1104,38 @@ wiring; `test_first_nudge.py` runs the hint button end to end.
   it; the backend appends an interviewer `TranscriptTurn` (source=text) so the replay shows it.
 
 ### 9.7 VoiceBridge (`voice.py`)
-- On the audio socket's `start`, open `wss://api.meta.ai/v1/asr/realtime` and send the handshake as the first
-  text frame within 10 s:
-  `{"authorization": {"accessToken": "Bearer <MODEL_API_KEY>"}, "model": "muse-voice-transcribe-1.0",
-  "audioEncoding": "PCM_24KHZ", "mode": "ENDPOINTING"}` (⚠️ VERIFY the full `RealtimeHandshakeRequest`
-  schema). The server's acknowledgement is the only frame without `type`; it contains `sessionId`.
-- Forward binary frames as they arrive (the browser already paces them in real time; never buffer and burst,
-  or Meta closes with 1008).
-- **ENDPOINTING events:** `speechStart`, `transcript` (partials; cumulative; no `turnId`), `speechEnd`,
-  `speechComplete`. Key turns on `turnId` (⚠️ VERIFY where the final text and `startMs`/`endMs` live).
-  Partials → `transcript.update` (final=false, not stored); completed turns → a `TranscriptTurn` (final=true)
-  in the timeline, which triggers the analyzer.
-- **Is the candidate talking to the interviewer?** P0: only `chat.send` or the **Ask** button (hold to talk)
-  counts as a question, and a `chat.send` only when it reads as one (`policy.is_question`: ends in "?" or
-  opens with a question word). P1: a cheap classifier (Spark, `reasoning_effort="minimal"`, timeout 3 s) labels
-  final turns `question_to_interviewer | thinking_aloud`.
-- Close codes: `1000` done; `1011` → reconnect with backoff (also when the reason is "Max session duration
-  reached"; sessions are capped at 60 min); `1013` → back off 5 s, then reconnect; `1008` → stop and report a
-  config error. On `stop`, send `{"type":"endStream"}` and read until the server closes.
-- **Fallbacks:** if realtime fails 3 times, switch to chunked file transcription (10 s WAV chunks →
-  `POST /v1/asr/transcribe`, multipart fields `request` + `audio`); if that fails too, show "voice
-  unavailable, use chat" and continue. Word timestamps aren't available (turn-level only), so speaking
-  pace is computed per turn.
+One `VoiceBridge` per session (`rt.voice`), opened by the audio socket; `models/asr.py` talks to Meta (V1).
+- **Realtime:** on `start`, open `wss://api.meta.ai/v1/asr/realtime` and send the handshake as the first text
+  frame (10 s limit): `{"authorization": {"accessToken": "Bearer <MODEL_API_KEY>"}, "model":
+  "muse-voice-transcribe-1.0", "audioEncoding": "PCM_24KHZ", "mode": "ENDPOINTING", "partialMode":
+  "CUMULATIVE", "emitAudioProgress": false, "languageBias": ["English"]}`. The acknowledgement is
+  `{"sessionId"}`, the only frame without `type`.
+- Forward binary frames as they arrive. Audio that arrives while (re)connecting is dropped, never buffered and
+  burst (Meta closes with 1008 when a stream runs ahead of real time).
+- **ENDPOINTING events:** `speechStart{turnId}` → cumulative `transcript` partials (no `turnId`: they belong to
+  the latest `speechStart`) → `speechEnd{turnId}` → `speechComplete{turnId, transcript}` with the final text.
+  Every event carries `audioProcessedMs`; there are no `startMs`/`endMs` in realtime. A turn's session times are
+  `t0 + audioProcessedMs` of its `speechStart` and `speechEnd`, where `t0` is the session time the stream's first
+  frame began. Partials → `transcript.update` (final=false, not stored); `speechComplete` → a final
+  `TranscriptTurn(source="voice")` on the timeline, then `transcript.update`. Speech in progress holds unsolicited
+  messages (`rt.heard_speech()`) and sets `interviewer_state` to `listening`.
+- **Is the candidate talking to the interviewer?** P0: a `chat.send` that reads as a question
+  (`policy.is_question`), or a voice turn spoken while **Ask** was held for at least half of it (any overlap
+  isn't enough: candidates let go and keep talking, and turn times can be a few hundred ms off). Questions asked
+  before the reply are answered together (a spoken question often arrives as two turns). P1 (COD-6): a cheap
+  classifier (Spark, `reasoning_effort="minimal"`, timeout 3 s) labels other final turns
+  `question_to_interviewer | thinking_aloud`.
+- **Close codes:** `1000` done (after our `endStream`; otherwise reconnect). `1011` → reconnect with backoff
+  (0.5 s, doubling); at "Max session duration reached" (the 60-min cap) reconnect without counting a failure.
+  `1013` → wait 5 s, then reconnect. `1008` (bad request or streaming policy) → straight to the chunked fallback,
+  since retrying the same stream fails again. On `stop`, send `{"type":"endStream"}` and read up to 5 s for the
+  last turns.
+- **Fallbacks:** after 3 realtime failures in a row, transcribe 10 s WAV chunks with `POST /v1/asr/transcribe`
+  (multipart `request` = `{"model", "audioEncoding": "WAV", "mode": "ENDPOINTING"}` + `audio`), which returns
+  `turns[{startMs, endMs, transcript}]` relative to the chunk. On `stop`, a last chunk of ≥ 1 s is sent. If two
+  chunks fail in a row, voice is unavailable: a `system` note, an `error{code: "voice_unavailable"}` on the JSON
+  socket ("use chat"), and the audio socket closes with 4503. Word timestamps aren't available (turn-level
+  only), so speaking pace is computed per turn.
 
 ### 9.8 ReportBuilder (`report.py`)
 1. **Metrics in code** from the stored timeline (`Metrics`, §7.5). Interventions shown and `hints_by_level`
@@ -2000,7 +2016,7 @@ These apply to Muse Code, Claude Code and humans alike.
 
 | # | Item | Where to check | Owner | Status |
 |---|---|---|---|---|
-| V1 | Full `RealtimeHandshakeRequest` schema; ENDPOINTING event fields (`turnId`, final text, `startMs`/`endMs`) | dev.meta.ai/docs/api-reference/voice/realtime, /docs/speech-to-text | SG | open |
+| V1 | Full `RealtimeHandshakeRequest` schema; ENDPOINTING event fields (`turnId`, final text, `startMs`/`endMs`) | dev.meta.ai/docs/api-reference/voice/realtime, /docs/speech-to-text | SG | done (2026-10-27, docs + live): handshake fields `authorization.accessToken`, `audioEncoding` (`PCM_24KHZ`/`PCM_16KHZ`, required), `model`, `mode` (`PUSH_TO_TALK` default, `ENDPOINTING`, `DIARIZATION`), `partialMode` (`CUMULATIVE` default), `emitAudioProgress` (default true), `keywords`, `languageBias`. The final text is in `speechComplete{turnId, transcript}`; partials carry no `turnId`; realtime has only `audioProcessedMs` (no `startMs`/`endMs`), the file endpoint's `turns` have `startMs`/`endMs`. Limits: 60 min per stream, at most 5 s of audio ahead of processing. Live: stream open in 0.4–0.6 s, final turns 0.1–0.2 s after speech ends, the file endpoint 2.3 s for 13 s of audio. Realtime may merge two sentences into one turn or split one; the file endpoint sometimes repeats a word or adds a zero-length duplicate turn (dropped) |
 | V2 | How prompt caching triggers (automatic prefix caching?) | dev.meta.ai/docs (pricing mentions cached input) | SG | open |
 | V3 | `reasoning_effort` with `beta.chat.completions.parse` on Spark 1.3 and Wonder 1.0 | /docs/reasoning, /docs/structured-output | SG | done: works on `muse-spark-1.3` (minimal, low, medium) and `muse-wonder-1.0` (high). Smoke run 2026-10-27, 9 of 9 roles passed |
 | V4 | Structured output support on `muse-wonder-1.0` | /docs/models, /docs/structured-output | SG | done: `muse-wonder-1.0` returns valid structured output through `parse` at effort high (about 2 s for a tiny schema) |

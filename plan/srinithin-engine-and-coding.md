@@ -87,8 +87,10 @@ export function attachEditorCapture(
 export function startAudioCapture(opts: {
   wsUrl: string;                                  // /ws/sessions/{id}/audio
   onState?: (s: "starting" | "live" | "error" | "stopped") => void;
-}): Promise<{ setPaused(paused: boolean): void; stop(): void }>;
-// tts.ts calls setPaused(true) while the interviewer is speaking, so we don't transcribe it.
+}): Promise<{ setPaused(paused: boolean): void; setAsking(holding: boolean): void; stop(): void }>;
+// tts.ts calls setPaused(true) while the interviewer is speaking, so we don't transcribe it (silence is sent).
+// The Ask button calls setAsking(true) on press and setAsking(false) on release (ENG-7 added this).
+// "error" covers a denied mic and the server refusing voice (4403/4409/4503): show "use chat".
 
 // lib/replay.ts. Same algorithm as engine/codestate.py (PLAN §9.3).
 export function codeAt(timeline: TimelineEvent[], file: string, t: number): string;
@@ -292,6 +294,10 @@ Sharvil's evals land.
 5. Browser: `getUserMedia` → AudioWorklet → 24 kHz Int16 → 1,920-sample frames, with `setPaused` for TTS.
 
 **Done when:** PLAN §16 ENG-7.
+**As built** (PR "feat(engine): voice in (ENG-7)", stacked on ENG-8): see PLAN §8.3 and §9.7. V1 is done (§23).
+Added beyond the list: the Ask button (`setAsking`, a voice turn held on Ask is a question), silence while
+paused, and close codes for "use chat". Live: final turns 0.1–0.2 s after speech ends; with realtime disabled,
+the 10 s chunk fallback produced timed turns from the real file endpoint.
 
 ### ENG-6 — Interviewer + leak guard
 **P0 · Fri · needs ENG-5** · Read: PLAN §9.6 · **Built Tue Oct 27** (PR #27, stacked on #21)

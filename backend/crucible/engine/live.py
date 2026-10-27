@@ -44,7 +44,7 @@ class LiveEngine:
         self.policy = PolicyState()
         self.analyzer = Analyzer(rt, context, model, self._on_analysis)
         self._model = model
-        self._last_question: str | None = None  # the newest question typed to the interviewer (ASKED)
+        self._last_question: str | None = None  # what the candidate asked, not yet answered (ASKED)
         self._rt = rt
         self._context = context
         self._main = context.files[0] if context.files else "solution.py"
@@ -76,6 +76,18 @@ class LiveEngine:
 
     def request_hint(self, step_id: str | None) -> None:
         self.policy.request_hint(step_id)
+        self._wake.set()
+
+    def ask(self, question: str) -> None:
+        """A question to the interviewer: typed in chat, or spoken while holding Ask (§9.7). ASKED answers it.
+
+        Questions asked before the reply are answered together: a spoken question often arrives as two turns.
+        """
+        if self._last_question:
+            self._last_question = f"{self._last_question} {question}"  # one answer is already on its way
+        else:
+            self._last_question = question
+            self.policy.ask()
         self._wake.set()
 
     def heard_speech(self) -> None:
@@ -131,9 +143,7 @@ class LiveEngine:
                 turn = TranscriptTurn.model_validate(event.payload)
                 self._last_speech_ms = now
                 if turn.source == "text" and is_question(turn.text):
-                    self._last_question = turn.text
-                    self.policy.ask()
-                    self._wake.set()
+                    self.ask(turn.text)
             case TimelineKind.RUN:
                 self.policy.observe_run(RunResult.model_validate(event.payload))
                 self._wake.set()

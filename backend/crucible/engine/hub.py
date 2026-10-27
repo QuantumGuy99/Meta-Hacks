@@ -47,6 +47,7 @@ from crucible.engine.live import LiveEngine
 from crucible.engine.report import build_report
 from crucible.engine.store import Store
 from crucible.engine.timeline import Timeline
+from crucible.engine.voice import Transcriber, VoiceBridge
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +158,8 @@ class SessionRuntime:
         self.context: RubricContext | None = None
         self.last_context: RubricContext | None = None  # kept after detach, for the report
         self.interviewer_state: InterviewerState = "idle"
+        self.voice: VoiceBridge | None = None  # opened by the first audio socket (§9.7)
+        self.audio_socket: object | None = None  # the tab whose microphone feeds `voice`
         self.timeline = Timeline(session.id, store, self.now_ms, last_seq)
         self._model = model
         self._engine: LiveEngine | None = None
@@ -181,6 +184,11 @@ class SessionRuntime:
 
     def wall_now(self) -> datetime:
         return self._wall()
+
+    async def set_interviewer_state(self, state: InterviewerState) -> None:
+        if state != self.interviewer_state:
+            self.interviewer_state = state
+            await self.broadcast(self.state_message())
 
     def remaining_s(self) -> int | None:
         if self._anchor is None or self.session.phase in FINISHED or self.session.phase == Phase.SETUP:
@@ -219,6 +227,8 @@ class SessionRuntime:
         if on_close is not None:
             await on_close(self)
         await self.detach()
+        if self.voice is not None:
+            await self.voice.close()
         # A report cut short here restarts when someone next asks for it (SessionHub.report).
         for task in (self._report_task, self._flusher):
             if task is not None:
@@ -315,6 +325,16 @@ class SessionRuntime:
         if self._model is not None:
             self._engine = LiveEngine(self, context, self._model)
             self._engine.start()
+
+    def heard_speech(self) -> None:
+        """Candidate speech in progress (a partial transcript): the policy holds unsolicited messages."""
+        if self._engine is not None:
+            self._engine.heard_speech()
+
+    def asked(self, question: str) -> None:
+        """A spoken question (Ask was held): the interviewer answers it like a typed one."""
+        if self._engine is not None:
+            self._engine.ask(question)
 
     async def detach(self) -> None:
         if self._engine is not None:
@@ -440,11 +460,13 @@ class SessionHub:
         controllers: Mapping[Mode, ModeFactory],
         *,
         model: StructuredModel | None = None,
+        asr: Transcriber | None = None,
         monotonic: Callable[[], float] = time.monotonic,
         wall: Callable[[], datetime] = lambda: datetime.now(UTC),
         idle_ttl_s: float = IDLE_TTL_S,
     ) -> None:
         self.store = store
+        self._asr = asr
         self.runtimes: dict[str, SessionRuntime] = {}
         self._controllers = controllers
         self._model = model
@@ -502,6 +524,12 @@ class SessionHub:
         if not runtime.connected:
             self._schedule_expiry(session_id)
         return runtime.session.model_copy(deep=True)
+
+    def voice(self, runtime: SessionRuntime) -> VoiceBridge | None:
+        """The session's voice bridge, or None when transcription isn't configured (no API key)."""
+        if runtime.voice is None and self._asr is not None:
+            runtime.voice = VoiceBridge(runtime, self._asr)
+        return runtime.voice
 
     async def report(self, session_id: str) -> Report | None:
         """The stored report, or None while there isn't one yet.
