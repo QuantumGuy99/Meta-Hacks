@@ -25,6 +25,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from crucible.config import Settings, get_settings
 from crucible.defense import router as defense
+from crucible.runner import make_runner
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class _EngineParts:
     hub_cls: Any
     controllers: dict[Any, Any]
     store_cls: Any
+    problems: Any = None  # the coding ProblemBank, shared by the hub and the problem API
 
 
 def _app_version() -> str:
@@ -78,15 +80,19 @@ def _engine(s: Settings) -> _EngineParts | None:
     if not all((api, hub, coding, common, repo)):
         return None
     if hasattr(coding, "CodingMode"):  # ENG-4 (#9): the hub takes mode factories
-        problems = _import("crucible.coding.problems")
-        controllers = {common.Mode.CODING: coding.CodingMode(problems.ProblemBank.load(strict=False))}
+        bank = _import("crucible.coding.problems").ProblemBank.load(strict=False)
+        controllers = {common.Mode.CODING: coding.CodingMode(bank, runner=lambda: make_runner(s))}
     else:  # ENG-1 (#8): the hub takes controller classes
-        controllers = {common.Mode.CODING: coding.CodingController}
+        bank, controllers = None, {common.Mode.CODING: coding.CodingController}
     defense = _import("crucible.defense.controller")  # DEF-6; until then defense sessions get 400
     if defense is not None:
         controllers[common.Mode.DEFENSE] = defense.make_mode(s)
     return _EngineParts(
-        router=api.router, hub_cls=hub.SessionHub, controllers=controllers, store_cls=repo.SqliteStore
+        router=api.router,
+        hub_cls=hub.SessionHub,
+        controllers=controllers,
+        store_cls=repo.SqliteStore,
+        problems=bank,
     )
 
 
@@ -125,6 +131,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.settings = s
+        app.state.problems = engine.problems if engine is not None else None
         await defense.startup(app, s)
         store = hub = None
         if engine is not None and not s.MOCK:
@@ -174,6 +181,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.include_router(mock_router)
     elif engine is not None:
         app.include_router(engine.router)
+    if engine is not None and engine.problems is not None:
+        from crucible.coding.api import router as problems_router
+
+        app.include_router(problems_router)
     app.include_router(defense.router)
     if s.DEFENSE_DEV_API:
         app.include_router(defense.dev_router)
