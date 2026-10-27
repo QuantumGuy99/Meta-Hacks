@@ -1375,7 +1375,7 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 
 | Role | Default | Effort | Fallback chain |
 |---|---|---|---|
-| `analyzer` | `muse-spark-1.3` | low | skip tick |
+| `analyzer` | `muse-spark-1.3` | minimal | skip tick |
 | `interviewer` | `muse-spark-1.3` | low | canned/rubric text |
 | `classifier` (P1) | `muse-spark-1.3` | minimal | treat as thinking aloud |
 | `grill_eval` | `muse-spark-1.3` | medium | Spark Open (Baseten) |

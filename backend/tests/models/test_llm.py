@@ -97,7 +97,7 @@ async def test_retries_once_on_429_then_succeeds() -> None:
     wrapper, sleeps, _ = make_llm({"meta": meta})
 
     assert await wrapper.complete_json("analyzer", MESSAGES, Verdict) == OK
-    assert sent(meta) == [(SPARK, "low"), (SPARK, "low")]
+    assert sent(meta) == [(SPARK, "minimal"), (SPARK, "minimal")]
     assert sleeps == [1.0]  # RETRY_BACKOFF_S * (0.5 + rng)
 
 
@@ -208,7 +208,7 @@ async def test_success_record_carries_tokens_cost_and_session() -> None:
 
     await wrapper.complete_json("analyzer", MESSAGES, Verdict, session_id="s1")
     [record] = records
-    assert (record.role, record.model, record.effort, record.error) == ("analyzer", SPARK, "low", None)
+    assert (record.role, record.model, record.effort, record.error) == ("analyzer", SPARK, "minimal", None)
     assert (record.prompt_tokens, record.completion_tokens, record.cached_tokens) == (1000, 200, 400)
     assert record.cost_usd == pytest.approx(estimate_cost_usd(SPARK, 1000, 200, 400))
     assert record.session_id == "s1"
