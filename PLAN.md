@@ -822,7 +822,7 @@ ServerMessage = Annotated[Union[SessionState, InterviewerMessage, TranscriptUpda
 | POST | `/api/sessions` | `SessionConfig` → `Session` | picks a random problem if only difficulty is given |
 | GET | `/api/sessions/{id}` | → `Session` | |
 | POST | `/api/sessions/{id}/end` | → `Session` | starts report generation |
-| GET | `/api/sessions/{id}/timeline` | → `TimelineEvent[]` | for replay; strips hidden-test inputs, and audit details (explanations, expected points, fix steps) until the session ends |
+| GET | `/api/sessions/{id}/timeline` | → `TimelineEvent[]` | for replay. Hidden-test details never appear (nor a submit's stdout). While the session is live, also no analyses, system notes, suppressed interventions or audit details (explanations, expected points, fix steps) (§9.2) |
 | GET | `/api/sessions/{id}/report` | → `Report` or 202 `{status}` | |
 
 Errors: `{"error": {"code": str, "message": str}}` with proper HTTP status codes.
@@ -882,13 +882,38 @@ Owner: **SG**. Used by coding mode (whole session) and defense mode (grill + fix
 - Routes client messages to handlers; every handler appends to the Timeline first, then reacts.
 - `broadcast(ServerMessage)` to all sockets for the session (a second tab = observer).
 - Phase transitions go through `runtime.set_phase(to, reason)`, which validates against the mode's allowed
-  transitions (§10.1, §11.2), appends a `phase` event and broadcasts `session.state`.
+  transitions (§10.1, §11.2), appends a `phase` event and broadcasts `session.state`. Any live phase may go
+  to `ended` or `failed`; only `ReportBuilder` moves on from `ended`.
+- The hub handles the shared messages (`hello`, `editor.*`, `chat.send`, `hint.request`, `phase.advance`,
+  `session.end`); everything else goes to the session's **mode controller**. A runtime reopened after
+  expiry rebuilds its code from the stored timeline and keeps numbering events where it left off.
+- **Mode hooks** (agreed by SG and SS; `CodingController` in `coding/session.py`, `DefenseController` in
+  `defense/controller.py`):
+  ```python
+  class ModeController(Protocol):
+      @classmethod
+      async def plan_session(cls, config: SessionConfig) -> SessionPlan: ...  # problem/project + time limit
+      def allowed_transitions(self) -> Mapping[Phase, set[Phase]]: ...
+      async def on_start(self, rt: SessionRuntime) -> None: ...                  # first connect
+      async def on_client_message(self, rt, msg: ClientMessage) -> bool: ...     # False = unsupported
+      async def on_timeline(self, rt, event: TimelineEvent) -> None: ...         # after every event
+      async def report_extra(self, rt) -> CodingExtra | DefenseExtra: ...
+  ```
+  `rt.attach(RubricContext)` / `rt.detach()` turn the analyzer and policy on and off (coding at `clarify`,
+  defense at `fix`); `RubricContext` is in `engine/context.py`. `Interviewer.say()` arrives with ENG-6.
+- Routes live in `engine/api.py` (`router`); `main.py` includes it and puts a `SessionHub(store,
+  {Mode.CODING: CodingController, …})` on `app.state.hub`. Until `crucible.store` lands, `engine/store.py`
+  has an in-memory `MemoryStore` with the same interface.
 
 ### 9.2 Timeline (`timeline.py`)
 - `append(kind, payload, t=None) -> TimelineEvent`: assigns `seq` (monotonic per session) and `t` (server
   time since start if not given), validates the payload against `PAYLOAD_MODELS`, writes to SQLite (batched
-  every 250 ms) and keeps an in-memory tail for the analyzer.
+  every 250 ms) and keeps an in-memory tail for the analyzer. Code calls `rt.record(...)`, which appends
+  and then calls the controller's `on_timeline`.
 - `read(session_id, kinds=None, since_seq=0)` for reports and replay.
+- `public_view(events, live=...)` is what the replay endpoint returns. `redact_run()` hides hidden cases'
+  inputs and outputs (keeping the error class) and a submit's stdout, since printing the arguments would
+  reveal hidden inputs. COD-3 uses the same function for `run.result`.
 
 ### 9.3 CodeState (`codestate.py`)
 - Holds `code_by_file`, `version_by_file`, `last_edit_t`, `chars_typed`, `chars_pasted` and

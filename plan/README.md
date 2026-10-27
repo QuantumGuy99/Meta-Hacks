@@ -98,7 +98,7 @@ exist because of that.
 
 | Decision | Proposal | Who decides | By |
 |---|---|---|---|
-| Engine hooks for defense (`ModeController`, `RubricContext`, `Interviewer.say()`) | [srinithin-engine-and-coding.md](srinithin-engine-and-coding.md#engine-hooks-for-defense-proposed) | SG + SS, then copy into PLAN §9 | Wed Oct 28 |
+| ~~Engine hooks for defense~~ | **Decided:** built in ENG-1, written up in PLAN §9.1 (`plan_session` added for session setup) | SG + SS | Done |
 | Eval file format | [sharvil-data.md](sharvil-data.md#eval-format-proposed) | SG + ST, then copy into PLAN §13.3 | Wed Oct 28 |
 | Sample-app reference attack file and the problem input generator | [sharvil-data.md](sharvil-data.md#data-4--defense-sample-apps) | SS + ST (attacks), SG + ST (generator) | Wed Oct 28 |
 | `ChaosPlan` has no latency threshold, but the chaos verdict needs one (PLAN §11.4) | [shreyas-defense-and-runner.md](shreyas-defense-and-runner.md#s-1--contracts-v1-with-srinithin) | SG + SS in S-1 (SS proposes `p95_threshold_ms: int \| None`, PR #4) | Tue Oct 27 |
