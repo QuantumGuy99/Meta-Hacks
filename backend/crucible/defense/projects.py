@@ -8,6 +8,7 @@ import logging
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 from crucible.contracts.defense import AttackFunctions, Project, ProjectFile
@@ -45,7 +46,13 @@ class Sample:
 
 
 def load_samples(*dirs: Path | None) -> dict[str, Sample]:
-    """Every sub-directory with an `app/` folder becomes a sample. Bad samples are skipped with a log."""
+    """Every sub-directory with an `app/` folder becomes a sample. Bad samples are skipped with a log.
+    Cached per set of directories: main.py's defense mode and the defense router share one load."""
+    return _load_samples(tuple(d.resolve() if d is not None else None for d in dirs))
+
+
+@lru_cache(maxsize=8)
+def _load_samples(dirs: tuple[Path | None, ...]) -> dict[str, Sample]:
     out: dict[str, Sample] = {}
     for root in dirs:
         if root is None or not root.is_dir():

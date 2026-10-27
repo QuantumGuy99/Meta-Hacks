@@ -42,6 +42,33 @@ BANNED_NAMES = frozenset(
     }
 )
 TEMPLATE_NAMES = frozenset({"BASE", "CONCURRENCY", "DURATION_S", "METRIC_INTERVAL_S"})
+# asyncio/loop escape hatches: a shell, raw sockets, threads, servers. Banned by attribute name, however the
+# object was reached (asyncio.x, loop.x, an alias).
+BANNED_ATTRIBUTES = frozenset(
+    {
+        "create_subprocess_exec",
+        "create_subprocess_shell",
+        "subprocess_exec",
+        "subprocess_shell",
+        "open_connection",
+        "open_unix_connection",
+        "start_server",
+        "start_unix_server",
+        "create_connection",
+        "create_unix_connection",
+        "create_server",
+        "create_datagram_endpoint",
+        "sock_connect",
+        "to_thread",
+        "run_in_executor",
+        "get_event_loop",
+        "get_running_loop",
+        "new_event_loop",
+        "set_event_loop",
+    }
+)
+# The bodies get a ready-made `client`; making their own would skip the template's loopback-only hook.
+BANNED_MODULE_USE = frozenset({"httpx"})
 
 
 class AttackRejected(Exception):
@@ -80,10 +107,15 @@ def _check(node: ast.AST) -> str | None:
     if isinstance(node, ast.Name):
         if node.id in BANNED_NAMES:
             return f"`{node.id}` isn't allowed"
+        if node.id in BANNED_MODULE_USE:
+            return f"use the `client` you're given, not `{node.id}` directly"
         if isinstance(node.ctx, ast.Store) and (node.id in TEMPLATE_NAMES or node.id.startswith("_")):
             return f"assigning to `{node.id}` isn't allowed"
-    if isinstance(node, ast.Attribute) and node.attr.startswith("__"):
-        return f"dunder attribute `{node.attr}` isn't allowed"
+    if isinstance(node, ast.Attribute):
+        if node.attr.startswith("_"):
+            return f"private attribute `{node.attr}` isn't allowed"
+        if node.attr in BANNED_ATTRIBUTES:
+            return f"`{node.attr}` isn't allowed: the attack may only talk to the app through `client`"
     if isinstance(node, ast.Constant) and isinstance(node.value, str) and "://" in node.value:
         return 'URLs must be built from BASE (e.g. f"{BASE}/path"), not written out'
     return None

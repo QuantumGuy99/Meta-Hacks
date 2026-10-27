@@ -62,7 +62,11 @@ class ModalRunner:
 
     async def start_project(self, project: Project, files: dict[str, str]) -> ProjectHandle:
         app = await self._get_app()
-        sb = await self._modal.Sandbox.create.aio(app=app, image=self._image, timeout=SANDBOX_TIMEOUT_S)
+        # block_network: no traffic in or out of the sandbox; the app and the attack still talk over loopback.
+        # Verified on real Modal (V7). The template's loopback-only client is the second layer.
+        sb = await self._modal.Sandbox.create.aio(
+            app=app, image=self._image, timeout=SANDBOX_TIMEOUT_S, block_network=True
+        )
         h = ProjectHandle(project_id=project.id, port=project.port, sandbox_id=sb.object_id)
         self._sandboxes[sb.object_id] = sb
         try:
