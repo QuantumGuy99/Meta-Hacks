@@ -12,7 +12,7 @@ from pydantic import TypeAdapter, ValidationError
 from crucible.contracts.common import ApiError, ApiErrorBody, Session, SessionConfig
 from crucible.contracts.events import TimelineEvent
 from crucible.contracts.ws import ClientMessage
-from crucible.engine.hub import FINISHED, ModeUnavailable, PhaseError, SessionHub
+from crucible.engine.hub import FINISHED, ModeUnavailable, PhaseError, SessionHub, SessionSetupError
 from crucible.engine.timeline import public_view
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,8 @@ async def create_session(config: SessionConfig, request: Request) -> Session | J
         return await _hub(request).create_session(config)
     except ModeUnavailable as exc:
         return _error(400, "mode_unavailable", str(exc))
+    except SessionSetupError as exc:
+        return _error(400, "bad_config", str(exc))
 
 
 @router.get("/api/sessions/{session_id}", response_model=Session, responses={404: {"model": ApiError}})
