@@ -3,6 +3,8 @@
 FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /uvx /bin/
+# GNU patch applies sample apps' fix.patch at startup (defense/projects.py); slim images don't ship it.
+RUN apt-get update && apt-get install -y --no-install-recommends patch && rm -rf /var/lib/apt/lists/*
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never PYTHONUNBUFFERED=1
 
 WORKDIR /app/backend

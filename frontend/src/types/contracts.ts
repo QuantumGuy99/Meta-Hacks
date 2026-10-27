@@ -139,6 +139,7 @@ export interface CrucibleContracts {
   ProblemSummary: ProblemSummary;
   ProblemPublic: ProblemPublic;
   Project: Project;
+  ProjectSource: ProjectSource;
   Report: Report;
   TimelineEvent: TimelineEvent;
   PhaseChange: PhaseChange;
@@ -793,6 +794,16 @@ export interface Project {
 export interface ProjectFile {
   path: string;
   size: number;
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "ProjectSource".
+ */
+export interface ProjectSource {
+  project_id: string;
+  files: {
+    [k: string]: string;
+  };
 }
 /**
  * This interface was referenced by `CrucibleContracts`'s JSON-Schema

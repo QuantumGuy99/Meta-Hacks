@@ -26,6 +26,13 @@ logger = logging.getLogger(__name__)
 AUDIT_TIMEOUT_S = 120
 SEVERITY_ORDER: dict[str, int] = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 MAX_FINDINGS = 5
+# Words that name a cause or a fix. The summary and titles are shown before the grill, so a title with any
+# of these is replaced with a neutral one (the prompt asks for area-only wording; code makes sure).
+_CAUSE_WORDS = re.compile(
+    r"race|lock|mutex|atomic|await|async|concurren|synchron|stale|snapshot|lost update|overwrit|interleav"
+    r"|transaction|blocking|block|quadratic|o\(n|n\^?2|n²|deadlock|leak|unbounded|injection|sleep",
+    re.IGNORECASE,
+)
 GENERIC_QUESTION = "Crucible's load test broke this part of the app. Walk me through what happened, and why."
 GENERIC_FOLLOW_UP = (
     "What exactly happens between the moment a request reads the data and the moment it writes?"
@@ -60,7 +67,8 @@ async def run_audit(
 
 
 def check_audit(a: AuditResult, files: dict[str, str]) -> AuditResult:
-    """Code decides: valid node ids, flagged nodes, line ranges in bounds, ≤ 5 findings by severity."""
+    """Code decides: valid node ids, flagged nodes, line ranges in bounds, ≤ 5 findings by severity, and
+    pre-grill wording that can't give the answer away (a code-built summary, neutral titles)."""
     node_ids = {n.id for n in a.nodes}
     findings: list[Finding] = []
     for f in a.findings:
@@ -76,6 +84,7 @@ def check_audit(a: AuditResult, files: dict[str, str]) -> AuditResult:
                     "node_id": f.node_id if f.node_id in node_ids else None,
                     "line_start": start,
                     "line_end": end,
+                    "title": neutral_title(f.title, f.file),
                 }
             )
         )
@@ -84,7 +93,23 @@ def check_audit(a: AuditResult, files: dict[str, str]) -> AuditResult:
     flagged = {f.node_id for f in findings if f.node_id}
     nodes = [n.model_copy(update={"flagged": n.id in flagged}) for n in a.nodes]
     edges = [e for e in a.edges if e.source in node_ids and e.target in node_ids]
-    return AuditResult(summary=a.summary, nodes=nodes, edges=edges, findings=findings)
+    return AuditResult(summary=public_summary(len(findings)), nodes=nodes, edges=edges, findings=findings)
+
+
+def neutral_title(title: str, file: str) -> str:
+    """The model's title if it names only the area, else "<file> under load"."""
+    if _CAUSE_WORDS.search(title):
+        return f"{PurePosixPath(file).name} under load"
+    return title
+
+
+def public_summary(n_findings: int) -> str:
+    """Built in code, never by the model: Wonder's own summary stated the root cause in a live run (#22)."""
+    if n_findings == 0:
+        return "Nothing in this project stood out as risky under load."
+    if n_findings == 1:
+        return "1 area of this project needs a closer look under load."
+    return f"{n_findings} areas of this project need a closer look under load."
 
 
 def audit_from_flaws(sample: Sample) -> AuditResult:
@@ -98,7 +123,7 @@ def audit_from_flaws(sample: Sample) -> AuditResult:
         except (KeyError, ValidationError) as exc:
             logger.error("flaws.json entry %d in %s is invalid: %s", i, sample.project.id, exc)
     result = AuditResult(
-        summary=f"{len(findings)} area(s) of {sample.project.name} need a closer look under load.",
+        summary="",  # check_audit writes the public summary
         nodes=nodes,
         edges=edges,
         findings=findings,

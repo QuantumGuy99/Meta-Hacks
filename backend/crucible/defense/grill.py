@@ -12,7 +12,7 @@ from crucible.contracts.events import TimelineKind
 from crucible.defense.ports import EventSink, ModelClient, ModelUnavailable, note
 from crucible.defense.prompts import PROMPTS
 
-GRILL_EVAL_TIMEOUT_S = 10
+GRILL_EVAL_TIMEOUT_S = 20  # Spark medium took 4-15 s live (#22); at 10 s answers fell back to keywords
 SAM_BONUS = 1
 KEYWORD_HIT_RATIO = 0.4
 SAFE_FEEDBACK = "Think about what another request could be doing while this one waits. What could change?"

@@ -52,6 +52,7 @@ placeholders for `/coding` and `/defense`.
 | Hand-written `coding-active.jsonl`, `report-coding.jsonl` | Srinithin | Wed Oct 28 | Write a 10-line script yourself |
 | MOCK mode on the backend (OPS-2), defense fixtures | Shreyas | Thu Oct 29 | Your FixtureTransport, reading the same files |
 | `lib/defense.ts` selectors | Shreyas | Thu Oct 29 | Inline the logic in the view, then swap |
+| `GET /api/defense/projects/{id}/files` → `ProjectSource` (the project's source for the fix-stage editor and audit file preview) | Shreyas | Wed Oct 28 | — |
 | `startAudioCapture(opts)` | Srinithin | Fri Oct 30 | Voice UI disabled; chat works end to end |
 | `codeAt(timeline, file, t)` | Srinithin | Fri Oct 30 | — (FE-7 is Sat) |
 | `GET /api/sessions/{id}/report` (ENG-8) | Srinithin | Sat Oct 31 | `report-coding.jsonl` |

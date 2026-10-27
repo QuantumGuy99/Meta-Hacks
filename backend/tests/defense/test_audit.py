@@ -4,7 +4,7 @@ import pytest
 
 from crucible.contracts.defense import AuditResult, TopologyNode
 from crucible.defense import audit as audit_mod
-from crucible.defense.audit import AuditFailed, check_audit, run_audit
+from crucible.defense.audit import AuditFailed, audit_from_flaws, check_audit, run_audit
 from crucible.defense.projects import Sample
 from crucible.engine.timeline import public_audit
 from tests.defense.fixtures import FakeLLM
@@ -60,3 +60,22 @@ def test_findings_capped_and_sorted_by_severity(bank):
     out = check_audit(AuditResult(summary="s", nodes=nodes, edges=[], findings=many), bank.files)
     assert len(out.findings) == 5
     assert [f.severity for f in out.findings][:2] == ["critical", "critical"]
+
+
+def test_public_summary_is_built_in_code_not_taken_from_the_model(bank):
+    leaky = audit_from_flaws(bank).model_copy(
+        update={"summary": "Balances are read before an await and written back without a lock."}
+    )
+    checked = check_audit(leaky, bank.files)
+    assert checked.summary == "1 area of this project needs a closer look under load."
+
+
+def test_titles_that_name_the_cause_are_replaced(bank):
+    result = audit_from_flaws(bank)
+    leaky = result.findings[0].model_copy(update={"title": "Race condition in transfer"})
+    checked = check_audit(result.model_copy(update={"findings": [leaky]}), bank.files)
+    assert checked.findings[0].title == "main.py under load"
+
+
+def test_area_only_titles_are_kept(bank):
+    assert audit_from_flaws(bank).findings[0].title == "Balance transfers under load"
