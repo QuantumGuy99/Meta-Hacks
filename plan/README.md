@@ -10,7 +10,7 @@ sections you need for the details.
 | Person | Plan | Area | Work packages |
 |---|---|---|---|
 | Srinithin Ganesh (SG) | [srinithin-engine-and-coding.md](srinithin-engine-and-coding.md) | Shared interviewer engine, Live Coding Interview backend, capture and replay libs | S-1, ENG-1…8, COD-1…6, VIS-1 |
-| Shreyas Sahoo (SS) | [shreyas-defense-and-runner.md](shreyas-defense-and-runner.md) | Project Defense backend, code runner, scaffold, mock mode, deployment | S-0, S-1, RUN-1…3, DEF-1…8, OPS-1…2 |
+| Shreyas Sahoo (SS) | [shreyas-defense-and-runner.md](shreyas-defense-and-runner.md) | Project Defense backend, code runner, scaffold, mock mode, deployment | S-0, S-1, RUN-1…3, DEF-1…10, OPS-1…2 |
 | Likhil Gudipati (LG) | [likhil-frontend.md](likhil-frontend.md) | Every page and component in both modes | FE-1…8 |
 | Sharvil Talware (ST) | [sharvil-data.md](sharvil-data.md) | Problem bank, sample defense apps, evals, demo data | DATA-1…7 |
 
@@ -101,7 +101,7 @@ exist because of that.
 | ~~Engine hooks for defense~~ | **Decided:** built in ENG-1, written up in PLAN §9.1 (`plan_session` added for session setup) | SG + SS | Done |
 | Eval file format | [sharvil-data.md](sharvil-data.md#eval-format-proposed) | SG + ST, then copy into PLAN §13.3 | Wed Oct 28 |
 | Sample-app reference attack file and the problem input generator | [sharvil-data.md](sharvil-data.md#data-4--defense-sample-apps) | SS + ST (attacks), SG + ST (generator) | Wed Oct 28 |
-| `ChaosPlan` has no latency threshold, but the chaos verdict needs one (PLAN §11.4) | [shreyas-defense-and-runner.md](shreyas-defense-and-runner.md#s-1--contracts-v1-with-srinithin) | SG + SS in S-1 | Tue Oct 27 |
+| `ChaosPlan` has no latency threshold, but the chaos verdict needs one (PLAN §11.4) | [shreyas-defense-and-runner.md](shreyas-defense-and-runner.md#s-1--contracts-v1-with-srinithin) | SG + SS in S-1 (SS proposes `p95_threshold_ms: int \| None`, PR #4) | Tue Oct 27 |
 | Glimmer host (V5) | SS picks one after checking which credits come through | SS | Wed Oct 28 |
 | Backend host: Railway or Fly.io | SS | SS | Fri Oct 30 |
 | Who submits (the Representative) and who edits the video | | Everyone | IC3, Sun Nov 1 |
