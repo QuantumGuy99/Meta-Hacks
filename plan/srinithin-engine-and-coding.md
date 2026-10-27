@@ -262,8 +262,10 @@ snapshot test.
 expected step or issue in ≥ 2 of 3 runs. Those two evals come from Sharvil on Thu.
 
 ### ENG-5 — Policy, hint ladder, passive mode
-**P0 · Thu · needs ENG-4** · Read: PLAN §9.5
-**Files:** `engine/policy.py`, `backend/tests/engine/test_policy.py`
+**P0 · Thu · needs ENG-4** · Read: PLAN §9.5 · **Built Tue Oct 27** (PR "feat(engine): ENG-5 policy")
+**Files:** `engine/policy.py`, `engine/live.py` (policy task), `engine/interviewer.py` (fallback text),
+`engine/hub.py` (`hint.request`), `engine/prompts/canned.md`, `backend/tests/engine/test_policy.py`,
+`backend/tests/engine/test_live.py`
 1. Per-session state and the global guards: no unsolicited message within 2.5 s of an edit or during
    speech (one-slot queue, dropped after 20 s), 45 s between unsolicited messages, at most 8 per 30 min, and
    no repeat of the same `(trigger, step_id)` at the same level.
@@ -274,6 +276,9 @@ expected step or issue in ≥ 2 of 3 runs. Those two evals come from Sharvil on 
 
 **Tests:** a "fires" and a "doesn't fire" test per rule, plus each guard.
 **Done when:** PLAN §16 ENG-5.
+**Left for later:** `PRAISE` needs a `tricky` flag on `RubricStep` (contract change, SG + SS). `ASKED` replies
+with a canned Socratic line until ENG-6's `answer()`. The coding evals' policy expectations (§16) run once
+Sharvil's evals land.
 
 ### ENG-7 — VoiceBridge + audio capture
 **P1, but start Thu · finish Fri · needs ENG-1** · Read: PLAN §8.3, §9.7, §14.3; V1 first
@@ -290,7 +295,7 @@ expected step or issue in ≥ 2 of 3 runs. Those two evals come from Sharvil on 
 
 ### ENG-6 — Interviewer + leak guard
 **P0 · Fri · needs ENG-5** · Read: PLAN §9.6
-**Files:** `engine/interviewer.py`, `engine/prompts/*.md`, `engine/prompts/canned.yaml`
+**Files:** `engine/interviewer.py`, `engine/prompts/*.md` (canned lines: `engine/prompts/canned.md`, from ENG-5)
 1. `phrase()`, `answer()`, phase lines, and `say()` for Shreyas. Generate the intro when the session is
    created, so it plays instantly.
 2. Leak guard on every outgoing text: a code fence; ≥ 2 lines that parse as Python statements; any normalized
