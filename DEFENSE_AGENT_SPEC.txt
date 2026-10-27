@@ -1,0 +1,233 @@
+================================================================================
+CRUCIBLE — PROJECT DEFENSE & SANDBOX RUNNER SPECIFICATION (SHREYAS)
+Target Repo: https://github.com/QuantumGuy99/Meta-Hacks
+Track: Meta Global AI Developer Hackathon (Indie Developer Track)
+Owner: Shreyas Sahoo (Project Defense Backend + Modal Code Runner + Deployment)
+================================================================================
+
+0. HOW THIS FILE RELATES TO PLAN.md
+-----------------------------------
+PLAN.md is the team's source of truth. This file is the Defense + Runner briefing for coding agents:
+it points at the PLAN sections that matter, states the decisions in plain terms, and records (section 9)
+how every earlier conflict between this spec and PLAN.md was resolved. Both files now agree. If you find
+a new disagreement, fix PLAN.md and this file in the same PR (PLAN §0, §22.14).
+
+1. MISSION & SCOPE BOUNDARIES
+-----------------------------
+Shreyas owns the whole Project Defense vertical, the Runner (used by BOTH modes), the scaffold, deploy
+and MOCK replay. Teammates: Srinithin (SG) engine + coding mode, Likhil (LG) frontend, Sharvil (ST) data.
+
+WRITE (SS-owned, PLAN §6):
+- `backend/crucible/defense/`   session.py projects.py audit.py chaos.py attack_writer.py validator.py
+                                grill.py verify.py verdict.py card.py prompts/*.md
+- `backend/crucible/runner/`    base.py local.py modal_runner.py harness/ (run_tests.py, chaos_template.py)
+- `backend/crucible/models/glimmer.py`
+- `backend/crucible/mock/`      replay.py + fixtures/*.jsonl (defense fixtures; coding ones with SG)
+- `frontend/src/lib/defense.ts` (selectors only, no components)
+- Scaffold: Makefile, .env.example, CI, backend/pyproject.toml, Dockerfile, main.py, config.py, store/
+
+COORDINATE (do not edit without the owner):
+- `backend/crucible/contracts/`  SG + SS approve every change; `make contracts` + fixtures in the same PR.
+- `backend/crucible/engine/`     SG. Append Defense events via `Timeline.append()`; reuse Policy/leak guard.
+- `backend/crucible/models/`     SG (llm.py asr.py image.py sam.py registry.py). SS may write sam.py and
+                                 image.py for DEF-9 / DEF-10 only if SG agrees.
+- `data/defense_apps/`           ST writes the apps; SS reviews. SS may keep a tiny racy test target in
+                                 `backend/tests/fixtures/` to unblock the Runner.
+- `frontend/` (except lib/defense.ts) LG.
+
+LICENSE NOTE: do NOT add MIT License headers or LICENSE references in code or docs.
+
+2. DEFENSE FLOW (PLAN §3.2, §11.2)
+----------------------------------
+Phases use the shared `Phase` enum: setup → audit → chaos → grill → fix → verify → verdict → ended →
+reporting → reported. `defense/session.py` (DefenseSession) drives them via `runtime.set_phase()`.
+
+1. setup   Ingest (projects.py): validate limits (§11.1), store files, content_hash, file tree + numbered lines.
+2. audit   muse-wonder-1.0 → AuditResult (nodes, edges, ≤ 5 findings). Browser gets AuditPublic only.
+3. chaos   Per finding with a ChaosPlan: AttackWriter fills the template → validator → Modal run →
+           ChaosMetric lines every 500 ms → ChaosRun verdict broke | held | error.
+           Example headline (ChaosRun.summary): "Under 200 concurrent transfers, $1,240 disappeared."
+4. grill   Per broken finding: voice/chat answer → Spark GrillEval (points hit) → code computes score.
+           P1: candidate circles the flaw on the diagram → SAM 3.1 → SamHighlight.
+5. fix     Same live editor + engine, rubric = finding.fix_steps.
+6. verify  Re-run the SAME attack script against the edited files → ChaosRun(kind="verify").
+7. verdict passed = all verify runs held AND avg grill score ≥ 6 AND root cause hit on every grilled
+           finding. Failed verify → back to fix (max 2 extra rounds).
+
+"Broke" and "merge approved" are data, not phases. UI stage labels (Auditing → Chaos run → Broke →
+Grill → Fixing → Verifying → Merge approved / rejected) come from a selector in lib/defense.ts.
+
+3. CONTRACTS (PLAN §7.4, §7.2, §8.2) — READ THEM THERE, DON'T REDEFINE
+------------------------------------------------------------------------
+Defense models live in `backend/crucible/contracts/defense.py`: Project, TopologyNode, TopologyEdge,
+ChaosPlan, GrillSpec, Finding, FindingPublic, AuditResult, AuditPublic, AttackFunctions, ChaosMetric,
+ChaosRun, GrillEval, GrillTurn, SamHighlight, Verdict (+ DefenseExtra in report.py).
+Rules: inherit `Strict` (extra="forbid"); `StrEnum`/`Literal`, not `str, Enum`; LLM-output models
+(AuditResult, AttackFunctions, GrillEval) have no defaults, every field required, `X | None` for optional,
+no tuples or recursion. Times are int ms since session start (`t`).
+
+Defense-specific points added from this spec:
+- Finding.node_id links a flaw to its topology node (highlighting + SAM bonus).
+- Finding.explanation is grading truth: never sent to the browser before that finding's grill is graded.
+  `defense.audit` carries AuditPublic (FindingPublic: no explanation, grill or fix rubric); the full
+  Finding arrives with `defense.grill.eval`. Titles and summary are neutral (area, not cause).
+- ChaosMetric has in_flight and p99_ms alongside rps, p50, p95, errors, violations.
+- GrillEval (LLM) has NO score; GrillTurn carries code-computed score, root_cause_hit, sam_node_id.
+- Timeline kinds: phase, editor, transcript, chaos_metric, chaos_run, grill, sam_highlight, verdict, …
+  (TimelineKind). Every event has seq, t, kind, payload — the replay works the same in both modes.
+
+4. META MODEL ROUTING (PLAN §15)
+-------------------------------
+All calls go through the shared wrapper (`models/llm.py` complete_json / complete_text, or asr.py,
+sam.py, image.py, glimmer.py). Model ids live only in `models/registry.py` / env. Never call
+api.openai.com or api.anthropic.com at runtime; no third-party TTS.
+
+| Role / use              | Model                                | Where                    | Fallback                          |
+|-------------------------|--------------------------------------|--------------------------|-----------------------------------|
+| audit                   | muse-wonder-1.0 (effort high, 120 s) | defense/audit.py         | muse-spark-1.3 → flaws.json (samples, logged) |
+| report                  | muse-wonder-1.0                      | engine/report.py (SG)    | muse-spark-1.3 → metrics template |
+| grill_eval              | muse-spark-1.3 (10 s)                | defense/grill.py         | Spark Open (Baseten)              |
+| fix-stage analyzer      | muse-spark-1.3                       | engine/analyzer.py (SG)  | skip tick                         |
+| attacker                | Muse Glimmer (GLIMMER_BASE_URL / GLIMMER_MODEL; id ⚠️ V5) | defense/attack_writer.py | muse-spark-1.3 |
+| voice                   | muse-voice-transcribe-1.0, wss://api.meta.ai/v1/asr/realtime | engine/voice.py (SG) | chunked file ASR → chat |
+| circle the flaw (P1)    | sam-3.1, POST /v1/responses (5 s)    | models/sam.py + grill.py | no highlight, no bonus            |
+| merge-gate card (P2)    | muse-image-1.0, /v1/images/generations (20 s) | defense/card.py | no card                           |
+| interviewer voice out   | browser speechSynthesis              | frontend lib/tts.ts (LG) | text only                         |
+
+Meta API base URL https://api.meta.ai/v1, key MODEL_API_KEY, passed explicitly to the OpenAI SDK.
+Glimmer is open weights on a partner host, so it uses GLIMMER_BASE_URL, not api.meta.ai.
+
+5. DETERMINISTIC GRILL POLICY ("LLM SUGGESTS, CODE DECIDES") — PLAN §11.5
+------------------------------------------------------------------------
+The audit writes GrillSpec.expected_points (2–4) with [0] = root cause (then mechanism, fix strategy).
+Spark returns GrillEval.points_hit / points_missed (indexes), needs_follow_up, feedback. Code decides:
+
+```python
+n = len(spec.expected_points)
+root_cause_hit = 0 in eval.points_hit
+score = round(10 * len(set(eval.points_hit)) / n)
+if sam_node_id is not None and sam_node_id == finding.node_id:
+    score = min(10, score + 1)          # P1 bonus for locating the flaw on the diagram
+```
+
+- The bonus never substitutes for the root cause: the verdict requires root_cause_hit on every finding.
+- At most one follow-up (code-enforced); 90 s answer window, +60 s for the follow-up.
+- Every outgoing text (question, follow-up, feedback) passes the engine's leak guard (PLAN §9.6: code
+  fences, ≥ 2 Python-statement lines, overlap with fix.patch). On rejection: regenerate once, then fall
+  back to a canned Socratic question. The model never decides what reaches the user.
+
+6. MODAL SANDBOX RUNNER (PLAN §12, §11.4)
+-----------------------------------------
+Runner protocol (base.py): open_session, run_tests, start_project, stream_exec, stop_project,
+close_session. ModalRunner for prod; LocalRunner for dev only (RUNNER=local and ALLOW_LOCAL_RUNNER=1).
+
+Attack scripts — template, not free-form:
+- runner/harness/chaos_template.py owns imports, workers, timing and output. The model (AttackFunctions)
+  writes only three bodies: setup, make_request, check_invariant.
+- validator.py (AST) before execution: template imports only; bans open/exec/eval/compile/__import__/
+  globals/locals/getattr/setattr/os/sys/subprocess/socket/pathlib/shutil; URLs must start with "/" or
+  BASE; CONCURRENCY ≤ 200, DURATION_S ≤ 30. One regeneration on rejection, then verdict "error".
+- Output: one JSON line every 500 ms
+  {"t_ms","in_flight","rps","p50_ms","p95_ms","p99_ms","errors","violations"}, then
+  {"done": true, "invariant_ok": bool, "detail": str}.
+
+Defense execution:
+- One shared project image built at startup: debian_slim(python_version="3.12").pip_install("fastapi",
+  "uvicorn", "httpx", "aiosqlite", "flask") + the sample apps' requirements. Uploads with other
+  requirements get a cached per-content_hash image on top.
+- Per run: Sandbox.create(..., timeout=60) → write files to /work/app/ and /work/attack.py at runtime
+  (⚠️ V7: filesystem API vs exec + stdin) → start the entrypoint (port from crucible.json, default 8080)
+  in the background → readiness probe (≤ 10 s) → exec `python /work/attack.py` → stream stdout →
+  terminate. No image rebuild for verify runs.
+- chaos.py parses each line into ChaosMetric (bad line → system note, skipped), appends to the Timeline
+  and broadcasts `defense.chaos.metric`; the final line sets the verdict: broke if invariant_ok is false,
+  errors > 5% or p95 > plan threshold; held otherwise; error on crash/timeout.
+
+MOCK: only when MOCK=1 is set explicitly. mock/replay.py streams fixtures/defense-bank-transfer.jsonl
+(recorded ServerMessages with relative timestamps). A real failure NEVER silently falls back to recorded
+data; it uses the §21 fallback or shows an "error" verdict with a retry button.
+
+7. SEEDED DEMO APPS (PLAN §13.2) — ST builds, SS reviews; needed by Thu Oct 29
+------------------------------------------------------------------------------
+Each in data/defense_apps/<slug>/: app/ (FastAPI, 150–400 lines, plausible "AI-written" style),
+requirements.txt, crucible.json {"entrypoint", "port": 8080}, flaws.json, fix.patch.
+`make validate` proves: boots, the reference attack BREAKS the original, fix.patch makes it HOLD.
+
+- bank-transfer (P0, demo): /transfer reads the sender balance, awaits a "fraud check"
+  (await asyncio.sleep(0.03)), writes balance - amount; no transaction or lock.
+  Invariant: total balance constant. Target: "Under 200 concurrent transfers, $1,240 disappeared."
+- ticket-drop (P0): check-then-insert on seat availability; second finding: O(n^2) unindexed seat
+  recommendation loop. Invariant: each seat sold at most once. Target: "Under 150 concurrent checkouts,
+  38 seats double-booked."
+- report-service (P0): blocking time.sleep / CPU work in an async route. Invariant: /health p95 < 200 ms
+  while /report is loaded.
+
+8. FRONTEND & REPLAY COORDINATION (with Likhil)
+-----------------------------------------------
+- Visual tokens are Likhil's (frontend-schematic/UI_TEMPLATE.md): --bg #0c0c0d, --surface #17171a,
+  accent --signal #1c80ba, --danger #e5484d for failures only, --ok #4cc77a for passed/merge gate.
+  No glows or gradients. Don't introduce other palettes.
+- SS provides lib/defense.ts: stage-label selector, before/after series (baseline vs verify ChaosRun
+  metrics), node status (flagged / broke / verified) for React Flow colouring.
+- Every Defense event is a TimelineEvent (seq, t, kind, payload), so Replay works the same in both modes.
+
+9. DECISION LOG — CONFLICTS BETWEEN THE ORIGINAL SPEC AND PLAN.md
+-----------------------------------------------------------------
+Format: topic — kept — why.
+
+ 1. Contract names/shapes (VulnerabilityFlaw, ChaosTelemetryTick, GrillRubricProposal,
+    GrillEvaluation, DefenseReportSummary) — PLAN models, extended with node_id, FindingPublic,
+    AuditPublic, in_flight, p99_ms, SamHighlight, card_url — PLAN's are shared with SG and LG and
+    already cover the same data (ChaosRun baseline/verify = before/after ticks; DefenseExtra = report
+    summary). The spec's useful fields were added instead of a parallel set.
+ 2. Model style (str+Enum, defaults, tuple[int,int]) — PLAN (Strict, StrEnum, no defaults on LLM
+    output, no tuples) — structured output rejects or mis-handles defaults/tuples; extra="forbid"
+    catches drift.
+ 3. "Explanation never shown before the grill" — SPEC, newly enforced via AuditPublic — PLAN sent the
+    full AuditResult to the browser, which let the candidate read the answer before being grilled.
+ 4. Phases (DefensePhase IDLE…MERGE_REJECTED) — PLAN shared Phase; spec's states become UI labels via
+    lib/defense.ts — SessionHub.set_phase() (SG) validates the shared enum; outcomes are data.
+ 5. Grill and fix as one stage — PLAN (separate, grill first) — grading the explanation after the fix
+    lets the fix itself become the explanation.
+ 6. File names (meta_llm.py, voice_asr.py, sam_client.py, image_client.py, glimmer_agent.py,
+    modal_sandbox.py, local_runner.py, harness.py, ingest.py, defense_fixtures.py) — PLAN names —
+    the spec's models/ files would duplicate SG's clients. Spec's service.py kept as defense/session.py
+    (PLAN had no Defense orchestrator; named to mirror coding/session.py).
+ 7. Ownership of models/ and data/defense_apps/ — PLAN (SG, ST) — SS may write sam.py/image.py only with
+    SG's OK; a test target in backend/tests/fixtures/ unblocks the Runner without touching ST's apps.
+ 8. Timeline event_type names (code_edit, asr_transcript, chaos_tick, interviewer_nudge, gate_verdict)
+    — PLAN TimelineKind; added sam_highlight — same concepts, already wired into PAYLOAD_MODELS.
+ 9. Sample app slugs (wallet_transfer, ticket_blitz) — PLAN slugs (bank-transfer, ticket-drop,
+    report-service) with the spec's concrete flaw details and headlines merged in — ST's work package
+    and the demo script already use them; the spec had 2 apps, P0 needs 3.
+10. App port 8000 vs 8080 — SPEC 8080 — the backend runs on :8000, which clashes with LocalRunner.
+11. Metric interval 250 ms vs 500 ms — PLAN 500 ms — p95/p99 over a 250 ms window is noisy, and it
+    doubles timeline writes; 500 ms charts still look live.
+12. Free-form attack.py vs template + validator — PLAN — guarantees metric lines match the contract and
+    keeps model-written code to three validated function bodies.
+13. Sandbox mechanics — SPEC's shared image + runtime file writes, PLAN's readiness probe and 60 s cap —
+    PLAN's image-per-project rebuilt on every verify; the spec's 30 s timeout would kill a 30 s attack
+    plus boot, and it had no readiness probe (attack could start before uvicorn).
+14. MOCK fallback on timeout / missing credentials — PLAN (explicit MOCK=1 only) — silently replaying
+    recordings in a live session would present fake results as real (PLAN §2 non-goal).
+15. Grill scoring (LLM 0–10 score vs 40/35/25 booleans + 15 SAM bonus, pass ≥ 75) — HYBRID — LLM only
+    marks expected points; code scores. Spec's weights let mechanism + fix + SAM reach 75 without the
+    root cause, so the root cause is now required for the verdict.
+16. Merge gate thresholds (error_rate < 1% vs ≤ 5%) — PLAN 5% — a correct lock/transaction fix under
+    200-way concurrency on SQLite can still return a few "database is locked" errors.
+17. Leak check via LLM self-report (leaks_solution_code) + "def "/"async with " scan — PLAN leak guard
+    (code, every outgoing message) — strictly stronger; the spec's string checks are a subset.
+18. TTS (ElevenLabs + speechSynthesis fallback) — PLAN speechSynthesis only — non-Meta runtime call,
+    extra key, judged on Meta tooling.
+19. SAM 3.1 (PLAN: P2 sketch/proctor) — SPEC's grill use adopted as P1 DEF-9, implemented as
+    segment-the-drawn-circle + code maps box → node — gives SAM a demo-visible role without faking it.
+20. Muse Image architecture card at audit time — P2 DEF-10 merge-gate card after the verdict, no text
+    in the image (numbers composed in HTML) — image models garble text; never on the critical path.
+21. Glimmer through api.meta.ai — PLAN (GLIMMER_BASE_URL partner host) — open-weights Glimmer isn't
+    served on api.meta.ai; model id still ⚠️ V5.
+22. Direct AsyncOpenAI calls — PLAN (shared wrapper, ids in registry) — one place for timeouts,
+    fallbacks and cost logging.
+23. Theme (#07090E / #FF3366 / #FFB020 / #00F59B) — Likhil's UI_TEMPLATE tokens — LG owns the UI; his
+    rules ban glow-style accents.
+24. Spark grill latency (< 600 ms) — PLAN 10 s timeout kept; < 600 ms is a goal to measure, not a limit.
+================================================================================
