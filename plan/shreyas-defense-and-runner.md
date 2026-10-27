@@ -39,13 +39,23 @@ handoff). Team-wide: root `CLAUDE.md`, `backend/CLAUDE.md` (code style), `.claud
 
 ## Setup (Day 0, Mon Oct 26)
 
-- [ ] Claim your Meta credits (individually), add a card, set a spend-limit notification (PLAN §15.3).
-- [ ] Request Modal, Baseten and Fireworks credits (S-2). `modal token new`.
-- [ ] Python 3.12 + uv, Node ≥ 22 + pnpm (`corepack enable`), Docker.
-- [ ] Review Likhil's `frontend` branch. S-0 builds on it.
-- [ ] Read PLAN §4, §6, §11, §12, §14.6, §19, §21 and §22.
+- [x] Claim your Meta credits (key works, 2026-10-27). **Still to do: set the $125 spend limit** (PLAN §15.3).
+- [x] Modal: token connected (workspace `shreyas-sahoo-15`), credits form sent. Baseten/Fireworks: not needed (Glimmer dropped).
+- [x] Python 3.12 + uv, Node ≥ 22 (pnpm runs through `npx`; Node 25+ has no corepack). Docker isn't needed locally: CI builds the image.
+- [x] Review Likhil's `frontend` branch. S-0 builds on it.
+- [x] Read PLAN §4, §6, §11, §12, §14.6, §19, §21 and §22.
 
 ---
+
+## Status (end of Tue Oct 27)
+- **Done and on `main`:** S-0 (#10), store, RUN-1, RUN-3 (verified on real Modal), DEF-1..6, OPS-2 (MOCK replay
+  plus a recorder), OPS-1 prep (Dockerfile, Railway config, CI Docker job, `docs/DEPLOY.md`), attack containment
+  (validator + loopback-only clients + `block_network`; V7 done).
+- **Open:** #17 (DEF-11 Muse fix assistant spec) and #18 (attacker prompt), both waiting on Srinithin.
+- **Next:** IC1 Wed (needs Sharvil's `bank-transfer`, #11; build it from `bank-transfer-min` Wed morning if it's
+  missing). Thu: `lib/defense.ts`, RUN-2. Fri: IC2 live. Sat: deploy (Railway signup was down on Oct 27; Render
+  or Fly.io take the same Dockerfile).
+- Working memory with the details: [docs/defense/MEMORY.md](../docs/defense/MEMORY.md).
 
 ## Handoffs
 
