@@ -1,0 +1,21 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+backend/var/
+*.db
+*.db-journal
+
+# Local agent/editor state
+.claude/settings.local.json
+.claude/launch.json
+CLAUDE.local.md
+.DS_Store
