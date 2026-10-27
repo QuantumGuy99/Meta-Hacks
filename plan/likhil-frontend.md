@@ -68,7 +68,7 @@ If a signature doesn't fit how you're building the store, say so before they bui
 |---|---|---|
 | A room that shows interviewer messages and run results | Srinithin (IC1) | Wed Oct 28 |
 | A plain findings list on `/defense/[id]` | Shreyas (IC1) | Wed Oct 28 |
-| Audit (React Flow) + chaos lab (Recharts) views | Shreyas | Thu Oct 29 |
+| Audit (React Flow) + chaos lab (uPlot) views | Shreyas | Thu Oct 29 |
 | Mic toggle, live captions, TTS, grill card, fix + verify | Srinithin, Shreyas (IC2) | Fri Oct 30 |
 | Report + replay | Everyone | Sat Oct 31 |
 | The Vercel deploy, set up with Shreyas | Everyone (IC3) | Sat Oct 31 |
@@ -116,8 +116,8 @@ List each one and why in the PR that adds it (PLAN §22 rule 12).
 |---|---|
 | FE-2 | `zustand` |
 | FE-3 | `@monaco-editor/react` |
-| FE-5 | `react-markdown` |
-| FE-6 | `@xyflow/react`, `@dagrejs/dagre`, `recharts` |
+| FE-5 | `streamdown` (instead of `react-markdown`: it also renders the interviewer's streamed replies) |
+| FE-6 | `@xyflow/react`, `@dagrejs/dagre`, `uplot` (live chaos charts), `recharts` (report charts) |
 | FE-1 / FE-8 | `motion` |
 | P1 tests | `@playwright/test` |
 

@@ -208,10 +208,10 @@ Finding.chaos (plan) ──► AttackWriter (Glimmer → fallback Spark) fills 3
 | Storage | **SQLite** via SQLModel (file at `DATABASE_URL`) | One file; volume-mounted when deployed |
 | Code execution | **Modal Sandboxes** (`modal` SDK); `LocalRunner` subprocess for dev | |
 | Frontend | **Next.js 16** (App Router, Turbopack) + **React 19** + TypeScript, **Tailwind v4**, **shadcn/ui** (`base-nova` style, Base UI primitives) | Desktop-first (≥ 1280 px); an editor app. Next 16 changed APIs, so read `frontend/AGENTS.md` before writing frontend code |
-| UI rules | [`frontend-schematic/UI_TEMPLATE.md`](frontend-schematic/UI_TEMPLATE.md): dark theme tokens, one accent, Hanken Grotesk (Geist Mono only in code), taste-skill look + Vercel's Web Interface Guidelines | Every screen is checked against it before its PR. Lives on the `frontend` branch until it merges |
+| UI rules | [`frontend-schematic/UI_TEMPLATE.md`](frontend-schematic/UI_TEMPLATE.md): black, cobalt `#2f6bff` and white; Space Grotesk headings and controls, Inter for reading text, Geist Mono for code and terminal cues; taste-skill look + Vercel's Web Interface Guidelines | Every screen is checked against it before its PR |
 | Editor | `@monaco-editor/react` | Disable quick suggestions to keep it interview-like |
-| Diagram / charts | `@xyflow/react` (React Flow) with `@dagrejs/dagre` auto-layout, **Recharts** | |
-| Other frontend libs | `react-markdown` (problem statements), `motion` (state-change animation), `lucide-react` (icons) | Each listed in the PR that adds it (§22 rule 12) |
+| Diagram / charts | `@xyflow/react` (React Flow) with `@dagrejs/dagre` auto-layout; **uPlot** for the live chaos-lab charts; **Recharts** (shadcn `chart`) for the report's static charts | uPlot draws on a canvas with no tweening, so it stays cheap at a metric sample every 500 ms; Recharts is fine where nothing streams |
+| Other frontend libs | `streamdown` (problem statements and streamed interviewer replies), `shiki` (static code on the landing page), `motion` (state-change animation), `gsap` + `lenis` (landing-page scroll motion only), `@number-flow/react` (animated numbers), `sonner` (toasts), `lucide-react` (icons) | Each listed in the PR that adds it (§22 rule 12) |
 | Client state | **zustand** | One store per session |
 | TTS | Browser **`speechSynthesis`** | Meta has no TTS model; this is free and needs no key |
 | Lint/test | ruff, pytest, pytest-asyncio; eslint, tsc, Playwright (P1) | |
@@ -1490,7 +1490,7 @@ Layout (desktop ≥ 1280 px):
 ### 14.4 Defense views
 - **Audit:** React Flow topology (auto-layout with dagre/elkjs; flagged nodes red) + findings list (severity
   chips; click → highlight node + open the file preview).
-- **Chaos lab:** live Recharts line charts (rps, p95 ms) + counters (errors, invariant violations) streaming
+- **Chaos lab:** live uPlot line charts (rps, p95 ms) + counters (errors, invariant violations) streaming
   from `defense.chaos.metric`; a big verdict banner ("BROKE: $1,240 missing"); a collapsible generated attack
   script.
 - **Grill:** a large question card, a 90 s countdown, live captions, Answer by voice or chat, then the
