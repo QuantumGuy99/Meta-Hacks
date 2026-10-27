@@ -60,3 +60,20 @@ jobs:
           node-version: 22
       - run: uv --directory backend sync --locked
       - run: make contracts-check
+
+  docker:
+    # Builds the deploy image (never pushed) and boots it, so the Dockerfile is proven long before IC3.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the backend image
+        run: docker build -f backend/Dockerfile -t crucible-backend:ci .
+      - name: Boot it and hit /api/health
+        run: |
+          docker run -d --name api -p 8000:8000 -e PORT=8000 -e DATABASE_URL=sqlite:////tmp/crucible.db crucible-backend:ci
+          for i in $(seq 1 30); do
+            if curl -fsS localhost:8000/api/health; then exit 0; fi
+            sleep 1
+          done
+          docker logs api
+          exit 1

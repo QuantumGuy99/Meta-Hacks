@@ -14,7 +14,7 @@ status, handoff and the session log before you finish.
 
 ## Scope for agents working on Defense + Runner
 Create or edit only Shreyas's paths: `backend/crucible/defense/`, `backend/crucible/runner/`,
-`backend/crucible/models/glimmer.py`, `backend/crucible/mock/`, `frontend/src/lib/defense.ts`, the scaffold
+`backend/crucible/mock/`, `frontend/src/lib/defense.ts`, the scaffold
 (Makefile, CI, `.env.example`, `backend/pyproject.toml`, Dockerfile, `main.py`, `config.py`, `store/`),
 `docs/defense/` and tests. `contracts/` needs SG + SS approval. `engine/`, the rest of `models/`,
 `data/defense_apps/` and other `frontend/` files belong to teammates: note needed changes instead.

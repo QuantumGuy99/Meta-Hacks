@@ -86,7 +86,7 @@ coding agents daily. Both modes solve problems we have firsthand.
 |---|---|---|---|
 | **Room** | Monaco editor (Python), edit capture, interviewer panel, text chat, timer, phase stepper | Voice in (Muse Voice Transcribe), voice out (browser TTS), "interviewer's notes" panel | Multi-language (JS) |
 | **Coding mode** | 12 validated problems, difficulty picker, run/submit tests, analyzer + policy (active and passive), hint ladder, paste/tab notes, report | 30 problems, plan-vs-code check, coded-before-plan check, wrap-up complexity question, problem illustrations | 40+ problems, SAM 3.1 paper sketch, proctor mode |
-| **Defense mode** | 3 sample apps, Wonder audit + topology diagram, chaos run (breaks before the fix, holds after), grill (text answers OK), fix in editor, verify, verdict | Voice grill, "circle the flaw" with SAM 3.1, Glimmer attack agent with a refine loop, zip upload, 5 sample apps | GitHub URL import, suggested refactor patch / Muse Code handoff, Muse Image merge-gate card |
+| **Defense mode** | 3 sample apps, Wonder audit + topology diagram, chaos run (breaks before the fix, holds after), grill (text answers OK), fix in editor, verify, verdict | Voice grill, "circle the flaw" with SAM 3.1, attack refine loop, zip upload, 5 sample apps | GitHub URL import, suggested refactor patch / Muse Code handoff, Muse Image merge-gate card |
 | **Report** | Scores, summary, strengths/improvements, metrics, moments, replay (code playback + transcript + nudges) | Defense before/after charts in the report, share link | Muse Image report card |
 | **Platform** | Local dev, MOCK mode, SQLite, deployed frontend + backend | Spend guard (sessions per IP per day), contributor-model dev switch | Accounts (not planned) |
 
@@ -155,8 +155,8 @@ Backend (FastAPI)
  ├─ coding/     ProblemBank · CodingSession (phases/timers) · RunService · IntegrityDetector
  ├─ defense/    ProjectStore · Auditor · ChaosLab · Grill · FixVerifier · Verdict
  ├─ runner/     Runner protocol · LocalRunner (dev) · ModalRunner · harness/
- └─ models/     llm.py (Meta OpenAI-compatible) · asr.py · image.py · sam.py · glimmer.py · registry.py
-External: Meta Model API · Modal · Glimmer host (Modal/Fireworks/OpenRouter) · Baseten (Spark Open)
+ └─ models/     llm.py (Meta OpenAI-compatible) · asr.py · image.py · sam.py · registry.py
+External: Meta Model API · Modal · Baseten (Spark Open)
 ```
 
 ### 4.2 One "tick" in a coding session (the core loop)
@@ -177,7 +177,7 @@ Runs, final transcript turns and explicit asks also trigger the scheduler (§9.4
 ### 4.3 One chaos run in Defense mode
 
 ```
-Finding.chaos (plan) ──► AttackWriter (Glimmer → fallback Spark) fills 3 functions in the template
+Finding.chaos (plan) ──► AttackWriter (Spark → reference attack) fills 3 functions in the template
    ──► ScriptValidator (AST allowlist) ──► ModalRunner.start_project(files) ──► readiness probe
    ──► exec attack.py ──► stdout JSON lines ──► ChaosMetric ──► Timeline + WS defense.chaos.metric
    ──► final line {done, invariant_ok, detail} ──► ChaosRun.verdict ──► WS defense.chaos.done
@@ -241,8 +241,8 @@ Owners: **SG** Srinithin Ganesh · **SS** Shreyas Sahoo · **LG** Likhil Gudipat
 │   │   │   ├── common.py events.py coding.py defense.py report.py ws.py
 │   │   │   └── export.py            # → frontend/src/types/contracts.ts
 │   │   ├── store/                   # db.py, repo.py (sessions, events, reports, projects)   (SS)
-│   │   ├── models/                  # llm.py asr.py image.py sam.py glimmer.py registry.py   (SG; glimmer.py SS;
-│   │   │                            #   SS may write sam.py / image.py for DEF-9 / DEF-10 if SG agrees)
+│   │   ├── models/                  # llm.py asr.py image.py sam.py registry.py   (SG; SS may write
+│   │   │                            #   sam.py / image.py for DEF-9 / DEF-10 if SG agrees)
 │   │   ├── engine/                  # shared interviewer engine                              (SG)
 │   │   │   ├── hub.py               # SessionHub: WS connections, fan-out, routing
 │   │   │   ├── timeline.py          # append/read, seq, typed payload helpers
@@ -656,7 +656,7 @@ class AuditPublic(Strict):       # payload of WS defense.audit
     edges: list[TopologyEdge]
     findings: list[FindingPublic]
 
-class AttackFunctions(Strict):   # LLM output (Glimmer/Spark): bodies for the template (§11.4)
+class AttackFunctions(Strict):   # LLM output (Spark): bodies for the template (§11.4)
     setup_body: str
     request_body: str
     invariant_body: str
@@ -1207,8 +1207,8 @@ async def check_invariant(client: httpx.AsyncClient, ctx: dict) -> tuple[bool, i
 # pool collapses under ~50+ concurrent requests and would make a fixed app look broken.
 ```
 
-**AttackWriter:** model role `attacker` (default **Muse Glimmer** via `GLIMMER_BASE_URL`; fallback
-`muse-spark-1.3`) → `AttackFunctions`. Input: the finding, its chaos plan, the relevant source files and the
+**AttackWriter:** model role `attacker` (`muse-spark-1.3`; for sample apps, the reference attack is the last
+fallback) → `AttackFunctions`. Input: the finding, its chaos plan, the relevant source files and the
 template.
 
 **ScriptValidator** (AST, before any execution):
@@ -1233,8 +1233,7 @@ template.
 `p95_ms > plan.p95_threshold_ms` (when set); `held` otherwise; `error` on a crash or timeout (60 s hard cap).
 
 **P1 agent loop:** if the baseline `held` but the finding claims it should break, give the model the metrics
-and detail and ask for a revised attack (max 2 refinements). Glimmer's tool calling can drive this loop
-(tools: `run_attack(functions)`, `read_file(path)`); the plain-call version is fine for P0.
+and detail and ask for a revised attack (max 2 refinements). A plain call per refinement is enough.
 
 ### 11.5 Grill (`grill.py`)
 - For each `broke` finding: the question = `grill.question` rewritten with the real chaos summary (Spark,
@@ -1566,7 +1565,7 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 | `grill_eval` | `muse-spark-1.3` | medium | Spark Open (Baseten) |
 | `audit` | `muse-wonder-1.0` | high | `muse-spark-1.3` (high) → `flaws.json` (samples only) |
 | `report` | `muse-wonder-1.0` | high | `muse-spark-1.3` → metrics-only template |
-| `attacker` | Muse Glimmer (`GLIMMER_*`) | — | `muse-spark-1.3` |
+| `attacker` | `muse-spark-1.3` | medium | reference attack (sample apps only) |
 | `drafter` (datatools) | `muse-spark-1.3` or Spark Open | medium | — |
 | `vision` (P2) | `muse-spark-1.3` with image input | low | skip |
 
@@ -1578,8 +1577,6 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 - **Muse Spark audio:** we don't send audio to Spark (1.3's audio isn't fully reliable per the docs); all
   speech goes through Muse Voice Transcribe.
 - **Partner endpoints** (OpenAI-compatible, same wrapper with a different `base_url`):
-  - Glimmer: `GLIMMER_BASE_URL` / `GLIMMER_API_KEY` / `GLIMMER_MODEL` (Modal endpoint using Modal credits, or
-    Fireworks / Together / OpenRouter). ⚠️ VERIFY the model id on the chosen host.
   - Spark Open: Baseten, `SPARK_OPEN_MODEL=meta-models/muse-spark-open-1026` (the hackathon guide says to
     use this id, not `muse-spark-open`). ⚠️ VERIFY the base URL in Baseten's docs.
 
@@ -1674,7 +1671,7 @@ Format: **ID — title** (owner · priority · depends on) followed by "done whe
 - **DEF-1 — Project store + samples API** (P0 · S-1, DATA-4); zip upload (P1).
 - **DEF-2 — Audit** (P0 · ENG-3): §11.3 + `defense.audit` + cache.
   *Done when* the audit finds every seeded flaw in the 3 P0 sample apps (≥ 2 of 3 runs).
-- **DEF-3 — AttackWriter + template + validator** (P0 · DEF-2, `models/glimmer.py`).
+- **DEF-3 — AttackWriter + template + validator** (P0 · DEF-2).
   *Done when* the validator rejects the bad-script test corpus and the writer produces valid scripts for all
   P0 findings.
 - **DEF-4 — Chaos execution + metrics + verdict** (P0 · RUN-3, DEF-3).
@@ -1685,7 +1682,7 @@ Format: **ID — title** (owner · priority · depends on) followed by "done whe
   carries an explanation (test).
 - **DEF-6 — Fix stage + verify + verdict** (P0 · ENG-5, DEF-4).
 - **DEF-7 — Defense report extras** (P1 · ENG-8).
-- **DEF-8 — Glimmer agent refine loop** (P1 · DEF-4).
+- **DEF-8 — Attack refine loop** (P1 · DEF-4).
 - **DEF-9 — "Circle the flaw" with SAM 3.1** (P1 · DEF-5, FE-6; **after IC3, and only with LG's OK**, since
   it needs a pen, a canvas PNG export and node boxes in FE-6): §11.7.
   *Done when* a circle drawn around the flawed node on a canvas PNG selects that node in ≥ 4 of 5 tries.
@@ -1744,8 +1741,7 @@ checkpoint script on a clean checkout.
 | 9 | Wed Nov 4 | Final video edit; **submit by 6 PM** (3 h buffer before the 9 PM deadline) | same | same | same |
 
 Live sessions worth attending: Agents 101 (Tue 12 PM), **Agents 102: Verifiable Agents** (Wed 12 PM;
-directly relevant to the policy and chaos verify), Fireworks + Muse open models (Fri 12 PM; relevant to
-Glimmer hosting). Office hours: weekdays 10–11 AM in #office-hours.
+directly relevant to the policy and chaos verify), Fireworks + Muse open models (Fri 12 PM). Office hours: weekdays 10–11 AM in #office-hours.
 
 **Checkpoint scripts**
 - **IC1:** coding room on LocalRunner: type → analyzer → a nudge appears; Run returns results. Defense: the
@@ -1802,9 +1798,6 @@ ASR_URL=wss://api.meta.ai/v1/asr/realtime
 ASR_MODEL=muse-voice-transcribe-1.0
 USE_CONTRIBUTOR_MODELS=0          # dev only, synthetic data only
 # Partners
-GLIMMER_BASE_URL=
-GLIMMER_API_KEY=
-GLIMMER_MODEL=
 BASETEN_BASE_URL=
 BASETEN_API_KEY=
 SPARK_OPEN_MODEL=meta-models/muse-spark-open-1026
@@ -1860,7 +1853,6 @@ Record each segment separately on the deployed build, at real speed (speed-ups a
 | Solution leakage | Leak guard + rubric-text fallback + the `asks-for-answer` eval |
 | Realtime ASR problems | Chunked file transcription → chat-only fallback; voice is P1, so text works end to end |
 | Wonder slow or down | Spark fallback for audit and report; audit cached per project |
-| Glimmer hosting not ready | `attacker` falls back to Spark; the agent loop is P1 |
 | Modal sandbox slow to start | Warm sandbox per coding session; pre-build sample-app images at startup; LocalRunner for dev |
 | Chaos doesn't break a sample | Sample apps are validated with a reference script (`validate_apps`); the demo uses `bank-transfer` |
 | Credits run out | Contributor models in dev with synthetic data, spend notifications, session limits, cached audits |
@@ -1911,7 +1903,7 @@ These apply to Muse Code, Claude Code and humans alike.
 | V2 | How prompt caching triggers (automatic prefix caching?) | dev.meta.ai/docs (pricing mentions cached input) | SG | open |
 | V3 | `reasoning_effort` with `beta.chat.completions.parse` on Spark 1.3 and Wonder 1.0 | /docs/reasoning, /docs/structured-output | SG | done: works on `muse-spark-1.3` (minimal, low, medium) and `muse-wonder-1.0` (high). Smoke run 2026-10-27, 9 of 9 roles passed |
 | V4 | Structured output support on `muse-wonder-1.0` | /docs/models, /docs/structured-output | SG | done: `muse-wonder-1.0` returns valid structured output through `parse` at effort high (about 2 s for a tiny schema) |
-| V5 | Glimmer model id + base URL on the chosen host (Modal / Fireworks / OpenRouter) | host docs | SS | open |
+| V5 | ~~Glimmer model id + host~~ (Glimmer dropped 2026-10-27; the attacker uses Spark) | — | SS | dropped |
 | V6 | Baseten base URL for `meta-models/muse-spark-open-1026` | docs.baseten.co | ST | open |
 | V7 | Modal: Sandbox stdin API, writing files into a running sandbox, readiness probes, egress restriction + loopback | modal.com/docs/sdk/py/latest/Sandbox | SS | done (2026-10-27): stdin writes, exec, a port probe and streaming work (stdout arrives in chunks); `block_network=True` blocks egress (checked) and loopback still works |
 | V8 | Muse Code headless/non-interactive mode (for the optional refactor handoff) | dev.meta.ai/lp/muse-code, `muse --help` | SS | open |

@@ -97,7 +97,7 @@ class AuditPublic(Strict):  # payload of WS defense.audit
     findings: list[FindingPublic]
 
 
-class AttackFunctions(Strict):  # LLM output (Glimmer/Spark): bodies for the template (§11.4)
+class AttackFunctions(Strict):  # LLM output (Spark): bodies for the template (§11.4)
     setup_body: str
     request_body: str
     invariant_body: str
