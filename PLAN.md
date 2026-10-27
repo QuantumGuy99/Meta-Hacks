@@ -1218,6 +1218,12 @@ template.
 - Every string literal that looks like a URL must start with `/` or `BASE`.
 - `CONCURRENCY ≤ 200`, `DURATION_S ≤ 30`.
 - On rejection: one regeneration with the validator's error message, then fail the finding (`error`).
+- Also rejected (PR #15 review): asyncio/loop escape hatches by attribute name (`create_subprocess_*`,
+  `open_connection`, `start_server`, `to_thread`, `run_in_executor`, `get_*event_loop`, ...), any private
+  attribute (`client._transport`), and direct use of `httpx` (the bodies must use the `client` they're given).
+- **Containment in layers:** the validator checks the code; the template's clients carry a request hook that
+  refuses any host but loopback, which catches URLs built at runtime; and Modal sandboxes run with
+  `block_network=True`, so nothing leaves even if both checks miss something.
 - The model never writes a whole script: the template owns imports, concurrency, timing and the metric
   output, so every metric line matches `ChaosMetric` by construction.
 
@@ -1907,7 +1913,7 @@ These apply to Muse Code, Claude Code and humans alike.
 | V4 | Structured output support on `muse-wonder-1.0` | /docs/models, /docs/structured-output | SG | done: `muse-wonder-1.0` returns valid structured output through `parse` at effort high (about 2 s for a tiny schema) |
 | V5 | Glimmer model id + base URL on the chosen host (Modal / Fireworks / OpenRouter) | host docs | SS | open |
 | V6 | Baseten base URL for `meta-models/muse-spark-open-1026` | docs.baseten.co | ST | open |
-| V7 | Modal: Sandbox stdin API, writing files into a running sandbox, `add_local_dir` timing, readiness probes, egress restriction + loopback | modal.com/docs/sdk/py/latest/Sandbox | SS | mostly done (2026-10-27): stdin writes, exec, a port probe and streaming work (stdout arrives in chunks); egress restriction still open |
+| V7 | Modal: Sandbox stdin API, writing files into a running sandbox, readiness probes, egress restriction + loopback | modal.com/docs/sdk/py/latest/Sandbox | SS | done (2026-10-27): stdin writes, exec, a port probe and streaming work (stdout arrives in chunks); `block_network=True` blocks egress (checked) and loopback still works |
 | V8 | Muse Code headless/non-interactive mode (for the optional refactor handoff) | dev.meta.ai/lp/muse-code, `muse --help` | SS | open |
 | V9 | SAM 3.1 box/mask record parsing details (also needed for DEF-9) | dev.meta.ai/docs/sam/segmenting | SG | open |
 | V10 | Muse Image request/response format for illustrations (also DEF-10's card) | dev.meta.ai/docs/image-generation | ST | open |

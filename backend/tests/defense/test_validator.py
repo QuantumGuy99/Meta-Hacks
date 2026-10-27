@@ -40,6 +40,15 @@ def test_valid_bodies_render_and_compile():
         "BASE = 'x'\nreturn await client.get(BASE)",
         "os.system('rm -rf /')\nreturn await client.get(BASE)",
         "return await client.get(BASE",
+        # Srinithin's probes (PR #15 review): a shell, a raw socket, a thread, the event loop
+        'await asyncio.create_subprocess_shell("id")\nreturn await client.get(BASE)',
+        'r, w = await asyncio.open_connection("example.com", 80)\nreturn await client.get(BASE)',
+        "await asyncio.to_thread(print, 1)\nreturn await client.get(BASE)",
+        "loop = asyncio.get_running_loop()\nreturn await client.get(BASE)",
+        "x = asyncio.get_event_loop().run_in_executor(None, print)\nreturn await client.get(BASE)",
+        # its own client would skip the template's loopback hook; private attributes reach the transport
+        "c = httpx.AsyncClient()\nreturn await c.get(BASE)",
+        "t = client._transport\nreturn await client.get(BASE)",
         "   ",
     ],
 )

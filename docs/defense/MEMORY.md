@@ -48,6 +48,7 @@ session. Update it before you finish any session that changed code, decisions or
 
 ## Verified facts and gotchas
 <!-- e.g. "2026-10-28 [claude] Modal Sandbox.open() writes files into a running sandbox (V7)" -->
+- 2026-10-27 [claude] Modal `block_network=True` blocks egress and keeps loopback (V7 done).
 - 2026-10-27 [claude] Modal stdout arrives in chunks, not lines; ModalRunner.stream_exec splits them (V7).
 - 2026-10-27 [claude] Main moves under you: PR #2 landed while PR #4 was open. `git fetch` and check
   `git log HEAD..origin/main` before starting work and before pushing.
@@ -55,6 +56,7 @@ session. Update it before you finish any session that changed code, decisions or
   the session id is the scenario name (PLAN §14.6).
 
 ## Session log (keep the last 10, newest first)
+- 2026-10-27 [claude] SG approved #13–#15. Attack containment in 3 layers (validator bans, loopback hook, Modal block_network); V7 done; samples load once.
 - 2026-10-27 [claude] Day 0 + Day 1 checklist complete; RUN-1 "done when" checked on a real problem.
 - 2026-10-27 [claude] DEF-6, RUN-1, OPS-2 built; Modal verified; deploy config PR #14; Glimmer dropped PR #13; folders consolidated.
 - 2026-10-27 [claude] S-0 PR #10 (CI green); Defense built on SG's stack in `feat/defense`, 194 tests pass; reviews posted on #5–#7.

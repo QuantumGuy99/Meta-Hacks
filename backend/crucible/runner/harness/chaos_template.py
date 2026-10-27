@@ -40,6 +40,20 @@ __INVARIANT_BODY__
 # --- fixed runner below: the model never edits this part ---------------------------------------------
 
 
+_LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+async def _loopback_only(request: httpx.Request) -> None:
+    # Whatever the model-written bodies build, every request leaves through a client with this hook, and it
+    # refuses any host but the app under test. The validator checks the code; this checks the traffic.
+    if request.url.host not in _LOOPBACK:
+        raise RuntimeError(f"blocked: the attack may only call the app under test, not {request.url.host!r}")
+
+
+def _client(**kwargs) -> httpx.AsyncClient:
+    return httpx.AsyncClient(event_hooks={"request": [_loopback_only]}, follow_redirects=False, **kwargs)
+
+
 def _pct(sorted_vals: list[float], p: float) -> float:
     if not sorted_vals:
         return 0.0
@@ -56,7 +70,7 @@ async def _main() -> None:
     _ = (random, string, uuid)   # available to the model's bodies
     n_pools = max(1, math.ceil(CONCURRENCY / POOL_SIZE))
     limits = httpx.Limits(max_connections=POOL_SIZE, max_keepalive_connections=POOL_SIZE)
-    clients = [httpx.AsyncClient(limits=limits, timeout=10.0) for _ in range(n_pools)]
+    clients = [_client(limits=limits, timeout=10.0) for _ in range(n_pools)]
     client = clients[0]
     try:
         await _run(clients, client)
@@ -124,7 +138,7 @@ async def _run(clients: list, client: httpx.AsyncClient) -> None:
             })
             last_t = now
 
-    async with httpx.AsyncClient(timeout=5.0) as probe:
+    async with _client(timeout=5.0) as probe:
         chk = asyncio.create_task(checker(probe))
         rep = asyncio.create_task(reporter())
         await asyncio.gather(*(worker(k) for k in range(CONCURRENCY)))
