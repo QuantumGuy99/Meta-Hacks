@@ -23,14 +23,20 @@ a second interviewer. Your job is to feed it a `RubricContext` and drive the sta
 | `backend/crucible/store/` | SQLite: sessions, events, reports, projects, audits |
 | `backend/crucible/contracts/` | Co-owned with Srinithin; you both approve every change |
 | `backend/crucible/models/glimmer.py` | The Glimmer client (attack writer) |
-| `backend/crucible/defense/` | `projects`, `audit`, `chaos`, `attack_writer`, `validator`, `grill`, `verify`, `verdict`, `prompts/` |
+| `backend/crucible/defense/` | `controller` (`DefenseController`), `projects`, `audit`, `chaos`, `attack_writer`, `validator`, `grill`, `verify`, `verdict`, `card` (P2), `prompts/` |
 | `backend/crucible/runner/` | `base.py`, `local.py`, `modal_runner.py`, `harness/` |
 | `backend/crucible/mock/` | Replay engine + defense fixtures (`defense-bank-transfer`, `report-defense`) |
 | `frontend/src/lib/defense.ts` | Defense-stage selectors for Likhil's views |
 | Deploy config | Vercel project, Railway or Fly app, Modal app `crucible-runner` |
 
 **Don't touch:** `engine/`, `coding/`, the rest of `models/` (Srinithin), pages and components (Likhil),
-`data/` (Sharvil). If you need a change there, note it in your PR or ask the owner.
+`data/` (Sharvil). If you need a change there, note it in your PR or ask the owner. Exception to agree with
+Srinithin: you write `models/sam.py` and `models/image.py` for DEF-9 / DEF-10 if he's OK with it.
+
+**Agent docs** (for Claude Code and Muse Code on this area): `backend/crucible/defense/CLAUDE.md` (area
+rules; also loaded from `runner/`), `docs/defense/DEFENSE_AGENT_SPEC.txt` (Defense briefing + the decision log for
+how it was reconciled with PLAN), `docs/defense/MEMORY.md` (shared working memory: file claims, status,
+handoff). Team-wide: root `CLAUDE.md`, `backend/CLAUDE.md` (code style), `.claude/skills/crucible-code/`.
 
 ## Setup (Day 0, Mon Oct 26)
 
@@ -71,6 +77,8 @@ a second interviewer. Your job is to feed it a `RubricContext` and drive the sta
 | ENG-5/6 policy + interviewer | Srinithin | Fri Oct 30 | Grill questions sent as plain `interviewer.message` |
 | ENG-7 voice | Srinithin | Fri Oct 30 | Text answers in the grill (that's the P0 path anyway) |
 | ENG-8 ReportBuilder | Srinithin | Sat Oct 31 | — |
+| OK on the PR #4 contract changes (`AuditPublic`, `GrillEval` without `score`, SAM messages) | Srinithin, Likhil | Before S-1 merges | Build S-1 from PLAN §7 as it stands after PR #4 |
+| `models/sam.py`, `models/image.py`, or OK for you to write them | Srinithin | Sat Oct 31 | DEF-9 / DEF-10 are P1 / P2; skip them |
 | Audit, chaos, grill and verdict views | Likhil | IC1 (plain list), Thu (full) | Check the WS output in a Python client |
 
 ### Store interface (proposed; it's yours to change)
@@ -96,12 +104,20 @@ Pure functions over his zustand session state. No fetching and no components.
 
 ```ts
 export function defenseStage(phase: Phase): "audit" | "chaos" | "grill" | "fix" | "verify" | "verdict" | null;
+// Label for the stepper/header, from phase + latest data (PLAN §11.2): "Broke" and "Merge approved" are data,
+// not phases.
+export function stageLabel(phase: Phase, runs: ChaosRun[], verdict: Verdict | null):
+  "Auditing" | "Chaos run" | "Broke" | "Grill" | "Fixing" | "Verifying" | "Merge approved" | "Merge rejected" | null;
 export function chaosSeries(runs: ChaosRun[], live: ChaosMetric[], runId: string):
-  { t: number; rps: number; p95: number; errors: number; violations: number }[];   // Recharts rows
+  { t: number; inFlight: number; rps: number; p95: number; p99: number; errors: number; violations: number }[];
 export function beforeAfter(runs: ChaosRun[], findingId: string):
   { baseline?: ChaosRun; verify?: ChaosRun };
 export function verdictBanner(run: ChaosRun): { tone: "broke" | "held" | "error"; text: string };  // text = run.summary
-export function flaggedNodeIds(audit: AuditResult): Set<string>;
+export function flaggedNodeIds(audit: AuditPublic): Set<string>;
+// The full Finding only exists after its grill is graded (it arrives with defense.grill.eval).
+export function findingDetail(audit: AuditPublic, grill: GrillTurnWithFinding[], findingId: string):
+  { public: FindingPublic; full: Finding | null };
+export function nodeStatus(audit: AuditPublic, runs: ChaosRun[], nodeId: string): "ok" | "flagged" | "broke" | "verified";
 ```
 
 ---
@@ -130,12 +146,14 @@ prompt in [plan/README.md](README.md#using-a-coding-agent-muse-code-claude-code)
 
 ### S-1 — Contracts v1 (with Srinithin)
 **P0 · Mon–Tue** · Read: PLAN §7, §8.2. Srinithin's plan has the [steps](srinithin-engine-and-coding.md#s-1--contracts-v1-with-shreyas).
-Your part: review `defense.py` hard, since you'll live with it.
+Your part: review `defense.py` hard, since you'll live with it. Build it from PLAN §7.4 as updated by PR #4
+(`node_id`, `FindingPublic`, `AuditPublic`, `in_flight`/`p99_ms`, `GrillEval` without `score`, the computed
+fields on `GrillTurn`, `SamHighlight`, `DefenseExtra.card_url`) plus the `defense.circle` /
+`defense.sam.highlight` messages.
 
-**Settle this in S-1.** The chaos verdict says "`p95_ms > plan threshold`" (PLAN §11.4), but `ChaosPlan` has no
-threshold field. Either add `p95_threshold_ms: int | None` to `ChaosPlan` (it's an LLM output, so the field
-is required and nullable), or drop that clause and have `check_invariant` measure latency itself (for
-`report-service`, time `/health` calls during the load). Then update PLAN §7.4 and §11.4 to match.
+**Settled (pending Srinithin's OK in S-1):** `ChaosPlan.p95_threshold_ms: int | None` (required, nullable,
+since it's LLM output). The verdict is `broke` when it's set and p95 exceeds it. `FindingPublic.category` and
+`severity` reuse the `FindingCategory` and `Severity` literals from `Finding`.
 
 ### RUN-1 — Runner protocol, harness, LocalRunner
 **P0 · Tue · needs S-1** · Read: PLAN §12
@@ -169,7 +187,8 @@ candidate's code.
 **P0 · Wed · needs S-1, DATA-4** · Read: PLAN §11.1, §8.1, §13.2
 **Files:** `defense/projects.py`, the defense router
 1. At startup, load `data/defense_apps/*/` into `Project` records: files, line count, `content_hash` (sha256 of
-   the sorted files), and the entrypoint and port from `crucible.json`.
+   the sorted files), and the entrypoint and port from `crucible.json` (default 8080, so it never clashes with
+   the backend's :8000 under LocalRunner).
 2. `GET /api/defense/samples`. `POST /api/sessions` with `mode=defense` and `project_id`.
 3. Zip upload (P1): `POST /api/defense/projects` with the §11.1 limits enforced.
 
@@ -178,8 +197,12 @@ candidate's code.
 **Files:** `defense/audit.py`, `defense/prompts/audit_system.md`
 1. Input: the file tree plus every file with line numbers. Wonder, `high`, 120 s → Spark 1.3 → `flaws.json`
    converted to findings (sample apps only, logged, never presented as an AI result in the demo).
-2. Cache by `content_hash`. Sort findings by severity, max 5. Broadcast `defense.audit`.
-3. The recall eval: every seeded flaw found (same file, overlapping lines, same category).
+2. Prompt rules the grill depends on: neutral titles and summary (the area, not the cause or fix),
+   `expected_points[0]` = the root cause, every finding's `node_id` names a real node.
+3. Cache by `content_hash`. Sort findings by severity, max 5. Check `node_id`s (unknown → `None`) and set
+   `flagged`. Broadcast `defense.audit` as **`AuditPublic`**: no explanation, grill or fix rubric reaches the
+   browser before that finding's grill is graded.
+4. The recall eval: every seeded flaw found (same file, overlapping lines, same category).
 
 **Done when:** PLAN §16 DEF-2: every seeded flaw in the 3 P0 apps is found in ≥ 2 of 3 runs.
 
@@ -196,12 +219,15 @@ down), and the sandbox is cleaned up when the session ends.
 
 ### RUN-3 — ModalRunner for projects
 **P0 · Thu · needs RUN-2, DATA-4** · Read: PLAN §12, §11.4
-1. One image per project: `pip_install(<requirements>)` + `httpx`, with the project files added from a temp dir
-   (edited files for verify). Pre-build the sample apps' images at startup, so the demo never waits on a cold
-   build.
-2. Start the entrypoint in the background, run a readiness probe on the port, write `attack.py`, exec it and
+1. One shared project image, built at startup: `debian_slim(python_version="3.12")` + `fastapi`, `uvicorn`,
+   `httpx`, `aiosqlite`, `flask` + the sample apps' requirements. Uploads with other requirements get a cached
+   per-`content_hash` image on top. The demo never waits on a cold build.
+2. Per run: `Sandbox.create(..., timeout=60)`, then write the project files (edited files for verify) and
+   `attack.py` into the running sandbox (V7), so verify never rebuilds an image.
+3. Start the entrypoint in the background, run a readiness probe on the port (≤ 10 s), exec `attack.py` and
    stream stdout, then terminate.
-3. Restrict egress if the SDK supports it and loopback still works (V7).
+4. Restrict egress if the SDK supports it and loopback still works (V7).
+5. Until DATA-4 lands, test against a minimal racy app in `backend/tests/fixtures/`.
 
 ### DEF-3 — AttackWriter, template, validator
 **P0 · Thu · needs DEF-2** · Read: PLAN §11.4; V5 for the Glimmer host
@@ -222,7 +248,8 @@ produces valid scripts for all P0 findings.
 **P0 · Fri (IC2: `bank-transfer` breaks live with streaming charts) · needs RUN-3, DEF-3** · Read: PLAN §4.3, §11.4
 **Files:** `defense/chaos.py`
 1. Per queued finding: write → validate → `start_project` → probe → exec `attack.py` → parse the JSON lines.
-2. Each metric line → `ChaosMetric` → timeline + `defense.chaos.metric`. The final line sets the verdict:
+2. Each metric line (every 500 ms; includes `in_flight` and `p99_ms`) → `ChaosMetric` → timeline +
+   `defense.chaos.metric`. Bad lines are logged as a `system` note and skipped. The final line sets the verdict:
    `broke`, `held`, or `error` on a crash or after the 60 s hard cap.
 3. `ChaosRun.summary` comes from the real run ("37 of 500 transfers lost; $1,240 missing"). Never hard-code
    the numbers.
@@ -237,8 +264,15 @@ metrics in the UI.
    question + summary) and send it through `Interviewer.say()`.
 2. A 90 s answer window. Answers arrive as final candidate `TranscriptTurn`s through
    `DefenseController.on_timeline` (voice or chat).
-3. `GrillEval` (Spark, structured, 10 s). At most one follow-up (60 s more), enforced in code.
-4. A `GrillTurn` → timeline + `defense.grill.eval`.
+3. `GrillEval` (Spark, structured, 10 s): which expected points were hit, by index. **No score from the
+   model.** At most one follow-up (60 s more), enforced in code. Feedback and follow-ups go through
+   `Interviewer.say()`, so the leak guard applies.
+4. Code computes `score` (0–10 from points hit, +1 if the SAM-circled node matches `finding.node_id`) and
+   `root_cause_hit` (point 0), as in PLAN §11.5.
+5. A `GrillTurn` → timeline + `defense.grill.eval`, which also carries the full `Finding` (revealed only now).
+
+**Done when:** scoring tests cover root cause missed / hit / SAM bonus / invented point indexes, and a test
+proves `defense.audit` never carries an explanation.
 
 ### DEF-6 — Fix stage, verify, verdict
 **P0 · Sat · needs ENG-5, DEF-4** · Read: PLAN §11.6
@@ -247,7 +281,8 @@ metrics in the UI.
    finding's files in tabs.
 2. Verify: `defense.verify` with the edited files → the same baseline script re-runs against them →
    `ChaosRun(kind="verify")`. If it fails, go back to fix (at most 2 extra rounds).
-3. Verdict: `passed = every verify run held and avg_grill_score >= 6`, with reasons.
+3. Verdict: `passed = every verify run held and avg_grill_score >= 6 and every grilled finding has
+   root_cause_hit`, with reasons that quote the before/after numbers.
 
 ### OPS-1 — Deploy
 **P0 · Sat · needs S-0** · Read: PLAN §19
@@ -263,6 +298,13 @@ metrics in the UI.
   grill turns, verdict); Likhil renders the before/after charts.
 - **DEF-8 — Glimmer refine loop** (P1 · Sun): if the baseline held but the finding claims it should break, give
   the metrics back and ask for a revised attack (max 2 refinements).
+- **DEF-9 — "Circle the flaw" with SAM 3.1** (P1 · Mon, **after IC3 and only with Likhil's OK** · needs DEF-5,
+  Likhil's canvas pen): PLAN §11.7.
+  `defense.circle` → SAM (`"hand-drawn circle"`, 5 s) → code picks the node with the largest overlap (≥ 0.3)
+  → `SamHighlight` → timeline + `defense.sam.highlight`. SAM failure: no highlight, no bonus.
+  *Done when* a circle around the flawed node selects it in ≥ 4 of 5 tries.
+- **DEF-10 — Merge-gate card** (P2, only after both P0 paths pass the demo script twice): PLAN §11.8. Muse Image background with no text, real numbers composed
+  on top, generated after the verdict in the background.
 - **Refactor suggestion handoff** (P2): only if V8 confirms Muse Code has a headless mode.
 
 ---
@@ -278,7 +320,7 @@ metrics in the UI.
 | 4 | Fri Oct 30 | DEF-4, DEF-5 (text) | **IC2**: `bank-transfer` breaks live |
 | 5 | Sat Oct 31 | DEF-6, OPS-1 | Deployed |
 | 6 | Sun Nov 1 | DEF-7, DEF-8 (P1); integration fixes | **IC3** + cut-line review |
-| 7 | Mon Nov 2 | Reliability (cold starts, retries, timeouts); P2 only if green | Demo script passes twice |
+| 7 | Mon Nov 2 | Reliability (cold starts, retries, timeouts); DEF-9 if IC3 is green and Likhil agrees; DEF-10 (P2) only after the demo script passes twice | Demo script passes twice |
 | 8 | Tue Nov 3 | **Feature freeze 12 PM.** Bug fixes only; record demo takes | Takes recorded |
 | 9 | Wed Nov 4 | Final video edit; **submit by 6 PM** | Submitted |
 

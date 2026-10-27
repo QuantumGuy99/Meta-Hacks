@@ -78,8 +78,8 @@ keystroke, every test run, every sentence you say) and holds you to what a stron
 | **Muse Voice Transcribe** (`muse-voice-transcribe-1.0`) | Live think-aloud transcription and grill answers over the realtime WebSocket | Built for real-time speech; turn detection |
 | **Muse Glimmer** (open weights, 30B) | The chaos-lab attack agent: writes, runs and refines load scripts | Open weights we host and control; built for tool-calling agents |
 | **Muse Spark Open** (via Baseten) | Bulk drafting for the problem bank; failover when the main API is unavailable | Open-weight model, so we're never down when one provider is |
-| **Muse Image** (`muse-image-1.0`) | Illustrations for problems (grids, trees, graphs); shareable report card | Problems with diagrams are easier to understand |
-| **SAM 3.1** (`sam-3.1`) | *Stretch:* "show your work": hold your paper sketch up to the webcam and Crucible segments and reads it. Optional proctor check (phone in frame) | Segments any object from a short text prompt |
+| **Muse Image** (`muse-image-1.0`) | Illustrations for problems (grids, trees, graphs); shareable report and merge-gate cards | Problems with diagrams are easier to understand |
+| **SAM 3.1** (`sam-3.1`) | Project Defense grill: circle the broken service on the architecture diagram (or hold up a paper sketch) and Crucible finds which part you mean. *Stretch:* paper sketches in coding interviews; optional proctor check (phone in frame) | Segments any object from a short text prompt |
 | **Muse Code** | Our team's coding agent for building Crucible | Faster hackathon development |
 
 All Meta Model API calls go through `https://api.meta.ai/v1` with the OpenAI-compatible SDK.
