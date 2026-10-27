@@ -856,15 +856,19 @@ Owner: **SG**. Used by coding mode (whole session) and defense mode (grill + fix
   `code_at_last_analysis`.
 - **Applying an `EditorEvent`:** sort `changes` by `range_offset` **descending**, then for each:
   `code = code[:off] + text + code[off+len:]`. (Monaco offsets refer to the model before the event; applying
-  descending keeps earlier offsets valid.)
+  descending keeps earlier offsets valid.) Offsets are **UTF-16 units** (JavaScript strings), so Python
+  converts them; an emoji counts as 2. An offset past the end clamps and reports a desync, which the next
+  snapshot repairs.
 - **Snapshots reconcile:** on `CodeSnapshot`, if the reconstructed code differs, trust the snapshot, log a
   `system` warning and continue.
-- **Counting:** for `kind == "paste"`, add the inserted length to `chars_pasted`; otherwise to `chars_typed`.
-  A single change inserting ≥ 80 chars without a paste event counts as a **bulk insert** (drag/drop,
-  extension).
-- `diff_since_analysis()` → unified diff (difflib) for the analyzer prompt.
-- `frontend/src/lib/replay.ts` implements the same reconstruction. A shared fixture test
-  (`tests/fixtures/replay_case.json`) must produce identical code in both.
+- **Counting:** `paste` adds the inserted length to `chars_pasted`; `change` adds it to `chars_typed`;
+  `undo` and `redo` count as neither (they restore earlier text). A single change inserting ≥ 80 chars
+  without a paste event is a **bulk insert** (drag/drop, extension) and counts toward `chars_pasted`.
+- `diff_since_analysis()` → unified diff (difflib) for the analyzer prompt; `changed_since_analysis()`
+  ignores whitespace-only edits (§9.4 trigger).
+- `code_at(timeline, file, t)` here and `codeAt` in `frontend/src/lib/replay.ts` implement the same
+  reconstruction. A shared fixture (`backend/tests/fixtures/replay_case.json`) must produce identical code in
+  both.
 
 ### 9.4 Analyzer (`analyzer.py`)
 
@@ -1307,15 +1311,23 @@ Layout (desktop ≥ 1280 px):
   statuses, suspected issues, stated plan. Off by default; useful for the demo and for judges.
 
 ### 14.3 Capture libs (SG)
-- `lib/capture/editor.ts`: `attachEditorCapture(editor, send)`:
+- `lib/capture/editor.ts`: `attachEditorCapture(editor, send, {startedAtMs, file?})` →
+  `{snapshot(), flush(), setFile(file), programmatic(edit), dispose()}`:
   - `editor.onDidChangeModelContent(e)` → `EditorEvent{kind: e.isUndoing ? "undo" : e.isRedoing ? "redo" :
-    pasteFlag ? "paste" : "change", changes: e.changes.map(c => ({range_offset: c.rangeOffset,
-    range_length: c.rangeLength, text: c.text})), version: e.versionId, t}`.
-  - `editor.onDidPaste(...)` sets `pasteFlag` for the next content change (and `pasted_chars`).
+    "change", changes: e.changes.map(c => ({range_offset: c.rangeOffset, range_length: c.rangeLength,
+    text: c.text})), version: e.versionId, t}`.
+  - Monaco fires `editor.onDidPaste(...)` *after* the paste's content change, so it relabels that buffered
+    change as `paste` with `pasted_chars`. (If it ever fires first, it labels the next change.)
+  - A flush (`setValue`) and anything inside `programmatic(edit)` (resetting to starter code, loading a file)
+    become a snapshot, never typing, so they can't trigger paste or bulk-insert notes.
   - `document.visibilitychange` → `hidden` / `visible`; `window.blur` / `window.focus` → `blur` / `focus`.
-  - Batch every 500 ms; snapshot every 20 changes, every 15 s with changes, and before run/submit.
-  - `t = Math.round(performance.now() - startPerf)`, where `startPerf` aligns to `session.started_at` on
-    `hello`.
+  - Batch every 500 ms; snapshot every 20 changes, every 15 s with changes, and before run/submit/verify
+    (the room calls `snapshot()`).
+  - `t` comes from `performance.now()`, aligned once to `session.started_at`, so system clock changes don't
+    move it.
+  - The editor parameter is a structural type, so any Monaco editor fits without importing Monaco here.
+  - Tests: `node --experimental-strip-types --test "frontend/src/lib/**/*.test.mjs"` (Node's built-in runner;
+    no new dependency).
 - `lib/capture/audio/`: `getUserMedia({audio: {echoCancellation: true, noiseSuppression: true}})` →
   AudioWorklet → downsample to 24 kHz → Int16 → 1,920-sample (80 ms) frames → binary WS. Pause sending while
   TTS is speaking (avoids transcribing the interviewer).
