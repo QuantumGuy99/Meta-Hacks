@@ -9,7 +9,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
-from crucible.coding.session import CodingController
+from crucible.coding.problems import ProblemBank
+from crucible.coding.session import CodingMode
 from crucible.contracts.common import Mode
 from crucible.contracts.events import TimelineKind
 from crucible.engine.api import SESSION_NOT_FOUND_CLOSE, router
@@ -23,7 +24,9 @@ IDLE_TTL_S = 0.1
 def client() -> Iterator[TestClient]:
     app = FastAPI()
     app.include_router(router)
-    app.state.hub = SessionHub(MemoryStore(), {Mode.CODING: CodingController}, idle_ttl_s=IDLE_TTL_S)
+    app.state.hub = SessionHub(
+        MemoryStore(), {Mode.CODING: CodingMode(ProblemBank([]))}, idle_ttl_s=IDLE_TTL_S
+    )
     with TestClient(app) as test_client:
         yield test_client
 
