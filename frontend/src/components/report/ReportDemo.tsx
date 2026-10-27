@@ -171,7 +171,7 @@ export function ReportDemo() {
     <div className="rp">
       <header className="rm-top">
         <Link href="/" className="rm-brand" translate="no">
-          Crucible
+          Ares
         </Link>
         <span className="rp-crumb">Report · {problem.title} · Demo</span>
       </header>

@@ -494,7 +494,7 @@ export default function DecryptedText({
       } else if (previous.revealed[index] === false) {
         node.animate(flipFrames(90, 0), {
           duration: Math.min(Math.max(step * 7, 360), 760),
-          // Crucible: smooth ease-out instead of upstream's bounce overshoot
+          // Ares: smooth ease-out instead of upstream's bounce overshoot
           easing: 'cubic-bezier(0.23, 1, 0.32, 1)'
         });
       }

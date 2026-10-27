@@ -36,7 +36,7 @@ export function Facts() {
   }, []);
 
   return (
-    <section ref={root} className="facts" aria-label="Crucible in numbers">
+    <section ref={root} className="facts" aria-label="Ares in numbers">
       <dl className="facts-grid">
         {FACTS.map((f) => (
           <div key={f.label} className="fact">

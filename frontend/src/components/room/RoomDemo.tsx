@@ -223,7 +223,7 @@ export function RoomDemo() {
     <div className="rm" data-ui>
       <header className="rm-top">
         <Link href="/" className="rm-brand" translate="no">
-          Crucible
+          Ares
         </Link>
         <ol className="room-phases" aria-label="Interview phase">
           {PHASES.map((p, i) => (

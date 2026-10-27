@@ -43,7 +43,7 @@ interface ScrollRevealProps {
   textClassName?: string;
   rotationEnd?: string;
   wordAnimationEnd?: string;
-  /** Crucible: render as a paragraph for statements that aren't headings. */
+  /** Ares: render as a paragraph for statements that aren't headings. */
   as?: 'h2' | 'p';
 }
 

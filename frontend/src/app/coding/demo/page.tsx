@@ -4,8 +4,8 @@ import "@/components/landing/landing.css";
 import "@/components/room/room.css";
 
 export const metadata: Metadata = {
-  title: "Interview room demo · Crucible",
-  description: "A scripted Crucible coding interview: Monaco editor, live interviewer and test runs.",
+  title: "Interview room demo · Ares",
+  description: "A scripted Ares coding interview: Monaco editor, live interviewer and test runs.",
 };
 
 // Demo of the interview room on mock data until the session WebSocket exists (FE-3/FE-4).

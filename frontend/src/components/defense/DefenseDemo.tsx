@@ -241,7 +241,7 @@ export function DefenseDemo() {
     <div className="df" data-ui>
       <header className="rm-top">
         <Link href="/" className="rm-brand" translate="no">
-          Crucible
+          Ares
         </Link>
         <ol className="df-stages" aria-label="Defense stages">
           {STAGES.map((s) => (

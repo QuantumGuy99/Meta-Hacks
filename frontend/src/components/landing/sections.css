@@ -408,3 +408,91 @@
 .lp :is(.story-claim, .hiw-title, .cred-rules strong, .foot-head) {
   font-weight: 600;
 }
+
+/* ---------- team: two over two, each person in a circular frame beside their role ---------- */
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 56px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.team-member {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto 1fr;
+  column-gap: 28px;
+  row-gap: 6px;
+  align-items: center;
+  padding: 32px 28px 32px 0;
+  border-bottom: 1px solid var(--line);
+}
+.team-member:nth-child(even) {
+  padding-left: 28px;
+  border-left: 1px solid var(--line);
+}
+.team-photo {
+  position: relative;
+  grid-row: 1 / 4;
+  width: clamp(112px, 6vw + 64px, 152px);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
+  background: var(--panel);
+}
+.team-img {
+  object-fit: cover; /* the source photos are already square, head-centred crops */
+}
+.team-initials {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--display);
+  font-size: clamp(1.8rem, 1.2rem + 1.4vw, 2.6rem);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  color: var(--cobalt);
+}
+.team-role {
+  align-self: end;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--blue-dim);
+}
+.team-name {
+  font-family: var(--display);
+  font-size: clamp(1.15rem, 0.95rem + 0.6vw, 1.45rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+.team-owns {
+  align-self: start;
+  max-width: 34ch;
+  color: var(--muted-ink);
+  font-size: 14px;
+  line-height: 1.5;
+}
+/* narrow screens: still two over two, with the circle above the text */
+@media (max-width: 640px) {
+  .team-member {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    justify-items: start;
+    padding: 24px 12px 24px 0;
+  }
+  .team-member:nth-child(even) {
+    padding-left: 12px;
+  }
+  .team-photo {
+    grid-row: auto;
+    width: min(100%, 112px);
+    margin-bottom: 10px;
+  }
+  .team-owns {
+    font-size: 13px;
+  }
+}

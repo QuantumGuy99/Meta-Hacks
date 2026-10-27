@@ -3,7 +3,7 @@
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
-// Crucible is dark-only, so the theme is fixed instead of read from next-themes.
+// Ares is dark-only, so the theme is fixed instead of read from next-themes.
 const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner

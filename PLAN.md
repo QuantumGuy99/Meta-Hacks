@@ -1433,7 +1433,7 @@ the original, and `fix.patch` applied → the same script **holds**.
 Owner: **LG** (UI). Capture/replay libs: **SG**. Defense helpers: **SS**.
 
 LG scaffolded `frontend/` and built the landing page (most of FE-1) on the `frontend` branch. His detailed plan
-is in `frontend-schematic/CRUCIBLE_FRONTEND_PLAN.md`, and the UI rules are in `frontend-schematic/UI_TEMPLATE.md`.
+is in `frontend-schematic/ARES_FRONTEND_PLAN.md`, and the UI rules are in `frontend-schematic/UI_TEMPLATE.md`.
 Until S-1 and OPS-2 land, the frontend uses two **dev-only bridges**, and neither may appear in the demo:
 - `src/types/contracts.draft.ts`, hand-transcribed from §7 and §8.2 behind an `@/types` barrel. It's deleted
   the day `contracts.ts` is generated.

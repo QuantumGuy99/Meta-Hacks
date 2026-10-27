@@ -29,7 +29,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Crucible: the AI interviewer that watches how you engineer",
+  title: "Ares: the AI interviewer that watches how you engineer",
   description:
     "Live coding interviews and project defense with an AI interviewer that follows every edit, nudges you when you skip a step and grades your process.",
 };

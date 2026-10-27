@@ -5,8 +5,8 @@ import "@/components/room/room.css";
 import "@/components/defense/defense.css";
 
 export const metadata: Metadata = {
-  title: "Project defense demo · Crucible",
-  description: "A scripted Crucible project defense: audit topology, live chaos run, grill and merge gate.",
+  title: "Project defense demo · Ares",
+  description: "A scripted Ares project defense: audit topology, live chaos run, grill and merge gate.",
 };
 
 // Demo of the Project Defense flow on mock data until the defense backend exists (FE-6).

@@ -1,6 +1,6 @@
-# Crucible UI template
+# Ares UI template
 
-Every Crucible screen follows two rule sets:
+Every Ares screen follows two rule sets:
 
 - **Look:** the "vivid" theme below (`components/theme/vivid.css`), with liquid glass from the `liquid-glass` skill on small subpanels only.
 - **Behaviour:** Vercel's Web Interface Guidelines (accessibility, forms, motion, copy).
@@ -21,7 +21,7 @@ The "professional hacker" layer (`components/theme/hacker.css`) applies these on
 
 | Thing | Rule |
 |---|---|
-| Direction | Real, working fragments of Crucible instead of illustrations, set in bold solid colour blocks on black |
+| Direction | Real, working fragments of Ares instead of illustrations, set in bold solid colour blocks on black |
 | Page | Solid black `#000`. Surfaces `#101012` / `#1c1c20`; ink `#fff`, muted `#b4b4bc` |
 | Colours | Solid, bright, high contrast: cobalt `#2f6bff` (stages, fields, interviewer), lime `#c6ff1a` (primary action, passes, phase), pink `#ff2e88` (failures, nudges), cyan `#00d4ff`, orange `#ff8a00`. Black text on bright fills, white on dark |
 | Gradients | None, anywhere. The only exception is the liquid-glass tint |

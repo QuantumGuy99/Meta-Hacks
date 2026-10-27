@@ -5,6 +5,7 @@ import { HeroRoom } from "@/components/landing/HeroRoom";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { LandingMotion } from "@/components/landing/Motion";
 import { StartDialog } from "@/components/landing/StartDialog";
+import { Team } from "@/components/landing/Team";
 import { HeadlineReveal } from "@/components/motion/HeadlineReveal";
 import { SmoothScroll } from "@/components/motion/SmoothScroll";
 import Magnet from "@/components/react-bits/Magnet";
@@ -36,7 +37,7 @@ export default async function Home() {
       {/* 1. Minimal nav: logo and the primary action */}
       <header className="lp-nav">
         <Link href="/" className="lp-wordmark" translate="no">
-          Crucible
+          Ares
         </Link>
         <a href="#start" className="ui-btn ui-btn-primary nav-cta">
           Start Interview
@@ -48,7 +49,7 @@ export default async function Home() {
         <section className="hero" aria-labelledby="hero-title">
           <div className="hero-copy">
             <HeadlineReveal as="h1" id="hero-title" onLoad>
-              Practice Tools Grade Answers. Crucible Grades <span className="fx-lime">How You Engineer.</span>
+              Practice Tools Grade Answers. Ares Grades <span className="fx-lime">How You Engineer.</span>
             </HeadlineReveal>
             <div className="hero-aside">
               <p className="hero-sub">
@@ -108,7 +109,7 @@ export default async function Home() {
             baseRotation={0}
             blurStrength={2}
           >
-            Crucible closes both with one idea: an interviewer that sees your process as it happens, every keystroke, every test run, every sentence, and holds you to what a strong engineer would do.
+            Ares closes both with one idea: an interviewer that sees your process as it happens, every keystroke, every test run, every sentence, and holds you to what a strong engineer would do.
           </ScrollReveal>
         </section>
 
@@ -139,7 +140,7 @@ export default async function Home() {
             </HeadlineReveal>
             <div className="mode-copy" data-reveal>
               <p className="sec-lead">
-                Bring a small Python web app. Crucible audits it, <strong>attacks it in a sandbox</strong>,
+                Bring a small Python web app. Ares audits it, <strong>attacks it in a sandbox</strong>,
                 asks you why it broke (circle the culprit on the diagram), and{" "}
                 <strong>re-runs the same attack on your fix</strong>.
               </p>
@@ -168,7 +169,7 @@ export default async function Home() {
                 </p>
               </blockquote>
               <figcaption>
-                <span>The Crucible team</span>
+                <span>The Ares team</span>
                 <span className="cred-meta">Meta Global AI Developer Hackathon, 2026</span>
                 <a href={REPO} className="lp-link">
                   Read the source on GitHub
@@ -189,6 +190,22 @@ export default async function Home() {
               </ol>
             </div>
           </div>
+        </section>
+
+        {/* The people building it */}
+        <section id="team" className="sec sec-team" aria-labelledby="team-title">
+          <div className="mode-head">
+            <HeadlineReveal id="team-title">
+              Four Builders, One <span className="fx-lime">Interviewer</span>
+            </HeadlineReveal>
+            <div className="mode-copy" data-reveal>
+              <p className="sec-lead">
+                Each of us owns one part of Ares end to end, and <strong>all four parts meet</strong> in
+                the same live session.
+              </p>
+            </div>
+          </div>
+          <Team />
         </section>
 
         {/* 7. Final action band */}
@@ -212,7 +229,7 @@ export default async function Home() {
         <div className="foot-top">
           <div className="foot-brand">
             <Link href="/" className="lp-wordmark" translate="no">
-              Crucible
+              Ares
             </Link>
             <p>The AI interviewer that watches how you engineer.</p>
           </div>
@@ -230,6 +247,7 @@ export default async function Home() {
             </div>
             <div>
               <p className="foot-head">Project</p>
+              <a href="#team">Team</a>
               <a href={REPO}>GitHub</a>
               <a href={`${REPO}/blob/main/LICENSE`}>MIT License</a>
             </div>
@@ -244,7 +262,7 @@ export default async function Home() {
             stagger={0.03}
             distance={48}
           >
-            Crucible
+            Ares
           </ScrollFloat>
         </div>
       </footer>

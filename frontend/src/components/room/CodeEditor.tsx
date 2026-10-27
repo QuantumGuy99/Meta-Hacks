@@ -9,7 +9,7 @@ type StandaloneEditor = Parameters<OnMount>[0];
 
 export type FlaggedLine = { line: number; note: string };
 
-// Monaco in the Crucible theme, set up like an interview (no autocomplete, no minimap).
+// Monaco in the Ares theme, set up like an interview (no autocomplete, no minimap).
 // Flagged lines get a red gutter marker and a hover note, never a fix.
 export function CodeEditor({
   value,
@@ -41,7 +41,7 @@ export function CodeEditor({
   });
 
   const beforeMount: BeforeMount = (monaco) => {
-    monaco.editor.defineTheme("crucible", monacoTheme);
+    monaco.editor.defineTheme("ares", monacoTheme);
   };
 
   const onMount: OnMount = (editor, monaco) => {
@@ -83,7 +83,7 @@ export function CodeEditor({
       path={path}
       defaultLanguage="python"
       value={value}
-      theme="crucible"
+      theme="ares"
       beforeMount={beforeMount}
       onMount={onMount}
       onChange={(v) => onChange?.(v ?? "")}

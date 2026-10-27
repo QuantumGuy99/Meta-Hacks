@@ -21,7 +21,7 @@ const p = codePalette;
 
 // TextMate theme for Shiki.
 export const shikiTheme = {
-  name: "crucible",
+  name: "ares",
   type: "dark" as const,
   colors: {
     "editor.background": p.bg,

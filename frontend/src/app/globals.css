@@ -50,7 +50,7 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Crucible tokens: "vivid" theme. Solid black page, bright solid colour blocks, high
+/* Ares tokens: "vivid" theme. Solid black page, bright solid colour blocks, high
    contrast (black text on bright fills, white on dark). No gradients anywhere except the
    liquid-glass subpanels (components/theme/liquid-glass.css + LiquidGlass.tsx). */
 :root {

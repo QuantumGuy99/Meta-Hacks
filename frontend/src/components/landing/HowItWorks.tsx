@@ -162,7 +162,7 @@ export function HowItWorks({ codeHtml }: { codeHtml: string }) {
           )}
           {active === 1 && (
             <m.div key="code" className="hf-code" {...stageMotion}>
-              {/* Shiki HTML rendered on the server with the shared Crucible code theme */}
+              {/* Shiki HTML rendered on the server with the shared Ares code theme */}
               <div className="hf-shiki" translate="no" dangerouslySetInnerHTML={{ __html: codeHtml }} />
               <p className="msg msg-ai msg-nudge">
                 <span className="msg-who">

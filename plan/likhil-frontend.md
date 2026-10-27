@@ -2,7 +2,7 @@
 
 Your slice of [PLAN.md](../PLAN.md). Team overview and the handoff calendar: [plan/README.md](README.md).
 
-**You already have a detailed frontend plan:** `frontend-schematic/CRUCIBLE_FRONTEND_PLAN.md` (structure, store,
+**You already have a detailed frontend plan:** `frontend-schematic/ARES_FRONTEND_PLAN.md` (structure, store,
 work packages by day) and the UI rules in `frontend-schematic/UI_TEMPLATE.md`, both on the `frontend` branch.
 This file doesn't repeat them. It covers what sits between you and the other three: what you get from them,
 when you get it, how to build before it arrives, and what they need from you.
@@ -138,7 +138,7 @@ The project needs Node ≥ 22 (Next 16, and shadcn's `cn` package). Your Node 24
   It sends `defense.circle` with a PNG of the canvas and each node's box in canvas pixels, and pulses the
   node named in `defense.sam.highlight`. Skip it if FE-8 or the demo path needs the time.
 
-The day-by-day detail is in your `CRUCIBLE_FRONTEND_PLAN.md`. The summary below is what the others plan
+The day-by-day detail is in your `ARES_FRONTEND_PLAN.md`. The summary below is what the others plan
 around.
 
 | Day | WP | Done when |

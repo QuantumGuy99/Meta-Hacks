@@ -16,5 +16,5 @@ export async function highlightPython(code: string) {
   "use cache";
   cacheLife("max"); // the snippets are fixed at build time
   const h = await getHighlighter();
-  return h.codeToHtml(code, { lang: "python", theme: "crucible" });
+  return h.codeToHtml(code, { lang: "python", theme: "ares" });
 }
