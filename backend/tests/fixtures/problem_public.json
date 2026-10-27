@@ -1,0 +1,21 @@
+{
+  "slug": "quiet-streak",
+  "title": "Quiet Streak",
+  "difficulty": "easy",
+  "topics": ["arrays"],
+  "statement_md": "A library's noise sensor logs one reading a minute. Return the length of the longest run of consecutive readings below `threshold`.",
+  "examples": [
+    {
+      "input": "readings = [30, 52, 41, 38, 60, 35], threshold = 50",
+      "output": "2",
+      "explanation": "41 and 38 are the longest run of readings below 50."
+    }
+  ],
+  "constraints": ["0 <= len(readings) <= 10^5", "0 <= readings[i], threshold <= 200"],
+  "starter_code": "def longest_quiet_streak(readings: list[int], threshold: int) -> int:\n    pass\n",
+  "tests_visible": [
+    {"id": "v1", "args": [[30, 52, 41, 38, 60, 35], 50], "expected": 2, "comparator": "exact", "edge_case_id": null}
+  ],
+  "illustration_url": null,
+  "time_limit_min": 20
+}
