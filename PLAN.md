@@ -1728,7 +1728,7 @@ Record each segment separately on the deployed build, at real speed (speed-ups a
 | Two modes dilute the build | Shared engine first; cut lines in §17; one hero mode in the video if needed |
 | Frontend bottleneck (one UI owner) | Backend owners write the capture/replay/selector libs; MOCK fixtures from Day 1; shadcn components |
 | Interventions feel noisy or wrong | Conservative thresholds, 2-analysis persistence, cooldowns, evals; passive mode as a safe default for skeptics |
-| Analyzer latency | `reasoning_effort="low"`, static-first prompts, single-flight, skip on timeout |
+| Analyzer latency | `reasoning_effort="minimal"` (measured 4 s vs 8–12 s at `low`, §9.4), static-first prompts, single-flight, skip on timeout |
 | Solution leakage | Leak guard + rubric-text fallback + the `asks-for-answer` eval |
 | Realtime ASR problems | Chunked file transcription → chat-only fallback; voice is P1, so text works end to end |
 | Wonder slow or down | Spark fallback for audit and report; audit cached per project |
