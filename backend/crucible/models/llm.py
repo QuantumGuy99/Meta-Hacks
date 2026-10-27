@@ -121,6 +121,23 @@ class LLM:
         session_id: str | None = None,
     ) -> T:
         """Structured output parsed into `schema`. `timeout_s` (default: the role's) applies per attempt."""
+        result, _model = await self.complete_json_with_model(
+            role, messages, schema, effort=effort, timeout_s=timeout_s, images=images, session_id=session_id
+        )
+        return result
+
+    async def complete_json_with_model[T: BaseModel](
+        self,
+        role: ModelRole,
+        messages: Messages,
+        schema: type[T],
+        *,
+        effort: Effort | None = None,
+        timeout_s: float | None = None,
+        images: Sequence[str] = (),
+        session_id: str | None = None,
+    ) -> tuple[T, str]:
+        """`complete_json`, plus the id of the model that answered (the report records it, PLAN §7.5)."""
         request_messages = _with_images(messages, images)
 
         async def call(client: AsyncOpenAI, target: ModelTarget) -> tuple[T, CompletionUsage | None]:
@@ -152,7 +169,8 @@ class LLM:
                 raise _NoOutput("empty reply")
             return content, completion.usage
 
-        return await self._run(role, call, effort=effort, timeout_s=timeout_s, session_id=session_id)
+        text, _model = await self._run(role, call, effort=effort, timeout_s=timeout_s, session_id=session_id)
+        return text
 
     async def _run[R](
         self,
@@ -162,7 +180,8 @@ class LLM:
         effort: Effort | None,
         timeout_s: float | None,
         session_id: str | None,
-    ) -> R:
+    ) -> tuple[R, str]:
+        """The first answer down the role's chain, with the id of the model that gave it."""
         budget_s = timeout_s if timeout_s is not None else ROLES[role].timeout_s
         errors: list[str] = []
         for target in self._chain(role, effort):
@@ -172,9 +191,11 @@ class LLM:
                 errors.append(f"{target.provider}: not configured")
                 continue
             try:
-                return await self._attempt(role, client, target, call, budget_s, session_id)
+                result = await self._attempt(role, client, target, call, budget_s, session_id)
             except _Failed as exc:
                 errors.append(f"{target.model}: {exc}")
+            else:
+                return result, target.model
         raise AllModelsFailed(role, errors)
 
     def _chain(self, role: ModelRole, effort: Effort | None) -> list[ModelTarget]:

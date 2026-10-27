@@ -125,6 +125,15 @@ async def test_timeout_falls_back_without_retrying() -> None:
 
 
 @pytest.mark.asyncio
+async def test_with_model_names_the_model_that_answered() -> None:
+    meta = FakeClient({WONDER: [OK, http_error(openai.BadRequestError, 400)], SPARK: [OK]})
+    wrapper, _, _ = make_llm({"meta": meta})
+
+    assert await wrapper.complete_json_with_model("report", MESSAGES, Verdict) == (OK, WONDER)
+    assert await wrapper.complete_json_with_model("report", MESSAGES, Verdict) == (OK, SPARK)  # the fallback
+
+
+@pytest.mark.asyncio
 async def test_bad_requests_and_refusals_fall_back_without_retrying() -> None:
     meta = FakeClient({WONDER: [http_error(openai.BadRequestError, 400)], SPARK: [REFUSED]})
     wrapper, sleeps, _ = make_llm({"meta": meta})

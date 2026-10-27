@@ -21,7 +21,7 @@ from crucible.coding.integrity import IntegrityDetector
 from crucible.coding.problems import ProblemBank
 from crucible.coding.prompts import PHASE_LINES
 from crucible.coding.tests import RunService, all_passed
-from crucible.contracts.coding import ProblemSpec
+from crucible.contracts.coding import Analysis, ProblemSpec
 from crucible.contracts.common import Difficulty, Phase, SessionConfig
 from crucible.contracts.events import (
     EditorEvent,
@@ -194,9 +194,17 @@ class CodingController:
                 self._spawn(rt, self._next_wrap_up_question(rt))
 
     async def report_extra(self, rt: SessionRuntime) -> CodingExtra:
-        # TODO(COD-5): final step statuses, approach and the complexity answer.
+        """The latest analysis's step statuses and approach (PLAN §7.5)."""
+        events = await rt.timeline.read({TimelineKind.ANALYSIS})
+        analyses = [Analysis.model_validate(e.payload) for e in events]
+        latest = analyses[-1] if analyses else None
+        approach = next((a.chosen_approach for a in reversed(analyses) if a.chosen_approach), None)
+        # TODO(COD-5): grade the complexity wrap-up answer.
         return CodingExtra(
-            problem_slug=rt.session.problem_slug or "", steps=[], approach=None, complexity_answer_ok=None
+            problem_slug=rt.session.problem_slug or "",
+            steps=latest.steps if latest else [],
+            approach=approach,
+            complexity_answer_ok=None,
         )
 
     # --- edits: integrity notes and "started coding" -------------------------------------------------------
