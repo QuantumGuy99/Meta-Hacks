@@ -13,7 +13,8 @@ from collections.abc import AsyncIterator
 
 from crucible.config import Settings, get_settings
 from crucible.contracts.defense import Project
-from crucible.runner.base import ProjectHandle, RunnerError
+from crucible.contracts.events import RunResult
+from crucible.runner.base import ProjectHandle, RunnerError, RunRequest, uvicorn_args
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,19 @@ class ModalRunner:
                 self._settings.MODAL_APP_NAME, create_if_missing=True
             )
         return self._app
+
+    # --- coding: tests (RUN-2, Thu Oct 29) ------------------------------------------------------------
+
+    async def open_session(self, session_id: str) -> None:
+        return None  # TODO(RUN-2): warm one sandbox per coding session
+
+    async def close_session(self, session_id: str) -> None:
+        return None
+
+    async def run_tests(self, session_id: str, req: RunRequest) -> RunResult:
+        raise RunnerError("Modal test runs land in RUN-2; use RUNNER=local for coding sessions until then")
+
+    # --- defense: projects --------------------------------------------------------------------------------
 
     async def start_project(self, project: Project, files: dict[str, str]) -> ProjectHandle:
         app = await self._get_app()
@@ -79,8 +93,16 @@ class ModalRunner:
         sb = self._sandbox(h)
         cmd = " ".join(shlex.quote(a) for a in argv)
         p = await sb.exec.aio("sh", "-c", f"cd /work && {cmd} 2>&1", timeout=int(timeout_s))
-        async for line in p.stdout:
-            yield line.rstrip("\n")
+        # Modal's stream yields chunks, not lines: several JSON lines can arrive glued together, or one
+        # can arrive split. Buffer and cut on newlines so callers always see whole lines.
+        buffer = ""
+        async for chunk in p.stdout:
+            buffer += chunk
+            *complete, buffer = buffer.split("\n")
+            for line in complete:
+                yield line
+        if buffer:
+            yield buffer
         code = await p.wait.aio()
         if code == -1:  # Modal's code for an exec that hit its timeout
             raise RunnerError(f"exec timed out after {timeout_s:.0f} s")
@@ -122,17 +144,4 @@ class ModalRunner:
 
 
 def _uvicorn_cmd(entrypoint: str, port: int) -> str:
-    parts = shlex.split(entrypoint)
-    if not parts or parts[0] != "uvicorn":
-        raise RunnerError(f"unsupported entrypoint {entrypoint!r}: only `uvicorn module:app ...` for now")
-    args = [a for a in parts[1:] if not a.startswith("--port")]
-    cleaned, skip = [], False
-    for a in args:
-        if skip:
-            skip = False
-            continue
-        if a in ("--host",):
-            skip = True
-            continue
-        cleaned.append(a)
-    return " ".join(["uvicorn", *map(shlex.quote, cleaned), "--host", "127.0.0.1", "--port", str(port)])
+    return " ".join(["uvicorn", *map(shlex.quote, uvicorn_args(entrypoint, port))])

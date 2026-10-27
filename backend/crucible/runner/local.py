@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import logging
 import os
-import shlex
 import shutil
 import socket
 import sys
@@ -16,11 +16,14 @@ from pathlib import Path
 
 from crucible.config import Settings, get_settings
 from crucible.contracts.defense import Project
-from crucible.runner.base import ProjectHandle, RunnerError
+from crucible.contracts.events import RunResult
+from crucible.runner.base import ProjectHandle, RunnerError, RunRequest, uvicorn_args
+from crucible.runner.harness import HARNESS_DIR
 
 logger = logging.getLogger(__name__)
 
 READY_TIMEOUT_S = 15.0
+HARNESS_MARGIN_S = 3.0
 STDERR_TAIL_BYTES = 2000
 
 
@@ -36,6 +39,54 @@ class LocalRunner:
             raise RunnerError("LOCAL_RUNNER_ISOLATE=1 needs `uv` on PATH")
         self._procs: dict[str, asyncio.subprocess.Process] = {}
         self._logs: dict[str, Path] = {}
+
+    # --- coding: tests ----------------------------------------------------------------------------------
+
+    async def open_session(self, session_id: str) -> None:
+        return None  # nothing to warm locally
+
+    async def close_session(self, session_id: str) -> None:
+        return None
+
+    async def run_tests(self, session_id: str, req: RunRequest) -> RunResult:
+        """The harness in a fresh subprocess (its own temp dir, no project files), killed after
+        total_s + a margin if the candidate's code wedges where the per-test timer can't reach."""
+        payload = json.dumps(
+            {
+                "code": req.code,
+                "function": req.function.model_dump(),
+                "cases": [c.model_dump(mode="json") for c in req.cases],
+                "limits": req.limits.model_dump(),
+                "hidden_case_ids": req.hidden_case_ids,
+            }
+        ).encode()
+        workdir = await asyncio.to_thread(tempfile.mkdtemp, prefix="crucible-tests-")
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-I",
+            str(HARNESS_DIR / "run_tests.py"),
+            cwd=workdir,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            async with asyncio.timeout(req.limits.total_s + HARNESS_MARGIN_S):
+                out, err = await proc.communicate(payload)
+        except TimeoutError:
+            proc.kill()
+            await proc.wait()
+            return _killed(req, "the run took too long and was stopped")
+        finally:
+            await asyncio.to_thread(shutil.rmtree, workdir, True)
+        if proc.returncode != 0 or not out:
+            tail = err.decode(errors="replace")[-STDERR_TAIL_BYTES:]
+            return _killed(req, f"the test process crashed (exit {proc.returncode}): {tail}".strip())
+        return RunResult.model_validate(
+            {**json.loads(out), "run_id": req.run_id, "t": req.t, "kind": req.kind}
+        )
+
+    # --- defense: projects --------------------------------------------------------------------------------
 
     async def start_project(self, project: Project, files: dict[str, str]) -> ProjectHandle:
         workdir = Path(await asyncio.to_thread(tempfile.mkdtemp, prefix=f"crucible-{project.id}-"))
@@ -112,10 +163,7 @@ class LocalRunner:
             await asyncio.to_thread(shutil.rmtree, h.workdir, True)
 
     def _entrypoint_argv(self, entrypoint: str, port: int, workdir: Path) -> list[str]:
-        parts = shlex.split(entrypoint)
-        if not parts or parts[0] != "uvicorn":
-            raise RunnerError(f"unsupported entrypoint {entrypoint!r}: only `uvicorn module:app ...` for now")
-        args = _with_port(parts[1:], port)
+        args = uvicorn_args(entrypoint, port)
         if self._isolate:
             req = workdir / "requirements.txt"
             with_req = ["--with-requirements", str(req)] if req.exists() else []
@@ -134,23 +182,6 @@ class LocalRunner:
                 *args,
             ]
         return [sys.executable, "-m", "uvicorn", *args]
-
-
-def _with_port(args: list[str], port: int) -> list[str]:
-    out, skip = [], False
-    for a in args:
-        if skip:
-            skip = False
-            continue
-        if a == "--port":
-            skip = True
-            continue
-        if a.startswith("--port="):
-            continue
-        out.append(a)
-    if "--host" not in out:
-        out += ["--host", "127.0.0.1"]
-    return [*out, "--port", str(port)]
 
 
 def _write_all(root: Path, files: dict[str, str]) -> None:
@@ -192,3 +223,18 @@ async def _wait_ready(port: int, proc: asyncio.subprocess.Process, log_path: Pat
             return
         await asyncio.sleep(0.1)
     raise RunnerError(f"app didn't open port {port} within {timeout_s:.0f} s")
+
+
+def _killed(req: RunRequest, message: str) -> RunResult:
+    return RunResult(
+        run_id=req.run_id,
+        t=req.t,
+        kind=req.kind,
+        passed=0,
+        total=len(req.cases),
+        cases=[],
+        stdout="",
+        stderr=message[:4096],
+        timed_out=True,
+        compile_error=None,
+    )
