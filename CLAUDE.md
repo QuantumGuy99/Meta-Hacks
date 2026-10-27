@@ -4,6 +4,12 @@ Read `@DEFENSE_AGENT_SPEC.txt` and `@README.md` before writing code. `PLAN.md` i
 (1,700+ lines): read the section you need (§6 layout, §7.4 defense contracts, §11 Defense, §12 Runner,
 §19 deploy, §22 agent rules) instead of loading all of it.
 
+## Context between sessions
+`@docs/defense/MEMORY.md` is the shared working memory for Claude Code and Muse Code: claim files there
+before editing, and update status, handoff and session log before you finish. Build order, handoff
+dates and interfaces: `plan/shreyas-defense-and-runner.md`. How code is written: `backend/CLAUDE.md`.
+File templates: the `crucible-code` skill.
+
 ## Source of truth
 `PLAN.md` is shared with Srinithin (engine), Likhil (frontend) and Sharvil (data); the spec is the
 Defense briefing and agrees with it. Earlier conflicts are resolved in the spec's §9 decision log, so
