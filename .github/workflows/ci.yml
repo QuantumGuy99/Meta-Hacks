@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv --directory backend sync --locked
+      - name: Lint
+        run: |
+          uv --directory backend run ruff check .
+          uv --directory backend run ruff format --check .
+      - name: Tests (no network, no keys)
+        run: uv --directory backend run pytest -q -m "not integration"
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm --dir frontend install --frozen-lockfile
+      - run: pnpm --dir frontend lint
+      - run: pnpm --dir frontend exec next typegen
+      - run: pnpm --dir frontend exec tsc --noEmit
+      - name: Node tests (capture / replay)
+        run: make test-node
+
+  contracts:
+    # Fails if frontend/src/types/contracts.ts is out of date with the Pydantic contracts (PLAN §7.6).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: uv --directory backend sync --locked
+      - run: make contracts-check
