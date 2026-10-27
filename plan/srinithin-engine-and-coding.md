@@ -329,6 +329,10 @@ A paste of ≥ 40 chars or ≥ 2 lines, a bulk insert of ≥ 80 chars, and a hid
 `Report` within 90 s, and the fallback works with Wonder disabled.
 
 ### P1 and P2 (only after the P0 path is solid)
+- **For DEF-11 (Shreyas's Muse fix assistant, P1, PLAN §11.9):** an `assistant` role in `registry.py`
+  (`muse-spark-1.3`, low, 20 s); a `chars_ai` counter in CodeState for edits applied through
+  `programmatic()` after an accepted `assistant.apply`; independence scoring (§9.8) that accounts for the AI
+  share; and review of the proposed contract additions with Shreyas.
 - **COD-5 — Coding report extras** (P1 · Sun): final step statuses, approach, whether the complexity answer
   matched an acceptable approach.
 - **COD-6 — Classifier, `PLAN_MISMATCH`, `CODED_BEFORE_PLAN`** (P1 · Sun · needs ENG-7).

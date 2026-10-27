@@ -134,6 +134,10 @@ The project needs Node ≥ 22 (Next 16, and shadcn's `cn` package). Your Node 24
 - **`ChaosMetric` adds `in_flight` and `p99_ms`** next to rps, p50, p95, errors and violations. `violations`
   is the live count to chart (dollars missing, seats double-booked); the verdict banner text is
   `ChaosRun.summary`.
+- **P1 after IC2: the Muse fix assistant panel (DEF-11, PLAN §11.9).** A side panel in the fix stage: a chat
+  box (`assistant.ask`, optionally with the selected code), replies with a diff of proposed edits
+  (`assistant.reply`), and Accept/Reject (`assistant.apply`). Apply accepted edits through
+  `programmatic()`, so they count as AI-written, not typed or pasted. Only visible in fix/verify.
 - **P1, only if you agree, after IC3 (Mon Nov 2):** a "Circle it" pen on the topology diagram for DEF-9.
   It sends `defense.circle` with a PNG of the canvas and each node's box in canvas pixels, and pulses the
   node named in `defense.sam.highlight`. Skip it if FE-8 or the demo path needs the time.
