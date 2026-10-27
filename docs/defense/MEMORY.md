@@ -23,28 +23,27 @@ session. Update it before you finish any session that changed code, decisions or
 ## Status
 | WP | What | State | Notes |
 |---|---|---|---|
-| S-0 | Scaffold: backend/, Makefile, CI, .env.example | not started | Due 2026-10-27 morning; blocks everyone. Frontend is already on main |
-| store | `store/repo.py` for SG | not started | Due 2026-10-27; interface in the role plan |
-| S-1 | Contracts v1 + export.py (with SG) | not started | Due 2026-10-27; use PLAN §7 as updated by PR #4 |
-| RUN-1 | Runner protocol, harness, LocalRunner | not started | Due 2026-10-27 (SG, ST need it) |
-| OPS-2 | Mock replay engine + fixtures | not started | Skeleton 2026-10-27, working 2026-10-29 |
-| DEF-1..10, RUN-2/3, OPS-1 | see PLAN §16 + role plan | not started | |
-| PR #4 | Spec reconciled with PLAN.md + role plan + agent docs | open; SG built #5 on it; awaiting LG review | https://github.com/QuantumGuy99/Meta-Hacks/pull/4 |
+| S-0 | Scaffold, Makefile, CI, store | PR #10 open, CI green | Handles #8's and #9's hub shapes; delete the import guard in main.py once #5/#6/#8 merge |
+| S-1 | Contracts v1 | SG's PR #5, approved | Defense uses them as is |
+| RUN-1 (projects) | Runner protocol, LocalRunner, Modal runner | built on `feat/defense` | ModalRunner untested (no Modal token yet, V7). run_tests (coding) not built yet |
+| DEF-1..5 core | projects, audit, attack writer + validator, chaos, grill, verdict | built on `feat/defense`, 44 tests | Pipeline only; DefenseController (hub) not built yet |
+| DEF-6 | DefenseController on the hub | next | Needs #9's ModeFactory: `defense.controller.make_mode()` (main.py already looks for it) |
+| OPS-2 | MOCK replay | not started | |
+| PR #4 | Spec, role plans, agent docs | SG requested changes, all addressed, awaiting re-review | |
 
 ## Handoff (overwrite every session)
-- **Last done:** 2026-10-27 [claude] Standalone Defense backend built on local branch
-  `feat/defense-standalone` (uncommitted; Shreyas's machine): runner (local + Modal), chaos template,
-  validator, audit/attack/grill/verdict with fallbacks, pipeline, REST + dev API, CLI, 44 tests. Unit tests
-  pass; e2e break → fix → hold passed before a template change. Moved Shreyas-only agent rules out of
-  root CLAUDE.md into backend/crucible/defense/CLAUDE.md (PR #4).
-- **Next step:** (1) chaos template: shard the attack across several httpx clients (≈ 10 connections
-  each) and stagger worker start. Benchmark: one pool collapses (199 rps at 50 concurrent, ReadErrors at
-  200), sharded pools give ~2,400 rps at 200 with 0 errors. Rerun e2e. (2) Drop local contracts in favour of
-  PR #5; adapt defense to PR #6's `llm.complete_json` / `AllModelsFailed`. (3) S-0 PR (Makefile, CI with the
-  Node test command SG asked for, .env.example), then the defense PR.
+- **Last done:** 2026-10-27 [claude] Pushed `feat/defense` (5689a3d): Defense ported onto #5 contracts, #6
+  wrapper (WrapperModelClient), #8 public_audit; branch = S-0 + #5–#9 merged + Defense. Chaos template now
+  spreads the attack over pools of 10 with a 0.4 s ramp (110 → ~1,500 req/s, 0 errors) and ends with a final
+  metric line. CLI demo: broken "$8,827 disappeared", fixed holds, MERGE GATE PASS in ~12 s, no keys.
+- **Next step:** DEF-6 `defense/controller.py` (`make_mode()` returning a ModeFactory; plan_session picks the
+  sample; on_start runs audit + baselines; chat answers during grill → answer_grill; defense.verify →
+  verify; report_extra). Then OPS-2 MOCK fixtures for Likhil. Open the Defense PR once #5–#10 are on main
+  (rebase `feat/defense` onto main first).
 - **Blocked on:** SG + LG approval of the contract changes in PR #4 before S-1 is final.
 
 ## Open questions for teammates
+- ST: a fan-in attack (every transfer pays one account) drains $1,000 senders in ~1 s and the 409s count as errors. Use larger balances or amounts that can't run out (fixture uses $100,000 per account).
 - SG: PR #5 defense contracts match ours field for field; OK to keep `FindingPublic.of` / `AuditPublic.of` helpers in defense code, not contracts.
 - SG: OK for SS to write `models/sam.py` and `models/image.py` (DEF-9, DEF-10)?
 - LG / SG: GitHub usernames, so PRs can request reviews.
@@ -57,6 +56,7 @@ session. Update it before you finish any session that changed code, decisions or
   the session id is the scenario name (PLAN §14.6).
 
 ## Session log (keep the last 10, newest first)
+- 2026-10-27 [claude] S-0 PR #10 (CI green); Defense built on SG's stack in `feat/defense`, 194 tests pass; reviews posted on #5–#7.
 - 2026-10-27 [claude] Merged main into PR #4, resolved conflicts, controller.py rename, role plan + README synced.
 - 2026-10-27 [claude] Cloned repo; wrote CLAUDE.md + DEFENSE_AGENT_SPEC.txt; reconciled 24 conflicts
   with PLAN.md; opened PR #4; added agent memory, coding rules and code-format skill.
