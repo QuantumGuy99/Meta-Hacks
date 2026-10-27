@@ -1,20 +1,32 @@
-"""One tick of the live interviewer: analysis → notes → policy → interviewer (PLAN §4.2)."""
+"""The live interviewer: analysis → notes → policy → interviewer (PLAN §4.2).
+
+The analyzer runs in its own task. The policy runs in one more task that owns every delivery: it ticks every
+0.5 s for the time rules and wakes early for questions, hint requests, runs and analyses.
+"""
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import logging
 from typing import TYPE_CHECKING
 
 from crucible.contracts.coding import Analysis
 from crucible.contracts.common import FeedbackLevel
-from crucible.contracts.events import TimelineEvent
+from crucible.contracts.events import EditorEvent, RunResult, TimelineEvent, TimelineKind, TranscriptTurn
 from crucible.contracts.ws import NotesUpdate
-from crucible.engine.analyzer import Analyzer, StructuredModel
+from crucible.engine.analyzer import TICK_S, Analyzer, StructuredModel
+from crucible.engine.codestate import TEXT_KINDS
 from crucible.engine.context import RubricContext
 from crucible.engine.interviewer import deliver
-from crucible.engine.policy import PolicyState, decide
+from crucible.engine.policy import Facts, PolicyState, decide, is_question, written_lines
 
 if TYPE_CHECKING:
     from crucible.engine.hub import SessionRuntime
+
+logger = logging.getLogger(__name__)
+
+MAX_DECISIONS_PER_TICK = 3  # e.g. an answer, a hint and a time warning that came due together
 
 
 class LiveEngine:
@@ -25,15 +37,51 @@ class LiveEngine:
         self.analyzer = Analyzer(rt, context, model, self._on_analysis)
         self._rt = rt
         self._context = context
+        self._main = context.files[0] if context.files else "solution.py"
+        self._starter: str | None = rt.code.code(self._main) or None  # set by the first snapshot otherwise
+        self._phase = rt.session.phase
+        self._phase_started_ms = rt.now_ms()
+        self._last_edit_ms: int | None = None
+        self._last_speech_ms: int | None = None
+        self._last_partial_ms: int | None = None
+        self._wake = asyncio.Event()
+        self._task: asyncio.Task[None] | None = None
 
     def start(self) -> None:
         self.analyzer.start()
+        if self._task is None:
+            self._task = asyncio.create_task(self._loop(), name=f"policy-{self._rt.session.id}")
 
     async def stop(self) -> None:
         await self.analyzer.stop()
+        if self._task is not None:
+            self._task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
+            self._task = None
 
     def on_event(self, event: TimelineEvent) -> None:
         self.analyzer.on_event(event)
+        self._observe(event)
+
+    def request_hint(self, step_id: str | None) -> None:
+        self.policy.request_hint(step_id)
+        self._wake.set()
+
+    def heard_speech(self) -> None:
+        """Candidate speech in progress (a partial transcript): unsolicited messages wait until it stops.
+
+        Partials aren't stored on the timeline (§9.7), so ENG-7's VoiceBridge calls this directly.
+        """
+        self._last_partial_ms = self._rt.now_ms()
+
+    async def tick(self) -> None:
+        """Ask the policy what to say now, and say it."""
+        for _ in range(MAX_DECISIONS_PER_TICK):
+            decision = decide(self.policy, self._facts())
+            if decision is None:
+                return
+            await deliver(self._rt, decision, self._context)
 
     async def _on_analysis(self, analysis: Analysis) -> None:
         rt = self._rt
@@ -47,16 +95,59 @@ class LiveEngine:
                     stated_plan=analysis.stated_plan,
                 )
             )
+        self.policy.observe_analysis(analysis)
+        self._wake.set()
+
+    def _observe(self, event: TimelineEvent) -> None:
+        now = self._rt.now_ms()
+        match event.kind:
+            case TimelineKind.EDITOR if event.payload.get("kind") in TEXT_KINDS:
+                self._last_edit_ms = now
+                self.policy.observe_edit(EditorEvent.model_validate(event.payload))
+            case TimelineKind.SNAPSHOT if self._starter is None and event.payload["file"] == self._main:
+                self._starter = event.payload["code"]  # the editor loads the starter code as a snapshot
+            case TimelineKind.TRANSCRIPT if (
+                event.payload["speaker"] == "candidate" and event.payload["final"]
+            ):
+                turn = TranscriptTurn.model_validate(event.payload)
+                self._last_speech_ms = now
+                if turn.source == "text" and is_question(turn.text):
+                    self.policy.ask()
+                    self._wake.set()
+            case TimelineKind.RUN:
+                self.policy.observe_run(RunResult.model_validate(event.payload))
+                self._wake.set()
+
+    def _facts(self) -> Facts:
+        rt = self._rt
         now = rt.now_ms()
-        decision = decide(
-            analysis,
-            self.policy,
-            steps=self._context.steps,
+        if rt.session.phase != self._phase:  # set_phase doesn't go through record(), so notice it here
+            self._phase, self._phase_started_ms = rt.session.phase, now
+        code = rt.code.code(self._main)
+        config = rt.session.config
+        return Facts(
             now_ms=now,
-            last_edit_ms=self.analyzer.state.last_edit_ms,
+            phase=self._phase,
+            phase_started_ms=self._phase_started_ms,
+            passive=config.feedback == FeedbackLevel.PASSIVE,
+            voice=config.voice,
+            time_limit_s=rt.session.time_limit_s,
+            steps=self._context.steps,
+            code=code,
+            lines_written=written_lines(self._starter or "", code),
+            last_edit_ms=self._last_edit_ms,
+            last_speech_ms=self._last_speech_ms,
+            last_partial_ms=self._last_partial_ms,
         )
-        self.policy.previous = analysis
-        if decision is None:
-            return
-        await deliver(rt, decision, self._context)
-        self.policy.remember(decision, now)
+
+    async def _loop(self) -> None:
+        while True:
+            with contextlib.suppress(TimeoutError):
+                async with asyncio.timeout(TICK_S):
+                    await self._wake.wait()
+            self._wake.clear()
+            try:
+                await self.tick()
+            except Exception:  # task boundary: one failed delivery must not silence the interviewer
+                logger.exception("policy tick failed for %s", self._rt.session.id)
+                await self._rt.note("error", "the interviewer couldn't deliver a message")
