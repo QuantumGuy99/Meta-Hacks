@@ -75,11 +75,13 @@ The engine is the product (PLAN §1). If you fall behind, cut P1 coding features
 ```ts
 // lib/capture/editor.ts. Behavior is in PLAN §14.3.
 export function attachEditorCapture(
-  editor: Monaco.editor.IStandaloneCodeEditor,
+  editor: CapturableEditor,                       // structural: any Monaco editor fits
   send: (msg: ClientMessage) => void,
   opts: { file?: string; startedAtMs: number },   // session.started_at from session.state
-): { snapshot(): void; flush(): void; dispose(): void };
+): { snapshot(): void; flush(): void; setFile(file: string): void;
+     programmatic(edit: () => void): void; dispose(): void };
 // Call snapshot() before sending code.run / code.submit / defense.verify.
+// Wrap programmatic edits (reset to starter code, loading a file) in programmatic() so they aren't typing.
 
 // lib/capture/audio/index.ts. Behavior is in PLAN §14.3 and §8.3.
 export function startAudioCapture(opts: {

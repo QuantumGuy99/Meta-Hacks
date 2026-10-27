@@ -97,6 +97,10 @@ These are where UI choices touch the spec. Breaking one breaks a design rule or 
 - **`phase.advance` buttons:** only "Start Coding" (clarify → coding) and "I'm Done" (coding → wrap_up). The
   server rejects anything else.
 - **Before Run, Submit or Verify,** call the capture lib's `snapshot()` so the backend sees the exact code.
+- **Programmatic edits** (resetting to the starter code, loading a file, a controlled `value` prop changing
+  the text) go inside the capture lib's `programmatic(() => …)`. Otherwise they look like typing or a
+  bulk paste, and the candidate gets an integrity note they didn't earn. Switching defense tabs is
+  `setFile(path)`.
 - **TTS:** while `tts.ts` is speaking, call the audio capture's `setPaused(true)`, so the mic doesn't
   transcribe the interviewer. When the candidate starts speaking, cancel TTS (barge-in).
 - **Monaco:** Python, `quickSuggestions: false`, `wordBasedSuggestions: "off"`, minimap off (PLAN §14.2).
