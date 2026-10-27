@@ -20,9 +20,11 @@ class RubricContext:
 
     @classmethod
     def from_problem(cls, spec: ProblemSpec) -> "RubricContext":
+        params = ", ".join(f"{p.name}: {p.type}" for p in spec.function.params)
+        signature = f"def {spec.function.name}({params}) -> {spec.function.returns}"
         return cls(
             title=spec.title,
-            brief_md=spec.statement_md,
+            brief_md=f"{spec.statement_md.strip()}\n\nFunction to implement: `{signature}`",
             steps=spec.rubric.steps,
             edge_cases=spec.rubric.edge_cases,
             common_mistakes=spec.rubric.common_mistakes,

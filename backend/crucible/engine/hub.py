@@ -12,7 +12,6 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, ClassVar, Literal, Protocol
-from uuid import uuid4
 
 from pydantic import BaseModel
 
@@ -39,8 +38,11 @@ from crucible.contracts.ws import (
     SessionState,
     TranscriptUpdate,
 )
+from crucible.engine.analyzer import StructuredModel
 from crucible.engine.codestate import CodeState
 from crucible.engine.context import RubricContext
+from crucible.engine.ids import new_id
+from crucible.engine.live import LiveEngine
 from crucible.engine.store import Store
 from crucible.engine.timeline import Timeline
 
@@ -68,6 +70,10 @@ class ModeUnavailable(Exception):
     """No controller is registered for the requested mode yet."""
 
 
+class SessionSetupError(Exception):
+    """The session config can't be planned (an unknown problem or project, no problems at a difficulty)."""
+
+
 @dataclass(frozen=True, slots=True)
 class SessionPlan:
     problem_slug: str | None
@@ -78,12 +84,15 @@ class SessionPlan:
 class ModeController(Protocol):
     """How a mode plugs into the hub. One instance per live session."""
 
-    @classmethod
-    async def plan_session(cls, config: SessionConfig) -> SessionPlan: ...
-
     def allowed_transitions(self) -> Mapping[Phase, set[Phase]]: ...
 
-    async def on_start(self, rt: "SessionRuntime") -> None: ...
+    async def on_start(self, rt: "SessionRuntime") -> None:
+        """First connect: run the opening phases."""
+        ...
+
+    async def on_resume(self, rt: "SessionRuntime") -> None:
+        """A live session's runtime was reopened (after it expired): re-attach whatever was running."""
+        ...
 
     async def on_client_message(self, rt: "SessionRuntime", msg: ClientMessage) -> bool:
         """Handle a message the hub doesn't (`code.run`, `defense.*`). False means unsupported."""
@@ -94,6 +103,16 @@ class ModeController(Protocol):
         ...
 
     async def report_extra(self, rt: "SessionRuntime") -> CodingExtra | DefenseExtra: ...
+
+
+class ModeFactory(Protocol):
+    """What the hub is given for each mode: it plans new sessions and builds one controller per live session."""
+
+    async def plan_session(self, config: SessionConfig) -> SessionPlan:
+        """Pick the problem or project and the time limit. Raises `SessionSetupError` for a bad config."""
+        ...
+
+    def __call__(self) -> ModeController: ...
 
 
 class Socket(Protocol):
@@ -128,6 +147,7 @@ class SessionRuntime:
         monotonic: Callable[[], float],
         wall: Callable[[], datetime],
         last_seq: int = 0,
+        model: StructuredModel | None = None,
     ) -> None:
         self.session = session
         self.controller = controller
@@ -135,6 +155,8 @@ class SessionRuntime:
         self.context: RubricContext | None = None
         self.interviewer_state: InterviewerState = "idle"
         self.timeline = Timeline(session.id, store, self.now_ms, last_seq)
+        self._model = model
+        self._engine: LiveEngine | None = None
         self._store = store
         self._monotonic = monotonic
         self._wall = wall
@@ -183,6 +205,7 @@ class SessionRuntime:
             self._flusher = asyncio.create_task(self._flush_loop(), name=f"timeline-flush-{self.session.id}")
 
     async def close(self) -> None:
+        await self.detach()
         if self._flusher is not None:
             self._flusher.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -225,6 +248,7 @@ class SessionRuntime:
     async def end(self, reason: str) -> None:
         if self.live:
             await self.set_phase(Phase.ENDED, reason)
+        await self.detach()
         # TODO(ENG-8): start report generation here.
 
     # --- events -------------------------------------------------------------------------------------------
@@ -232,8 +256,10 @@ class SessionRuntime:
     async def record(
         self, kind: TimelineKind, payload: BaseModel | dict[str, Any], t: int | None = None
     ) -> TimelineEvent:
-        """Append to the timeline first, then let the mode react (§9.1)."""
+        """Append to the timeline first, then let the engine and the mode react (§9.1)."""
         event = self.timeline.append(kind, payload, t)
+        if self._engine is not None:
+            self._engine.on_event(event)
         await self.controller.on_timeline(self, event)
         return event
 
@@ -241,11 +267,21 @@ class SessionRuntime:
         logger.log(logging.WARNING if level != "info" else logging.INFO, "%s: %s", self.session.id, message)
         await self.record(TimelineKind.SYSTEM, SystemNote(level=level, message=message))
 
-    def attach(self, context: RubricContext) -> None:
-        """Turn the analyzer and policy on for this rubric (coding at clarify, defense at fix)."""
-        self.context = context
+    async def attach(self, context: RubricContext) -> None:
+        """Turn the analyzer and policy on for this rubric (coding at clarify, defense at fix).
 
-    def detach(self) -> None:
+        Without a model (tests, or no API key) the context is kept but nothing analyzes it.
+        """
+        await self.detach()
+        self.context = context
+        if self._model is not None:
+            self._engine = LiveEngine(self, context, self._model)
+            self._engine.start()
+
+    async def detach(self) -> None:
+        if self._engine is not None:
+            await self._engine.stop()
+            self._engine = None
         self.context = None
 
     # --- sockets ------------------------------------------------------------------------------------------
@@ -354,8 +390,9 @@ class SessionHub:
     def __init__(
         self,
         store: Store,
-        controllers: Mapping[Mode, type[ModeController]],
+        controllers: Mapping[Mode, ModeFactory],
         *,
+        model: StructuredModel | None = None,
         monotonic: Callable[[], float] = time.monotonic,
         wall: Callable[[], datetime] = lambda: datetime.now(UTC),
         idle_ttl_s: float = IDLE_TTL_S,
@@ -363,6 +400,7 @@ class SessionHub:
         self.store = store
         self.runtimes: dict[str, SessionRuntime] = {}
         self._controllers = controllers
+        self._model = model
         self._monotonic = monotonic
         self._wall = wall
         self._idle_ttl_s = idle_ttl_s
@@ -442,10 +480,13 @@ class SessionHub:
                 monotonic=self._monotonic,
                 wall=self._wall,
                 last_seq=events[-1].seq if events else 0,
+                model=self._model,
             )
             runtime.restore(events)
             runtime.start_flusher()
             self.runtimes[session_id] = runtime
+            if runtime.live and session.phase != Phase.SETUP:
+                await runtime.controller.on_resume(runtime)
             return runtime
 
     async def close(self) -> None:
@@ -472,7 +513,3 @@ class SessionHub:
                 return
             del self.runtimes[session_id]
         await runtime.close()
-
-
-def new_id() -> str:
-    return uuid4().hex[:12]
