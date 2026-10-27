@@ -1,0 +1,47 @@
+{
+  "session_id": "a1b2c3d4e5f6",
+  "mode": "coding",
+  "overall": 72,
+  "dimensions": [
+    {"name": "problem_solving", "score": 8, "evidence": "Stated a single-pass plan before coding."},
+    {"name": "correctness", "score": 7, "evidence": "Passed 9 of 10 hidden tests after one fix."},
+    {"name": "code_quality", "score": 7, "evidence": "Clear names; one redundant branch."},
+    {"name": "communication", "score": 6, "evidence": "Went quiet for 2 minutes while debugging."},
+    {"name": "independence", "score": 7, "evidence": "Needed one nudge on the trailing streak."}
+  ],
+  "summary": "A clean single-pass solution. You missed the streak that runs to the end of the list, then fixed it quickly after one nudge.",
+  "strengths": ["Clarified the empty input first", "Chose the O(n) approach right away", "Tested with your own example"],
+  "improvements": ["Check the last element before you run", "Keep talking while you debug", "State the complexity unprompted"],
+  "moments": [
+    {"t": 95000, "kind": "good", "title": "Clarified the input", "detail": "Asked what an empty list returns.", "tip": null},
+    {"t": 412000, "kind": "nudge", "title": "Trailing streak", "detail": "The interviewer pointed at the last reading.", "tip": "Walk your loop on an input whose answer ends at the last element."}
+  ],
+  "metrics": {
+    "duration_s": 1084,
+    "time_to_first_edit_s": 131,
+    "time_to_first_run_s": 388,
+    "runs": 3,
+    "submits": 1,
+    "hidden_passed": 10,
+    "hidden_total": 10,
+    "interventions_shown": 1,
+    "hints_by_level": {"nudge": 1, "question": 0, "hint": 0, "concept": 0},
+    "chars_typed": 612,
+    "chars_pasted": 0,
+    "tab_hidden_s": 0,
+    "talk_time_s": 284,
+    "longest_silence_s": 121
+  },
+  "coding": {
+    "problem_slug": "quiet-streak",
+    "steps": [
+      {"step_id": "s1", "status": "done", "evidence": "said: \"an empty list gives zero\""},
+      {"step_id": "s2", "status": "done", "evidence": "best = max(best, cur) after the loop (line 9)"}
+    ],
+    "approach": "single pass with a running count",
+    "complexity_answer_ok": true
+  },
+  "defense": null,
+  "model": "muse-wonder-1.0",
+  "generated_at": "2026-10-28T20:19:12Z"
+}

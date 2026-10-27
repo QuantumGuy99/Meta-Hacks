@@ -1,0 +1,68 @@
+[
+  {"type": "session.state", "session": {
+    "id": "a1b2c3d4e5f6",
+    "config": {"mode": "coding", "feedback": "active", "voice": true, "speak_replies": true, "proctor": false, "problem_slug": null, "difficulty": "easy", "topic": "arrays", "project_id": null, "time_limit_s": null},
+    "phase": "coding", "created_at": "2026-10-28T20:00:00Z", "started_at": "2026-10-28T20:00:05Z", "ended_at": null,
+    "time_limit_s": 1200, "problem_slug": "quiet-streak", "project_id": null
+  }, "phase": "coding", "remaining_s": 788, "interviewer_state": "listening"},
+  {"type": "interviewer.message", "intervention": {
+    "id": "iv1", "t": 412000, "trigger": "missed_step", "level": "nudge",
+    "text": "Look at what happens on your last reading.", "step_id": "s2", "speak": true, "suppressed": false
+  }},
+  {"type": "transcript.update", "turn": {
+    "turn_id": "tt-04", "speaker": "candidate", "text": "so I keep a running count", "start_ms": 140000, "end_ms": 142500, "final": false, "source": "voice"
+  }},
+  {"type": "run.result", "result": {
+    "run_id": "r2", "t": 701000, "kind": "submit", "passed": 10, "total": 11,
+    "cases": [
+      {"id": "v1", "visible": true, "passed": true, "input_repr": "[30, 52, 41, 38, 60, 35], 50", "expected_repr": "2", "actual_repr": "2", "error": null, "runtime_ms": 1},
+      {"id": "h2", "visible": false, "passed": false, "input_repr": null, "expected_repr": null, "actual_repr": null, "error": "WrongAnswer", "runtime_ms": 1}
+    ],
+    "stdout": "", "stderr": "", "timed_out": false, "compile_error": null
+  }},
+  {"type": "notes.update", "steps": [
+    {"step_id": "s1", "status": "done", "evidence": "said: \"an empty list gives zero\""},
+    {"step_id": "s2", "status": "not_started", "evidence": "best only updates on a loud reading"}
+  ], "issues": [], "stated_plan": "Walk the list once and keep a running count of quiet readings."},
+  {"type": "integrity.flag", "flag": {
+    "id": "ig2", "t": 133000, "kind": "paste", "detail": "pasted 2 lines at 02:13", "chars": 31, "duration_ms": null
+  }},
+  {"type": "defense.audit", "audit": {
+    "summary": "A small FastAPI service with a transfer route that updates account balances held in memory.",
+    "nodes": [
+      {"id": "n1", "label": "POST /transfer", "kind": "route", "file": "app/main.py", "flagged": true},
+      {"id": "n2", "label": "accounts service", "kind": "service", "file": "app/accounts.py", "flagged": false}
+    ],
+    "edges": [{"source": "n1", "target": "n2", "label": "transfer()"}],
+    "findings": [
+      {"id": "f1", "title": "Balance transfers under load", "category": "race_condition", "severity": "critical", "file": "app/main.py", "line_start": 41, "line_end": 58, "node_id": "n1"}
+    ]
+  }},
+  {"type": "defense.chaos.metric", "metric": {
+    "run_id": "c1", "t_ms": 1000, "in_flight": 200, "rps": 402.0, "p50_ms": 43.0, "p95_ms": 101.0, "p99_ms": 140.0, "errors": 0, "violations": 37
+  }},
+  {"type": "defense.chaos.done", "run": {
+    "id": "c1", "finding_id": "f1", "kind": "baseline", "attempt": 1, "script": "# attack.py", "verdict": "broke",
+    "summary": "Under 200 concurrent transfers, $1,240 disappeared.", "detail": "total 8760, expected 10000",
+    "metrics": [{"run_id": "c1", "t_ms": 1000, "in_flight": 200, "rps": 402.0, "p50_ms": 43.0, "p95_ms": 101.0, "p99_ms": 140.0, "errors": 0, "violations": 37}]
+  }},
+  {"type": "defense.grill.eval", "turn": {
+    "finding_id": "f1", "question": "Under 200 concurrent transfers, $1,240 disappeared. Why did that happen?",
+    "answer_turn_ids": ["tt-07"], "follow_up_asked": false,
+    "eval": {"points_hit": [0, 1], "points_missed": [2], "needs_follow_up": true, "feedback": "You found why it broke. What would you change so it can't happen again?"},
+    "sam_node_id": "n1", "root_cause_hit": true, "score": 8
+  }, "finding": {
+    "id": "f1", "title": "Balance transfers under load", "category": "race_condition", "severity": "critical",
+    "file": "app/main.py", "line_start": 41, "line_end": 58, "node_id": "n1",
+    "explanation": "The route reads the sender balance, awaits the fraud check, then writes balance - amount.",
+    "chaos": null,
+    "grill": {"question": "Why did money disappear?", "expected_points": ["read-modify-write race across an await", "stale reads overwrite each other", "make the update atomic"], "follow_up": "What would you change?"},
+    "fix_steps": []
+  }},
+  {"type": "defense.sam.highlight", "highlight": {"finding_id": "f1", "source": "canvas", "box": [36.5, 52.0, 231.0, 128.5], "node_id": "n1"}},
+  {"type": "defense.verdict", "verdict": {
+    "passed": true, "reasons": ["f1 fixed: violations 37 → 0"], "findings_fixed": ["f1"], "findings_unfixed": [], "avg_grill_score": 8.0
+  }},
+  {"type": "report.ready", "session_id": "a1b2c3d4e5f6"},
+  {"type": "error", "code": "runner_unavailable", "message": "The code runner didn't answer in 10 s. Try Run again.", "retryable": true}
+]
