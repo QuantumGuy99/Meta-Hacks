@@ -1,21 +1,29 @@
 """Turns a policy decision into what the candidate sees and hears (PLAN §9.6).
 
-ENG-4's thin version: the code check of the leak guard and delivery. ENG-6 adds phrasing, answers to
-questions, phase lines, the reference-overlap check and `say()`.
+So far: the code check of the leak guard, the analyzer's draft or a rubric hint or canned line, and delivery.
+ENG-6 adds phrasing, answers to questions, phase lines, the reference-overlap check and `say()`.
 """
 
 from __future__ import annotations
 
 import ast
 import logging
+import math
 from typing import TYPE_CHECKING
 
 from crucible.contracts.common import FeedbackLevel
-from crucible.contracts.events import Intervention, InterventionLevel, TimelineKind, TranscriptTurn
+from crucible.contracts.events import (
+    Intervention,
+    InterventionLevel,
+    InterventionTrigger,
+    TimelineKind,
+    TranscriptTurn,
+)
 from crucible.contracts.ws import InterviewerMessage
 from crucible.engine.context import RubricContext
 from crucible.engine.ids import new_id
-from crucible.engine.policy import Decision
+from crucible.engine.policy import LADDER_TRIGGERS, PASSIVE_DELIVERED, Decision
+from crucible.engine.prompts import CANNED
 
 if TYPE_CHECKING:
     from crucible.engine.hub import SessionRuntime
@@ -24,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 _LADDER = [InterventionLevel.NUDGE, InterventionLevel.QUESTION, InterventionLevel.HINT]
 _GENERIC = "Take a step back and walk me through what you're doing."
+TEXT_ONLY = frozenset({InterventionTrigger.PASTE, InterventionTrigger.TIME_WARNING})  # notes, not speech
 
 
 def looks_like_code(text: str) -> bool:
@@ -55,15 +64,31 @@ def rubric_hint(context: RubricContext, step_id: str | None, level: Intervention
     return step.hints[_LADDER.index(level)]
 
 
+def fallback_text(context: RubricContext, decision: Decision, *, remaining_s: int | None) -> str:
+    """The text without a usable draft: the rubric hint for a ladder rule, else the trigger's canned line."""
+    if decision.level == InterventionLevel.CONCEPT:
+        return CANNED["concept"]
+    if decision.trigger in LADDER_TRIGGERS and decision.step_id is not None:
+        return rubric_hint(context, decision.step_id, decision.level)
+    # TODO(ENG-6): Interviewer.answer() replies to ASKED; until then it gets the canned Socratic line.
+    line = CANNED.get(decision.trigger.value, _GENERIC)
+    return line.format(minutes=max(1, math.ceil((remaining_s or 0) / 60)), line=decision.line)
+
+
 async def deliver(rt: SessionRuntime, decision: Decision, context: RubricContext) -> Intervention:
-    """Record the intervention; show and speak it unless the session is in passive mode."""
-    text = decision.draft
-    if text is None or looks_like_code(text):
-        if text is not None:
-            logger.warning("leak guard replaced a draft in %s", rt.session.id)
-            await rt.note("info", f"leak guard replaced the analyzer's wording for step {decision.step_id}")
-        text = rubric_hint(context, decision.step_id, decision.level)
+    """Record the intervention; show it (and speak it, unless it's a note) when the policy didn't suppress it."""
+    fallback = fallback_text(context, decision, remaining_s=rt.remaining_s())
+    text = decision.draft if decision.draft is not None else fallback
+    if looks_like_code(text):
+        logger.warning("leak guard replaced a %s message in %s", decision.trigger, rt.session.id)
+        await rt.note(
+            "info",
+            f"leak guard replaced the wording of a {decision.trigger} message for step {decision.step_id}",
+        )
+        text = _GENERIC if text == fallback or looks_like_code(fallback) else fallback
     config = rt.session.config
+    # The policy suppresses in passive mode; this keeps any other caller from showing unsolicited text there.
+    passive = config.feedback == FeedbackLevel.PASSIVE and decision.trigger not in PASSIVE_DELIVERED
     intervention = Intervention(
         id=new_id(),
         t=rt.now_ms(),
@@ -71,8 +96,8 @@ async def deliver(rt: SessionRuntime, decision: Decision, context: RubricContext
         level=decision.level,
         text=text,
         step_id=decision.step_id,
-        speak=config.speak_replies,
-        suppressed=config.feedback == FeedbackLevel.PASSIVE,
+        speak=config.speak_replies and decision.trigger not in TEXT_ONLY,
+        suppressed=decision.suppressed or passive,
     )
     await rt.record(TimelineKind.INTERVENTION, intervention)
     if not intervention.suppressed:
