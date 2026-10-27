@@ -1312,6 +1312,7 @@ class RunRequest(Strict):
     code: str
     function: FunctionSig
     cases: list[CaseSpec]         # run: visible only; submit: visible + hidden
+    hidden_case_ids: list[str] = []  # sets CaseResult.visible (redaction stays the caller's job)
     limits: RunLimits = RunLimits()
 
 @dataclass
@@ -1331,7 +1332,9 @@ the caller's job (`coding/tests.py`, §10.3), not the runner's.
   subprocess-free loop with `signal.alarm`-based per-test timeouts, compares with the comparator
   (`exact`, `unordered`, `float_tol` 1e-6, `unordered_inner`, `set_of_lists`), captures stdout (4 KB cap), and
   prints one JSON `RunResult` body. Syntax errors → `compile_error`.
-- **ModalRunner:**
+- **ModalRunner:** (verified on real Modal 2026-10-27: the image builds, files are written with `exec` + stdin, a
+  readiness probe on the port works, and the bank race reproduces. Modal's stdout yields *chunks*, not lines,
+  so `stream_exec` buffers and splits on newlines.)
   - `modal.App.lookup(MODAL_APP_NAME, create_if_missing=True)`.
   - Test image: `modal.Image.debian_slim(python_version="3.12").add_local_dir(<harness>, "/harness")`.
   - Coding: `open_session` creates one sandbox (`timeout=45*60`, `idle_timeout=10*60`) and stores the id;
@@ -1514,7 +1517,10 @@ timestamps) on the session socket and serves canned REST responses. Each line is
 `{"dt_ms": <ms since the previous line>, "msg": <ServerMessage>}`; client messages are accepted and logged, not
 answered. In MOCK mode a session's id is its scenario name (`/coding/coding-active`). Scenarios: `coding-active`,
 `coding-passive`, `defense-bank-transfer`, `report-coding`, `report-defense`. SG and SS keep their fixtures
-in sync with contract changes (CI validates fixtures against the contracts).
+in sync with contract changes (CI validates fixtures against the contracts). Fixtures live in
+`backend/crucible/mock/fixtures/`; defense ones are **recorded** from a real local session
+(`python -m crucible.mock.record defense-bank-transfer --apps-dir ... --project ...`, no API key needed), and
+`MOCK_SPEED` speeds up the replay.
 
 MOCK is only ever switched on explicitly: a timeout, a missing credential or a Modal failure in a real
 session never falls back to recorded data (it follows §21: a real fallback model, or an `error` verdict with
@@ -1901,7 +1907,7 @@ These apply to Muse Code, Claude Code and humans alike.
 | V4 | Structured output support on `muse-wonder-1.0` | /docs/models, /docs/structured-output | SG | done: `muse-wonder-1.0` returns valid structured output through `parse` at effort high (about 2 s for a tiny schema) |
 | V5 | Glimmer model id + base URL on the chosen host (Modal / Fireworks / OpenRouter) | host docs | SS | open |
 | V6 | Baseten base URL for `meta-models/muse-spark-open-1026` | docs.baseten.co | ST | open |
-| V7 | Modal: Sandbox stdin API, writing files into a running sandbox, `add_local_dir` timing, readiness probes, egress restriction + loopback | modal.com/docs/sdk/py/latest/Sandbox | SS | open |
+| V7 | Modal: Sandbox stdin API, writing files into a running sandbox, `add_local_dir` timing, readiness probes, egress restriction + loopback | modal.com/docs/sdk/py/latest/Sandbox | SS | mostly done (2026-10-27): stdin writes, exec, a port probe and streaming work (stdout arrives in chunks); egress restriction still open |
 | V8 | Muse Code headless/non-interactive mode (for the optional refactor handoff) | dev.meta.ai/lp/muse-code, `muse --help` | SS | open |
 | V9 | SAM 3.1 box/mask record parsing details (also needed for DEF-9) | dev.meta.ai/docs/sam/segmenting | SG | open |
 | V10 | Muse Image request/response format for illustrations (also DEF-10's card) | dev.meta.ai/docs/image-generation | ST | open |
