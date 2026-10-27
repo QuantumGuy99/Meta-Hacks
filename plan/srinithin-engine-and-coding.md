@@ -336,10 +336,15 @@ A paste of ≥ 40 chars or ≥ 2 lines, a bulk insert of ≥ 80 chars, and a hid
 
 **Done when:** PLAN §16 ENG-8: a coding session and a defense session (both mock-free) each produce a valid
 `Report` within 90 s, and the fallback works with Wonder disabled.
+**As built** (PR "feat(engine): ReportBuilder for both modes (ENG-8)", stacked on #27): see PLAN §9.8. Code
+replaces the scores it can measure and computes `overall`. The model wrapper gained `complete_json_with_model`
+so the report records which model answered. Live: coding report 14.8 s and defense report 17.0 s on Wonder;
+with Wonder disabled, Spark 1.3 in 14.9 s.
 
 ### P1 and P2 (only after the P0 path is solid)
 - **COD-5 — Coding report extras** (P1 · Sun): final step statuses, approach, whether the complexity answer
-  matched an acceptable approach.
+  matched an acceptable approach. Step statuses and approach came with ENG-8 (from the latest analyses);
+  grading the complexity answer is left.
 - **COD-6 — Classifier, `PLAN_MISMATCH`, `CODED_BEFORE_PLAN`** (P1 · Sun · needs ENG-7).
 - **VIS-1 — SAM sketch + proctor** (P2): only after both P0 paths pass the demo script twice in a row on the
   deployed build. Check V9 first.

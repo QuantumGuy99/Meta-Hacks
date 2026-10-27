@@ -24,7 +24,7 @@ from crucible.contracts.events import (
     TimelineKind,
     TranscriptTurn,
 )
-from crucible.contracts.report import CodingExtra, DefenseExtra
+from crucible.contracts.report import CodingExtra, DefenseExtra, Report
 from crucible.contracts.ws import (
     ChatSend,
     ClientMessage,
@@ -34,6 +34,7 @@ from crucible.contracts.ws import (
     Hello,
     HintRequest,
     PhaseAdvance,
+    ReportReady,
     SessionEnd,
     SessionState,
     TranscriptUpdate,
@@ -43,17 +44,18 @@ from crucible.engine.codestate import CodeState
 from crucible.engine.context import RubricContext
 from crucible.engine.ids import new_id
 from crucible.engine.live import LiveEngine
+from crucible.engine.report import build_report
 from crucible.engine.store import Store
 from crucible.engine.timeline import Timeline
 
 logger = logging.getLogger(__name__)
 
-IDLE_TTL_S = 600  # a runtime lives 10 min after its last socket closes (§9.1)
+IDLE_TTL_S = 600  # a runtime lives 10 min after its last socket closes (§9.1); longer than a report takes
 FLUSH_INTERVAL_S = 0.25  # timeline writes are batched (§9.2)
 FINISHED = frozenset({Phase.ENDED, Phase.REPORTING, Phase.REPORTED, Phase.FAILED})
 # Only these moves may come from the browser (§8.2 phase.advance): "Start coding" and "I'm done".
 CANDIDATE_ADVANCES = frozenset({(Phase.CLARIFY, Phase.CODING), (Phase.CODING, Phase.WRAP_UP)})
-# After a session ends, the report builder (ENG-8) moves it on; any live phase can end or fail.
+# After a session ends, the report builder (§9.8) moves it on; any live phase can end or fail.
 _AFTER_END: dict[Phase, set[Phase]] = {
     Phase.ENDED: {Phase.REPORTING, Phase.FAILED},
     Phase.REPORTING: {Phase.REPORTED, Phase.FAILED},
@@ -153,6 +155,7 @@ class SessionRuntime:
         self.controller = controller
         self.code = CodeState()
         self.context: RubricContext | None = None
+        self.last_context: RubricContext | None = None  # kept after detach, for the report
         self.interviewer_state: InterviewerState = "idle"
         self.timeline = Timeline(session.id, store, self.now_ms, last_seq)
         self._model = model
@@ -166,6 +169,7 @@ class SessionRuntime:
         self.resume_pending = False  # reopened after expiry; the mode resumes on the next connect
         self._phase_lock = asyncio.Lock()
         self._flusher: asyncio.Task[None] | None = None
+        self._report_task: asyncio.Task[None] | None = None
         if session.started_at is not None:
             self._anchor_to(session.started_at)
 
@@ -174,6 +178,9 @@ class SessionRuntime:
     def now_ms(self) -> int:
         """Ms since the session started (0 before it starts)."""
         return 0 if self._anchor is None else round((self._monotonic() - self._anchor) * 1000)
+
+    def wall_now(self) -> datetime:
+        return self._wall()
 
     def remaining_s(self) -> int | None:
         if self._anchor is None or self.session.phase in FINISHED or self.session.phase == Phase.SETUP:
@@ -212,11 +219,14 @@ class SessionRuntime:
         if on_close is not None:
             await on_close(self)
         await self.detach()
-        if self._flusher is not None:
-            self._flusher.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._flusher
-            self._flusher = None
+        # A report cut short here restarts when someone next asks for it (SessionHub.report).
+        for task in (self._report_task, self._flusher):
+            if task is not None:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+        self._report_task = None
+        self._flusher = None
         await self.timeline.flush()
 
     def restore(self, events: list[TimelineEvent]) -> None:
@@ -255,7 +265,29 @@ class SessionRuntime:
         if self.live:
             await self.set_phase(Phase.ENDED, reason)
         await self.detach()
-        # TODO(ENG-8): start report generation here.
+        self.start_report()
+
+    # --- the report (§9.8) --------------------------------------------------------------------------------
+
+    def start_report(self) -> None:
+        """Build the report in the background, once per ended session (a failed session gets none)."""
+        running = self._report_task is not None and not self._report_task.done()
+        if running or self.session.phase not in (Phase.ENDED, Phase.REPORTING):
+            return
+        self._report_task = asyncio.create_task(self._report(), name=f"report-{self.session.id}")
+
+    async def _report(self) -> None:
+        try:
+            if self.session.phase == Phase.ENDED:
+                await self.set_phase(Phase.REPORTING, "building the report")
+            report = await build_report(self, self._model)
+            await self._store.save_report(report)
+            await self.set_phase(Phase.REPORTED, f"report ready ({report.model})")
+            await self.broadcast(ReportReady(type="report.ready", session_id=self.session.id))
+        except Exception:  # task boundary: say so on the timeline and stop, rather than hang in `reporting`
+            logger.exception("report failed for %s", self.session.id)
+            await self.note("error", "the report couldn't be built")
+            await self.set_phase(Phase.FAILED, "report failed")
 
     # --- events -------------------------------------------------------------------------------------------
 
@@ -279,7 +311,7 @@ class SessionRuntime:
         Without a model (tests, or no API key) the context is kept but nothing analyzes it.
         """
         await self.detach()
-        self.context = context
+        self.context = self.last_context = context
         if self._model is not None:
             self._engine = LiveEngine(self, context, self._model)
             self._engine.start()
@@ -470,6 +502,22 @@ class SessionHub:
         if not runtime.connected:
             self._schedule_expiry(session_id)
         return runtime.session.model_copy(deep=True)
+
+    async def report(self, session_id: str) -> Report | None:
+        """The stored report, or None while there isn't one yet.
+
+        A session left in `ended` or `reporting` with no report running (a restart cut it short) starts again.
+        """
+        report = await self.store.get_report(session_id)
+        if report is not None:
+            return report
+        session = await self.get_session(session_id)
+        if session is not None and session.phase in (Phase.ENDED, Phase.REPORTING):
+            runtime = await self.runtime(session_id)
+            runtime.start_report()
+            if not runtime.connected:
+                self._schedule_expiry(session_id)
+        return None
 
     async def read_timeline(self, session_id: str) -> list[TimelineEvent]:
         runtime = self.runtimes.get(session_id)

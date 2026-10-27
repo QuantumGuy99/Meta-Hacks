@@ -823,7 +823,7 @@ ServerMessage = Annotated[Union[SessionState, InterviewerMessage, TranscriptUpda
 | GET | `/api/sessions/{id}` | → `Session` | |
 | POST | `/api/sessions/{id}/end` | → `Session` | starts report generation |
 | GET | `/api/sessions/{id}/timeline` | → `TimelineEvent[]` | for replay. Hidden-test details never appear (nor a submit's stdout). While the session is live, also no analyses, system notes, suppressed interventions or audit details (explanations, expected points, fix steps) (§9.2) |
-| GET | `/api/sessions/{id}/report` | → `Report` or 202 `{status}` | |
+| GET | `/api/sessions/{id}/report` | → `Report` or 202 `{status}` | 409 `session_live` while live; 404 `report_unavailable` for a failed session. Asking restarts a report that a server restart cut short |
 
 Errors: `{"error": {"code": str, "message": str}}` with proper HTTP status codes.
 
@@ -913,11 +913,14 @@ Owner: **SG**. Used by coding mode (whole session) and defense mode (grill + fix
   - **`rt.sender`** is the connection whose message `on_client_message` is handling, so a mode can answer just
     that tab (`rt.error(rt.sender, …)`).
   - **`say(rt, text, trigger, level, *, speak=None, step_id=None, fallback=None)`** in `engine/interviewer.py`
-    sends a line the mode chose, through the leak guard's code check. Coding uses it for phase lines; Defense
-    can use it for grill lines. ENG-6 adds the reference-overlap check and model phrasing.
+    sends a line the mode chose, through the leak guard (§9.6; `reference=` adds the overlap check). Coding
+    uses it for phase lines; Defense can use it for grill lines.
+  - **After `ended`:** `rt.end()` starts the report task (§9.8): `ended → reporting → reported`, then
+    `report.ready`. `rt.last_context` keeps the last attached `RubricContext` after detach, for the report.
 - Routes live in `engine/api.py` (`router`); `main.py` includes it and puts
   `SessionHub(store, {Mode.CODING: CodingMode(ProblemBank.load()), …}, model=llm)` on `app.state.hub`. Until
-  `crucible.store` lands, `engine/store.py` has an in-memory `MemoryStore` with the same interface.
+  `crucible.store` lands, `engine/store.py` has an in-memory `MemoryStore` with the same interface (sessions,
+  events, and `save_report`/`get_report`).
 
 ### 9.2 Timeline (`timeline.py`)
 - `append(kind, payload, t=None) -> TimelineEvent`: assigns `seq` (monotonic per session) and `t` (server
@@ -1119,20 +1122,34 @@ wiring; `test_first_nudge.py` runs the hint button end to end.
   pace is computed per turn.
 
 ### 9.8 ReportBuilder (`report.py`)
-1. **Metrics in code** from the timeline (`Metrics`, §7.5).
-2. **Candidate moments in code** (8–14, sorted by `t`): first edit, approach stated, each intervention shown
-   (with time until the related step became `done` = "time to recover"), first passing run, each integrity
-   flag, longest silence, the submit result, wrap-up answers; defense: each chaos verdict, grill score and
-   verify result.
-3. **ReportDraft** from model role `report` (default `muse-wonder-1.0`, `reasoning_effort="high"`, timeout
-   90 s) with: problem/rubric or findings, final code, step history, transcript, interventions, metrics and
-   candidate moments. Fallback: Spark 1.3 with the same schema; if that fails too, a minimal template report
-   from metrics only.
-4. **Merge** the draft with metrics and extras into `Report`, store it, set phase `reported` and broadcast
-   `report.ready`.
-Score guidance in the prompt: independence falls with hint levels used; communication uses
-`explanation_quality` history + talk time; correctness uses hidden-test results; never penalize missing voice
-when voice was off.
+1. **Metrics in code** from the stored timeline (`Metrics`, §7.5). Interventions shown and `hints_by_level`
+   count only help the candidate saw: not suppressed ones, phase lines, grill questions, or paste and time
+   notes. Talk time is voice turns only. The longest silence is the longest stretch with no talking, typing or
+   runs, counted only in phases where the candidate is expected to act (clarify, coding, wrap-up, grill, fix).
+2. **Candidate moments in code** (up to 14, sorted by `t`; a short session has fewer): first edit, approach
+   stated, each intervention shown (with "time to recover": when its step next became `done`), questions the
+   candidate asked, first passing run, each integrity flag, the longest silence (≥ 60 s), the final submit,
+   wrap-up answers; defense: each chaos verdict, grill score and verify result, and the verdict. Over 14, the
+   most important kinds are kept (submit, verdicts, broken findings, first edit first).
+3. **ReportDraft** from model role `report` (`muse-wonder-1.0`, `reasoning_effort="high"`, timeout 90 s →
+   Spark 1.3, same schema) via `complete_json_with_model`, which also returns the model that answered. Prompt:
+   `engine/prompts/report_system.md`, with the problem and rubric (or findings, chaos runs, grill and verdict),
+   final code, step history, runs, transcript, interventions, metrics and candidate moments. Overall deadline
+   150 s. No model, a failure or the deadline → a **template report** from metrics only (`model: "template"`,
+   with a `system` note).
+4. **Merge, code decides:** scores code can measure replace the model's: coding `correctness` = hidden tests
+   passed (of the last submit); defense `correctness` = broken findings that held after the fix, and
+   `system_understanding` = the average grill score. Dimensions are kept in the mode's order (coding:
+   problem_solving, correctness, code_quality, communication, independence, debugging; defense:
+   system_understanding, debugging, correctness, communication, independence). `overall` = the mean of the
+   dimension scores × 10. Moments: one per candidate moment, with code's `t` and `kind` and the model's words
+   (the facts as they are when the model skipped one). Three strengths and improvements at most.
+   The template report scores `correctness` from the last run when there was no submit, and `independence` as
+   10 − (1 per nudge, 1.5 per question, 2.5 per hint, 4 per concept).
+5. **Store** it, set phase `reported` and broadcast `report.ready`. A bug in the builder sets `failed` with a
+   `system` note instead of leaving the session in `reporting`.
+Score guidance in the prompt: independence falls with hint levels used; communication uses explanation quality
+and talk time, and never penalizes missing voice when voice was off; correctness uses hidden-test results.
 
 ---
 
