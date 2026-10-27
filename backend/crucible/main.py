@@ -117,6 +117,14 @@ def _configure_models(s: Settings) -> Any | None:
     )
 
 
+def _configure_asr(s: Settings) -> Any | None:
+    """Muse Voice Transcribe for the voice bridge; None without a key (the audio socket then says so)."""
+    asr = _import("crucible.models.asr")
+    if asr is None or not s.has_meta_key:
+        return None
+    return asr.MuseASR(asr.ASRSettings(api_key=s.MODEL_API_KEY, realtime_url=s.ASR_URL, model=s.ASR_MODEL))
+
+
 def _error(status: int, code: str, message: str) -> JSONResponse:
     """PLAN §8.1 error envelope (`ApiError` in contracts/common.py)."""
     return JSONResponse(status_code=status, content={"error": {"code": code, "message": message}})
@@ -138,7 +146,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             model = _configure_models(s)
             store = await engine.store_cls.open(s.database_path)
             params = inspect.signature(engine.hub_cls).parameters
-            hub = engine.hub_cls(store, engine.controllers, **({"model": model} if "model" in params else {}))
+            extras = {"model": model, "asr": _configure_asr(s)}
+            hub = engine.hub_cls(
+                store, engine.controllers, **{k: v for k, v in extras.items() if k in params}
+            )
             app.state.store, app.state.hub = store, hub
         try:
             yield

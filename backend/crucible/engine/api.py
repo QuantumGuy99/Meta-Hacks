@@ -3,6 +3,7 @@
 The app (main.py, S-0) includes `router` and puts a `SessionHub` on `app.state.hub` at startup.
 """
 
+import contextlib
 import logging
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
@@ -15,12 +16,18 @@ from crucible.contracts.report import Report
 from crucible.contracts.ws import ClientMessage
 from crucible.engine.hub import FINISHED, ModeUnavailable, PhaseError, SessionHub, SessionSetupError
 from crucible.engine.timeline import public_view
+from crucible.engine.voice import AudioControl, VoiceBridge
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 CLIENT_MESSAGE: TypeAdapter[ClientMessage] = TypeAdapter(ClientMessage)
+AUDIO_CONTROL: TypeAdapter[AudioControl] = TypeAdapter(AudioControl)
 SESSION_NOT_FOUND_CLOSE = 4404  # WebSocket close code for an unknown session id
+# Audio socket close codes (§8.3). The browser shows "use chat" for all three.
+VOICE_OFF_CLOSE = 4403  # the session was created with voice off
+VOICE_UNAVAILABLE_CLOSE = 4503  # no transcription configured, or it failed for good (§9.7)
+MIC_TAKEN_CLOSE = 4409  # another tab opened the audio socket
 
 
 @router.post("/api/sessions", status_code=201, response_model=Session, responses={400: {"model": ApiError}})
@@ -112,6 +119,65 @@ async def session_socket(websocket: WebSocket, session_id: str) -> None:
         pass
     finally:
         await hub.disconnect(session_id, connection)
+
+
+@router.websocket("/ws/sessions/{session_id}/audio")
+async def audio_socket(websocket: WebSocket, session_id: str) -> None:
+    """Raw PCM from the candidate's microphone plus start/stop/ask text frames (§8.3), into the VoiceBridge."""
+    hub: SessionHub = websocket.app.state.hub
+    session = await hub.get_session(session_id)
+    if session is None:
+        await websocket.close(code=SESSION_NOT_FOUND_CLOSE)
+        return
+    if not session.config.voice:
+        await websocket.close(code=VOICE_OFF_CLOSE, reason="voice is off for this session")
+        return
+    await websocket.accept()
+    runtime = await hub.runtime(session_id)
+    bridge = hub.voice(runtime)
+    if bridge is None or bridge.state == "unavailable":
+        await websocket.close(code=VOICE_UNAVAILABLE_CLOSE, reason="voice isn't available")
+        return
+    previous, runtime.audio_socket = runtime.audio_socket, websocket
+    if isinstance(previous, WebSocket):
+        with contextlib.suppress(RuntimeError):  # it may have closed already
+            await previous.close(code=MIC_TAKEN_CLOSE, reason="another tab took the microphone")
+    try:
+        while True:
+            message = await websocket.receive()
+            if message["type"] == "websocket.disconnect":
+                break
+            if message.get("bytes") is not None:
+                await bridge.audio(message["bytes"])
+            elif message.get("text") is not None:
+                await _audio_control(bridge, message["text"])
+            if not runtime.live:
+                await websocket.close(code=1000, reason="the session ended")
+                break
+            if bridge.state == "unavailable":
+                await websocket.close(code=VOICE_UNAVAILABLE_CLOSE, reason="voice isn't available")
+                break
+    except WebSocketDisconnect:
+        pass
+    finally:
+        if runtime.audio_socket is websocket:
+            runtime.audio_socket = None
+            await bridge.stop()
+
+
+async def _audio_control(bridge: VoiceBridge, raw: str) -> None:
+    try:
+        control = AUDIO_CONTROL.validate_json(raw)
+    except ValidationError as exc:
+        logger.warning("ignoring an audio control frame: %s", _first_error(exc))
+        return
+    match control.type:
+        case "start":
+            bridge.start()
+        case "stop":
+            await bridge.stop()
+        case "ask":
+            bridge.ask(control.holding)
 
 
 def _hub(request: Request) -> SessionHub:
