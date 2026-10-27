@@ -13,9 +13,9 @@ from crucible.defense.ports import EventSink, ModelClient, ModelUnavailable, not
 from crucible.defense.prompts import PROMPTS
 
 GRILL_EVAL_TIMEOUT_S = 10
-MAX_ANSWER_CHARS = 4_000  # about 3 minutes of speech; longer answers are cut before they reach the model
 SAM_BONUS = 1
 KEYWORD_HIT_RATIO = 0.4
+MAX_ANSWER_CHARS = 4_000  # about 3 minutes of speech; longer answers are cut before they reach the model
 SAFE_FEEDBACK = "Think about what another request could be doing while this one waits. What could change?"
 _STOPWORDS = frozenset(
     [
