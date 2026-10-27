@@ -1850,6 +1850,8 @@ NEXT_PUBLIC_FIXTURES=0            # dev only: frontend FixtureTransport until MO
 ## 20. Demo video and submission
 
 ### 20.1 The 3-minute video (draft script)
+**Superseded by [docs/STORY.md](docs/STORY.md)** (v2: the story line first, Defense first, the Under the hood strip in every shot). Kept here for history.
+
 | Time | Shot |
 |---|---|
 | 0:00–0:15 | Hook: "AI writes code in seconds. Interviews and production still ask: do you understand it?" Title: Crucible, two modes, one interviewer |

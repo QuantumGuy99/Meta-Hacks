@@ -33,6 +33,8 @@ PR, §22 rule 15). If PLAN and the code disagree, or a task is ambiguous, stop a
 8. **Secrets stay in `.env`** (read only by `config.py`); never in git, logs, chat or the browser.
 9. **No license headers in source files.** The repo's `LICENSE` file and the README's License section
    stay as they are; just don't add license comments to code.
+10. **No AI attribution lines** in commits or PR descriptions (no `Co-Authored-By:` an AI tool, no
+   "Generated with ..." footer). `.claude/settings.json` turns them off for Claude Code.
 
 ## Model roles (Claude Code subagents: pass `model` to the Agent tool)
 - **Architect (Opus 5.5, the main session):** owns blueprints, contracts, guardrails and error-recovery
