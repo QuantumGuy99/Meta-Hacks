@@ -822,7 +822,7 @@ ServerMessage = Annotated[Union[SessionState, InterviewerMessage, TranscriptUpda
 | POST | `/api/sessions` | `SessionConfig` → `Session` | picks a random problem if only difficulty is given |
 | GET | `/api/sessions/{id}` | → `Session` | |
 | POST | `/api/sessions/{id}/end` | → `Session` | starts report generation |
-| GET | `/api/sessions/{id}/timeline` | → `TimelineEvent[]` | for replay; strips hidden-test inputs |
+| GET | `/api/sessions/{id}/timeline` | → `TimelineEvent[]` | for replay; strips hidden-test inputs, and audit details (explanations, expected points, fix steps) until the session ends |
 | GET | `/api/sessions/{id}/report` | → `Report` or 202 `{status}` | |
 
 Errors: `{"error": {"code": str, "message": str}}` with proper HTTP status codes.
@@ -986,6 +986,10 @@ Each rule needs a "fires" test and a "doesn't fire" test.
   parse as Python statements, or any normalized line with ≥ 0.6 token overlap with a non-trivial line of
   the reference solution. On rejection: regenerate once at a lower level; if it still fails, send the rubric
   hint text for the current level. Log every rejection.
+- `say(rt, text, trigger, level, speak, step_id=None, *, fallback=None)`: the entry point other modes use
+  (Defense grill questions, feedback and follow-ups). It runs the same leak guard; on rejection it sends the
+  caller's `fallback` text (Defense passes a canned Socratic question) instead of a rubric hint, which
+  grill messages don't have. With no fallback it sends the canned line for the trigger.
 - Speech: `speak = config.speak_replies`, except PASTE and TIME_WARNING notes, which are text-only. The browser speaks
   it; the backend appends an interviewer `TranscriptTurn` (source=text) so the replay shows it.
 
@@ -1135,12 +1139,16 @@ async def setup(client: httpx.AsyncClient) -> dict:
 async def make_request(client: httpx.AsyncClient, i: int, ctx: dict) -> httpx.Response:
 {request_body}
 
-async def check_invariant(client: httpx.AsyncClient, ctx: dict) -> tuple[bool, str]:
+async def check_invariant(client: httpx.AsyncClient, ctx: dict) -> tuple[bool, int, str]:
 {invariant_body}
 
 # --- fixed runner below: workers, latency histogram, JSON-lines metrics every 500 ms ---
 # emits {"t_ms", "in_flight", "rps", "p50_ms", "p95_ms", "p99_ms", "errors", "violations"} lines, then
-# {"done": true, "invariant_ok": bool, "detail": str}
+# {"done": true, "invariant_ok": bool, "violations": int, "detail": str, "requests", "errors", "p95_ms", "p99_ms"}
+# check_invariant returns (ok, violations, detail): violations is a count people understand (dollars missing,
+# seats double-booked), shown live; detail is the headline ("$1,240 disappeared"). The template also runs it
+# every 0.5 s on its own small client, and spreads the attack across several connection pools: one httpx
+# pool collapses under ~50+ concurrent requests and would make a fixed app look broken.
 ```
 
 **AttackWriter:** model role `attacker` (default **Muse Glimmer** via `GLIMMER_BASE_URL`; fallback
@@ -1174,8 +1182,9 @@ and detail and ask for a revised attack (max 2 refinements). Glimmer's tool call
 - **Scoring is code, not the model** (the LLM only says which expected points were hit):
   ```python
   n = len(spec.expected_points)
-  root_cause_hit = 0 in eval.points_hit
-  score = round(10 * len(set(eval.points_hit)) / n)
+  hits = {i for i in eval.points_hit if 0 <= i < n}   # indexes the model invents are ignored
+  root_cause_hit = 0 in hits
+  score = round(10 * len(hits) / n)                   # Python rounds .5 to even (5/2 points → 5)
   if sam_node_id is not None and sam_node_id == finding.node_id:
       score = min(10, score + 1)          # P1 bonus for locating the flaw on the diagram
   ```
@@ -1601,9 +1610,10 @@ Format: **ID — title** (owner · priority · depends on) followed by "done whe
 - **DEF-6 — Fix stage + verify + verdict** (P0 · ENG-5, DEF-4).
 - **DEF-7 — Defense report extras** (P1 · ENG-8).
 - **DEF-8 — Glimmer agent refine loop** (P1 · DEF-4).
-- **DEF-9 — "Circle the flaw" with SAM 3.1** (P1 · DEF-5, FE-6): §11.7.
+- **DEF-9 — "Circle the flaw" with SAM 3.1** (P1 · DEF-5, FE-6; **after IC3, and only with LG's OK**, since
+  it needs a pen, a canvas PNG export and node boxes in FE-6): §11.7.
   *Done when* a circle drawn around the flawed node on a canvas PNG selects that node in ≥ 4 of 5 tries.
-- **DEF-10 — Merge-gate card** (P2 · DEF-6): §11.8.
+- **DEF-10 — Merge-gate card** (P2 · DEF-6; only after both P0 paths pass the demo script twice): §11.8.
 - **OPS-1 — Deploy** (P0 · S-0): §19. *Done when* the deployed frontend runs a full coding session against
   the deployed backend.
 - **OPS-2 — Mock replay engine + fixtures** (P0 · S-1): §14.6.
@@ -1653,7 +1663,7 @@ checkpoint script on a clean checkout.
 | 5 | Sat Oct 31 | ENG-8 | DEF-6, OPS-1 deploy | FE-7 report + replay | Evals, 25 problems |
 | 6 | Sun Nov 1 | P1: COD-5, COD-6 | DEF-7, DEF-8 | FE-8, integration fixes | **30 problems**, apps 4–5 |
 | | **IC3 + cut-line review** | | | | |
-| 7 | Mon Nov 2 | Eval tuning, latency, P2 if green | Reliability, P2 if green | Polish, demo-path UX | DATA-7 demo data + rehearsal |
+| 7 | Mon Nov 2 | Eval tuning, latency, P2 if green | Reliability; DEF-9 (P1) if IC3 is green and LG agrees; P2 (DEF-10) if green | Polish, demo-path UX; the DEF-9 pen only if agreed | DATA-7 demo data + rehearsal |
 | 8 | Tue Nov 3 | **Feature freeze 12 PM.** Bug fixes only; record demo takes | same | same | Final data checks |
 | 9 | Wed Nov 4 | Final video edit; **submit by 6 PM** (3 h buffer before the 9 PM deadline) | same | same | same |
 

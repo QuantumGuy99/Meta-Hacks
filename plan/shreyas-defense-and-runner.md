@@ -298,11 +298,12 @@ proves `defense.audit` never carries an explanation.
   grill turns, verdict); Likhil renders the before/after charts.
 - **DEF-8 — Glimmer refine loop** (P1 · Sun): if the baseline held but the finding claims it should break, give
   the metrics back and ask for a revised attack (max 2 refinements).
-- **DEF-9 — "Circle the flaw" with SAM 3.1** (P1 · Sun · needs DEF-5, Likhil's canvas pen): PLAN §11.7.
+- **DEF-9 — "Circle the flaw" with SAM 3.1** (P1 · Mon, **after IC3 and only with Likhil's OK** · needs DEF-5,
+  Likhil's canvas pen): PLAN §11.7.
   `defense.circle` → SAM (`"hand-drawn circle"`, 5 s) → code picks the node with the largest overlap (≥ 0.3)
   → `SamHighlight` → timeline + `defense.sam.highlight`. SAM failure: no highlight, no bonus.
   *Done when* a circle around the flawed node selects it in ≥ 4 of 5 tries.
-- **DEF-10 — Merge-gate card** (P2): PLAN §11.8. Muse Image background with no text, real numbers composed
+- **DEF-10 — Merge-gate card** (P2, only after both P0 paths pass the demo script twice): PLAN §11.8. Muse Image background with no text, real numbers composed
   on top, generated after the verdict in the background.
 - **Refactor suggestion handoff** (P2): only if V8 confirms Muse Code has a headless mode.
 
@@ -318,8 +319,8 @@ proves `defense.audit` never carries an explanation.
 | 3 | Thu Oct 29 | RUN-2, RUN-3, DEF-3, OPS-2 working, `lib/defense.ts` | Likhil runs on MOCK |
 | 4 | Fri Oct 30 | DEF-4, DEF-5 (text) | **IC2**: `bank-transfer` breaks live |
 | 5 | Sat Oct 31 | DEF-6, OPS-1 | Deployed |
-| 6 | Sun Nov 1 | DEF-7, DEF-8, DEF-9 (P1); integration fixes | **IC3** + cut-line review |
-| 7 | Mon Nov 2 | Reliability (cold starts, retries, timeouts); P2 (DEF-10) only if green | Demo script passes twice |
+| 6 | Sun Nov 1 | DEF-7, DEF-8 (P1); integration fixes | **IC3** + cut-line review |
+| 7 | Mon Nov 2 | Reliability (cold starts, retries, timeouts); DEF-9 if IC3 is green and Likhil agrees; DEF-10 (P2) only after the demo script passes twice | Demo script passes twice |
 | 8 | Tue Nov 3 | **Feature freeze 12 PM.** Bug fixes only; record demo takes | Takes recorded |
 | 9 | Wed Nov 4 | Final video edit; **submit by 6 PM** | Submitted |
 
