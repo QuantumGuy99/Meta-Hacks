@@ -143,9 +143,15 @@ def test_a_model_failure_skips_the_tick_and_says_so(tmp_path: Path) -> None:
         with socket as ws:
             receive_until(ws, lambda m: m["type"] == "session.state" and m["phase"] == "clarify")
             ws.send_json({"type": "chat.send", "text": "hello?"})
-            wait_for(lambda: len(kinds(client, sid, TimelineKind.SYSTEM)) == 1)
-        note = kinds(client, sid, TimelineKind.SYSTEM)[0]
-        assert "analysis skipped" in note.payload["message"]
+
+            def notes() -> list[str]:
+                return [e.payload["message"] for e in kinds(client, sid, TimelineKind.SYSTEM)]
+
+            # The analyzer skips its tick, and the question gets the canned reply instead of a model answer.
+            wait_for(lambda: any("analysis skipped" in n for n in notes()))
+            wait_for(lambda: any("interviewer model didn't answer" in n for n in notes()))
+            reply = receive_until(ws, lambda m: m["type"] == "interviewer.message")
+        assert reply["intervention"]["trigger"] == "asked"
 
 
 def test_ending_the_session_stops_the_analyzer(client: TestClient, model: FakeModel) -> None:

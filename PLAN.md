@@ -1064,21 +1064,33 @@ quiet window and hold, stale drop), the ladder and passive mode. `tests/engine/t
 wiring; `test_first_nudge.py` runs the hint button end to end.
 
 ### 9.6 Interviewer (`interviewer.py`)
-- `phrase(rule, proposal, context) -> InterventionText{text}`: uses the analyzer's draft text when present
-  and the level matches; otherwise one Spark call (`reasoning_effort="low"`, timeout 6 s). Fallback: the
-  rubric hint text, or a canned line per trigger (`prompts/canned.md`, built in ENG-5).
-- `answer(question, context)`: replies to `ASKED`. It answers clarifying questions from the problem spec
-  only; for "is this right?" it answers with a question; it never confirms correctness of hidden tests.
+- **Nudges, questions and hints** (`deliver(rt, decision, context)`): the analyzer's draft when the policy kept it,
+  else the rubric hint for the step and level, else the trigger's canned line (`prompts/canned.md`). No extra
+  model call to phrase them: the analyzer already drafts at the right level, and a second Spark call would add
+  2–6 s to every nudge.
+- `answer(rt, model, context, question) -> str | None`: replies to `ASKED` with one Spark call (role
+  `interviewer`, prompt `prompts/interviewer_answer.md`, 15 s deadline covering the wrapper's 6 s timeout and
+  retry). The model sees only what the candidate can see: the statement, signature, examples and constraints
+  (`RubricContext.brief_md`), their numbered code, the last 8 final transcript turns within 3 min, and the
+  question. Never the rubric, hidden tests or reference. It answers clarifying questions from the spec (or
+  says to state an assumption), answers "is this right?" with a question, and never confirms correctness. A
+  leaky reply gets one retry asking for a Socratic question; a second leak, a timeout or a model error sends
+  the canned `asked` line, with a `system` note.
 - Phase lines: intro (problem presentation, ≤ 60 words), wrap-up questions (from `rubric.wrap_up_questions`),
-  closing line. The intro is pre-generated at session creation so it plays instantly.
-- **Leak guard** (applies to every outgoing text): reject it if it contains a code fence, ≥ 2 lines that
-  parse as Python statements, or any normalized line with ≥ 0.6 token overlap with a non-trivial line of
-  the reference solution. On rejection: regenerate once at a lower level; if it still fails, send the rubric
-  hint text for the current level. Log every rejection.
-- `say(rt, text, trigger, level, speak, step_id=None, *, fallback=None)`: the entry point other modes use
-  (Defense grill questions, feedback and follow-ups). It runs the same leak guard; on rejection it sends the
-  caller's `fallback` text (Defense passes a canned Socratic question) instead of a rubric hint, which
-  grill messages don't have. With no fallback it sends the canned line for the trigger.
+  closing line. They are canned templates (`coding/prompts/phase_lines.md`), so the intro plays as soon as
+  the candidate joins and can't leak.
+- **Leak guard** (`leak_reason(text, reference)`, applies to every outgoing text): reject it if it contains a
+  code fence or ≥ 2 lines that parse as Python statements, or if any line of it (or the whole text) shares
+  ≥ 60% of the tokens of a non-trivial reference line. Non-trivial means ≥ 5 tokens and not a signature,
+  comment, docstring or import. The reference is the problem's reference solution (or a sample's fix). On
+  rejection in `deliver()`: send the rubric hint or canned line instead, else a generic prompt to walk through
+  the code. In `answer()`: retry once, then the canned line. Every rejection is logged and noted on the
+  timeline.
+- `say(rt, text, trigger, level, *, speak=None, step_id=None, fallback=None, reference=None)`: the entry point
+  other modes use (Defense grill questions, feedback and follow-ups, coding phase lines). It runs the same leak
+  guard, checking overlap against `reference` when given. On rejection it sends the caller's `fallback` text
+  (Defense passes a canned Socratic question) instead of a rubric hint, which grill messages don't have. With
+  no fallback it sends the canned line for the trigger.
 - Speech: `speak = config.speak_replies`, except PASTE and TIME_WARNING notes, which are text-only. The browser speaks
   it; the backend appends an interviewer `TranscriptTurn` (source=text) so the replay shows it.
 
@@ -1140,8 +1152,8 @@ Owner: **SG**. Data: **ST**.
   10 min.
 - **As built (COD-2, `coding/session.py`):**
   - **Intro:** the interviewer says a phase line from `coding/prompts/phase_lines.md` (problem title, minutes)
-    through `say()`, then moves straight to `clarify` and attaches the rubric. ENG-6 may phrase the intro with
-    the model.
+    through `say()`, then moves straight to `clarify` and attaches the rubric. ENG-6 keeps it canned rather
+    than model-phrased, so it plays at once.
   - **"Started coding"** = 3 new non-blank lines compared with the starter code, typed or pasted. Programmatic
     snapshots don't count.
   - **Time limit:** a 0.5 s timer moves `clarify` or `coding` to `wrap_up` when `remaining_s` reaches 0.
