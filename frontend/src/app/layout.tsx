@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Hanken_Grotesk } from "next/font/google";
+import { ViewTransition } from "react";
+import { MotionProvider } from "@/components/motion/MotionProvider";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const hanken = Hanken_Grotesk({
@@ -46,7 +49,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <a href="#main" className="skip-link">
           Skip to Content
         </a>
-        {children}
+        <MotionProvider>
+          {/* Route changes crossfade (React 19.3 view transitions; reduced motion in globals.css). */}
+          <ViewTransition>{children}</ViewTransition>
+        </MotionProvider>
+        {/* Top right, below the bars, so toasts never cover the room's Ask box. */}
+        <Toaster position="top-right" offset={64} />
       </body>
     </html>
   );

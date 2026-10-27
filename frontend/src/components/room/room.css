@@ -1,0 +1,231 @@
+/* Interview room demo (FE-3/FE-4 shape). Shares .ui-btn, .msg and .room-phases with landing.css. */
+
+.rm {
+  display: flex;
+  flex-direction: column;
+  height: 100svh;
+  min-height: 560px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+}
+.rm-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px var(--margin);
+  border-bottom: 1px solid var(--ui-line);
+}
+.rm-brand {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  margin-right: 8px;
+}
+.rm-top .room-phases {
+  margin-right: auto;
+}
+.rm-timer {
+  font-size: 18px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.rm-body {
+  flex: 1;
+  min-height: 0;
+}
+[data-slot="resizable-handle"] {
+  background: var(--ui-line);
+}
+.rm-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--ui-bg);
+}
+.rm-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--ui-line);
+  font-size: 13px;
+  color: var(--muted-ink);
+}
+.rm-panel-head > span:first-child {
+  color: var(--ink);
+  font-weight: 500;
+}
+.rm-tag {
+  margin-left: auto;
+}
+.rm-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.rm-problem .rm-md {
+  padding: 16px;
+  overflow: auto;
+  line-height: 1.55;
+}
+.rm-md code {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.92em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--surface-2);
+}
+.rm-md ul {
+  padding-left: 18px;
+  list-style: disc;
+}
+.rm-md p + p,
+.rm-md p + ul,
+.rm-md ul + p {
+  margin-top: 10px;
+}
+.rm-editor-host {
+  flex: 1;
+  min-height: 0;
+}
+.cm-loading {
+  padding: 16px;
+  color: var(--muted-ink);
+}
+.cm-flagged-line {
+  background: rgb(229 72 77 / 0.12);
+}
+.cm-flagged-glyph {
+  background: var(--danger);
+  border-radius: 50%;
+  width: 8px !important;
+  height: 8px !important;
+  margin: 6px 0 0 6px;
+}
+
+/* tests */
+.rm-tests {
+  height: 100%;
+  overflow: auto;
+  background: var(--ui-panel);
+}
+.rm-pass {
+  color: var(--ok);
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.rm-fail {
+  color: #ff7b72;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.rm-running {
+  margin-left: auto;
+}
+.rm-empty {
+  padding: 12px 14px;
+  color: var(--muted-ink);
+}
+.rm-cases {
+  display: flex;
+  flex-direction: column;
+}
+.rm-cases li {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.rm-cases code {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+.rm-case-status {
+  font-weight: 500;
+}
+.rm-cases .is-pass .rm-case-status {
+  color: var(--ok);
+}
+.rm-cases .is-fail .rm-case-status {
+  color: #ff7b72;
+}
+.rm-case-io {
+  color: var(--muted-ink);
+}
+
+/* interviewer */
+.rm-state {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted-ink);
+}
+.rm-state-speaking {
+  background: var(--signal);
+}
+.rm-state-thinking {
+  background: #e9b872;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rm-state-speaking,
+  .rm-state-thinking {
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+}
+.rm-msgs {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  overscroll-behavior: contain;
+}
+.rm-msgs .msg p {
+  margin: 0;
+}
+.rm-ask {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--ui-line);
+}
+.rm-ask input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-line-2);
+  border-radius: 4px;
+  background: var(--ui-panel);
+  color: var(--ink);
+  font: inherit;
+}
+.rm-ask input:focus-visible {
+  outline: 2px solid var(--secondary-blue);
+  outline-offset: -1px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .rm {
+    height: auto;
+  }
+  .rm-top {
+    flex-wrap: wrap;
+  }
+}

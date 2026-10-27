@@ -1,6 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import NumberFlow from "@number-flow/react";
+import { AnimatePresence, m } from "motion/react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { RefreshCWIcon } from "@/components/ui/refresh-cw";
 
 // A working crop of the interview room: edit the code and the interviewer's notes react.
 // Sample problem written for this page; real problems come from data/problems.
@@ -21,6 +25,15 @@ const HINTS = [
   { level: "Hint", text: "Guard the empty case before the loop, or start best at 0." },
 ];
 
+// Messages slide in from below and reflow the list (transform/opacity only).
+const msgMotion = {
+  layout: "position" as const,
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -6 },
+  transition: { duration: 0.32, ease: [0.16, 1, 0.3, 1] as const },
+};
+
 export function HeroRoom() {
   const [code, setCode] = useState(STARTER);
   const [hintsUsed, setHintsUsed] = useState(0);
@@ -33,6 +46,15 @@ export function HeroRoom() {
     [code],
   );
   const lines = code.split("\n").length;
+
+  // Toast once when the missing step turns done.
+  const wasHandled = useRef(emptyHandled);
+  useEffect(() => {
+    if (emptyHandled && !wasHandled.current) {
+      toast.success("Step done: Handle empty input", { description: "The interviewer updated its notes." });
+    }
+    wasHandled.current = emptyHandled;
+  }, [emptyHandled]);
 
   return (
     <div data-ui className="room" aria-label="Interview room demo">
@@ -79,24 +101,27 @@ export function HeroRoom() {
             Sliding window over the readings. Empty list returns 0.
           </p>
 
-          {emptyHandled ? (
-            <p className="msg msg-ai msg-ok" aria-live="polite">
-              <span className="msg-who">Interviewer · Info</span>
-              Good, the empty case is covered now. What does the slice on line 5 cost you?
-            </p>
-          ) : (
-            <p className="msg msg-ai msg-nudge" aria-live="polite">
-              <span className="msg-who">Interviewer · Nudge</span>
-              You mentioned handling an empty list. I don’t see that yet.
-            </p>
-          )}
-
-          {HINTS.slice(0, hintsUsed).map((h) => (
-            <p key={h.level} className="msg msg-ai">
-              <span className="msg-who">Interviewer · {h.level}</span>
-              {h.text}
-            </p>
-          ))}
+          <div className="room-msgs" aria-live="polite">
+            <AnimatePresence mode="popLayout" initial={false}>
+              {emptyHandled ? (
+                <m.p key="ok" className="msg msg-ai msg-ok" {...msgMotion}>
+                  <span className="msg-who">Interviewer · Info</span>
+                  Good, the empty case is covered now. What does the slice on line 5 cost you?
+                </m.p>
+              ) : (
+                <m.p key="nudge" className="msg msg-ai msg-nudge" {...msgMotion}>
+                  <span className="msg-who">Interviewer · Nudge</span>
+                  You mentioned handling an empty list. I don’t see that yet.
+                </m.p>
+              )}
+              {HINTS.slice(0, hintsUsed).map((h) => (
+                <m.p key={h.level} className="msg msg-ai" {...msgMotion}>
+                  <span className="msg-who">Interviewer · {h.level}</span>
+                  {h.text}
+                </m.p>
+              ))}
+            </AnimatePresence>
+          </div>
 
           <div className="room-notes" aria-label="Interviewer's notes">
             <div className="note">
@@ -122,9 +147,22 @@ export function HeroRoom() {
               onClick={() => setHintsUsed((n) => Math.min(n + 1, HINTS.length))}
               disabled={hintsUsed >= HINTS.length}
             >
-              Hint {hintsUsed > 0 ? `(${hintsUsed} used)` : ""}
+              Hint
+              {hintsUsed > 0 && (
+                <span className="btn-count">
+                  <NumberFlow value={hintsUsed} /> used
+                </span>
+              )}
             </button>
-            <button type="button" className="ui-btn" onClick={() => { setCode(STARTER); setHintsUsed(0); }}>
+            <button
+              type="button"
+              className="ui-btn"
+              onClick={() => {
+                setCode(STARTER);
+                setHintsUsed(0);
+              }}
+            >
+              <RefreshCWIcon size={14} aria-hidden />
               Reset
             </button>
           </div>

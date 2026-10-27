@@ -1,6 +1,26 @@
 "use client";
 
+import NumberFlow from "@number-flow/react";
+import { AnimatePresence, m } from "motion/react";
 import { useEffect, useRef, useState } from "react";
+
+// Stage fragments cross-fade with a short rise when the tab changes.
+const stageMotion = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -8 },
+  transition: { duration: 0.28, ease: [0.16, 1, 0.3, 1] as const },
+};
+
+// Rolls the overall score up from 0 each time the report stage opens.
+function ScoreReveal({ value }: { value: number }) {
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setShown(value));
+    return () => cancelAnimationFrame(id);
+  }, [value]);
+  return <NumberFlow value={shown} />;
+}
 
 const STEPS = [
   {
@@ -17,7 +37,7 @@ const STEPS = [
   },
 ];
 
-export function HowItWorks() {
+export function HowItWorks({ codeHtml }: { codeHtml: string }) {
   const [active, setActive] = useState(0);
   // Steps advance on their own until the visitor picks one.
   const [auto, setAuto] = useState(true);
@@ -93,8 +113,9 @@ export function HowItWorks() {
           className="hiw-frag"
           data-state={active}
         >
+          <AnimatePresence mode="wait" initial={false}>
           {active === 0 && (
-            <div className="hf-chat">
+            <m.div key="chat" className="hf-chat" {...stageMotion}>
               <p className="msg msg-ai">
                 <span className="msg-who">Interviewer</span>
                 Given hourly temperature readings and a tolerance k, find the longest run where the
@@ -113,21 +134,12 @@ export function HowItWorks() {
                 Then a sliding window, tracking min and max with two deques. Linear time.
               </p>
               <div className="hf-plan">Stated plan recorded · 1:12</div>
-            </div>
+            </m.div>
           )}
           {active === 1 && (
-            <div className="hf-code">
-              <pre>
-                <code>{`for right, t in enumerate(temps):
-    while lows and temps[lows[-1]] >= t:
-        lows.pop()
-    lows.append(right)
-    while highs and temps[highs[-1]] <= t:
-        highs.pop()
-    highs.append(right)
-    while temps[highs[0]] - temps[lows[0]] > k:
-        left += 1`}</code>
-              </pre>
+            <m.div key="code" className="hf-code" {...stageMotion}>
+              {/* Shiki HTML rendered on the server with the shared Crucible code theme */}
+              <div className="hf-shiki" translate="no" dangerouslySetInnerHTML={{ __html: codeHtml }} />
               <p className="msg msg-ai msg-nudge">
                 <span className="msg-who">Interviewer · Nudge</span>
                 Your loop moves left, but the deques may still hold indexes before it. Worth a second
@@ -137,12 +149,14 @@ export function HowItWorks() {
                 <span className="st st-miss">Run 2 · 3 of 4 visible tests</span>
                 <span>Paste noted · 0 chars</span>
               </div>
-            </div>
+            </m.div>
           )}
           {active === 2 && (
-            <div className="hf-report">
+            <m.div key="report" className="hf-report" {...stageMotion}>
               <div className="hf-overall">
-                <strong>78</strong>
+                <strong>
+                  <ScoreReveal value={78} />
+                </strong>
                 <span>Overall, medium problem, 31 min</span>
               </div>
               {[
@@ -168,8 +182,9 @@ export function HowItWorks() {
                 <span className="hf-head" />
               </div>
               <div className="hf-legend">Replay · 2 nudges · 1 hint · 4 runs</div>
-            </div>
+            </m.div>
           )}
+          </AnimatePresence>
         </div>
       </div>
     </div>

@@ -24,6 +24,25 @@ Check each new page or component against both before opening a PR. Run the guide
 | Layout | 12-column grid with one pair of margins (`--margin`, safe-area aware). Section gaps 96–140px. No half-empty rows: answer any one-sided block with content on the other side |
 | Motion | Masked headline on load, reveal-once on scroll, feedback on every control. Transform and opacity only, each with a `prefers-reduced-motion` fallback |
 
+## Library stack (from the visual-plugins research)
+
+| Need | Use | Notes |
+|---|---|---|
+| Motion | `motion` as `m` + `LazyMotion` (`components/motion/MotionProvider.tsx`) | `reducedMotion="user"`; messages and stage swaps only |
+| Route changes | React 19.3 `<ViewTransition>` in `app/layout.tsx` | 220 ms crossfade; none under reduced motion |
+| Live numbers | `@number-flow/react` | Scores, counters, timers |
+| Toasts | `sonner` via `components/ui/sonner.tsx` | Dark, top right below the bars |
+| Streaming text | `streamdown` | Interviewer replies and problem markdown |
+| Code editor | `@monaco-editor/react` + `lib/code-theme.ts` | No autocomplete; flagged lines get a red gutter marker |
+| Static code | `shiki` on the server (`lib/highlight.ts`) | Same palette as Monaco; cached at build |
+| Topology | `@xyflow/react` + `@dagrejs/dagre` + React Flow UI `base-node` | Still edges; flagged nodes and paths in red |
+| Live charts | `uplot` (`components/defense/LiveLoadChart.tsx`) | Canvas, no tweening, streams only while visible |
+| Report charts | `recharts` via shadcn `chart` | Flat fills, `accessibilityLayer` |
+| Panels and scrubber | shadcn `resizable`, `slider` | Scrubber markers are real buttons |
+| Icons | `lucide-react`, plus animated `refresh-cw` and `activity` from lucide-animated | Keep animated icons to a handful |
+
+Demo routes on mock data: `/coding/demo`, `/defense/demo`, `/report/demo`.
+
 ## Behaviour (Web Interface Guidelines, as applied here)
 
 - **Accessibility:** a skip link to `#main`; one `h1` with a heading hierarchy below it; `aria-live="polite"` on interviewer messages and run results; `<button>` for actions and `<Link>` for navigation; real tab semantics with arrow keys for stage switchers.

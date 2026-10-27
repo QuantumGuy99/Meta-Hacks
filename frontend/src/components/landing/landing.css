@@ -130,7 +130,7 @@
   display: block;
 }
 .hero-sub {
-  max-width: 44ch;
+  max-width: 60ch; /* the 5-column aside already sets the measure */
 }
 .hero-actions {
   margin-top: 28px;
@@ -310,7 +310,17 @@
 }
 .msg-ai {
   border-left: 3px solid var(--secondary-blue);
-  animation: msg-in 420ms var(--ease-out);
+}
+/* Motion animates hero messages; this wrapper keeps them stacked with the room's gap. */
+.room-msgs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.btn-count {
+  color: var(--muted-ink);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
 .msg-nudge {
   border-left-color: var(--danger);
@@ -483,31 +493,45 @@
   color: var(--ok);
   font-weight: 500;
 }
-.fr-chart {
-  position: relative;
+/* live uPlot chart + rolling NumberFlow metrics inside the Broke/Held finding */
+.fr-live {
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
   gap: 6px;
-  height: 72px;
-  padding: 8px 0 0;
-  border-bottom: 1px solid var(--ui-line);
 }
-.fr-chart .bar {
-  flex: 1;
-  background: var(--danger);
-  border-radius: 2px 2px 0 0;
-  transition: height 700ms var(--ease-out), background 300ms;
-}
-.fr-chart .bar-ok {
-  background: var(--ok);
-}
-.fr-chart em {
-  position: absolute;
-  top: 0;
-  right: 0;
-  font-style: normal;
+.fr-live-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
   color: var(--muted-ink);
+}
+.live-chart {
+  width: 100%;
+  min-width: 0;
+}
+.fr-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.fr-metrics dt {
+  font-size: 13px;
+  color: var(--muted-ink);
+}
+.fr-metrics dd {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.fr-metrics .is-bad {
+  color: #ff7b72;
+}
+.fr-metrics .is-ok {
+  color: var(--ok);
 }
 
 /* how it works: three stage buttons drive one fragment, all on one screen */
@@ -607,7 +631,6 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  animation: msg-in 420ms var(--ease-out);
 }
 .hf-plan,
 .hf-legend {

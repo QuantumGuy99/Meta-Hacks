@@ -1,6 +1,10 @@
 "use client";
 
+import NumberFlow from "@number-flow/react";
 import { useState } from "react";
+import { toast } from "sonner";
+import { LiveLoadChart } from "@/components/defense/LiveLoadChart";
+import { ActivityIcon } from "@/components/ui/activity";
 
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const count = new Intl.NumberFormat("en-US");
@@ -55,16 +59,32 @@ export function DefenseRows() {
               <b>{usd.format(1_240)} disappeared</b>.
             </p>
           )}
-          <div className="fr-chart" aria-hidden>
-            {[42, 58, 61, 66, 64, 71, 69, 74, 72, 77, 75, 79].map((v, i) => (
-              <span
-                key={i}
-                style={{ height: `${fixed ? 30 + (i % 3) * 2 : v}%` }}
-                className={fixed ? "bar bar-ok" : "bar"}
-              />
-            ))}
-            <em>{fixed ? "p95 38 ms" : "p95 412 ms"}</em>
+          <div className="fr-live">
+            <span className="fr-live-label">
+              <ActivityIcon size={14} aria-hidden /> Live p95 latency, 200 concurrent
+            </span>
+            <LiveLoadChart mode={fixed ? "held" : "broke"} height={96} />
           </div>
+          <dl className="fr-metrics">
+            <div>
+              <dt>Lost transfers</dt>
+              <dd className={fixed ? "is-ok" : "is-bad"}>
+                <NumberFlow value={fixed ? 0 : 37} />
+              </dd>
+            </div>
+            <div>
+              <dt>Missing</dt>
+              <dd className={fixed ? "is-ok" : "is-bad"}>
+                <NumberFlow value={fixed ? 0 : 1240} format={{ style: "currency", currency: "USD", maximumFractionDigits: 0 }} />
+              </dd>
+            </div>
+            <div>
+              <dt>p95</dt>
+              <dd>
+                <NumberFlow value={fixed ? 38 : 412} suffix=" ms" />
+              </dd>
+            </div>
+          </dl>
           <div className="fr-foot">
             {fixed ? (
               <span className="gate">Merge gate: pass</span>
@@ -72,7 +92,15 @@ export function DefenseRows() {
               <span>Invariant broken: sum of balances</span>
             )}
             <span className="fr-actions">
-              <button type="button" className="ui-btn ui-btn-primary" onClick={() => setFixed((f) => !f)}>
+              <button
+                type="button"
+                className="ui-btn ui-btn-primary"
+                onClick={() => {
+                  const next = !fixed;
+                  setFixed(next);
+                  if (next) toast.success("Attack re-run: the fix held", { description: "500 of 500 transfers applied." });
+                }}
+              >
                 {fixed ? "Show the Failing Run" : "Apply Fix & Re-run"}
               </button>
             </span>

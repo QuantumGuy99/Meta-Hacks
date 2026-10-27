@@ -1,0 +1,336 @@
+/* Project Defense demo (FE-6 shape). Reuses .rm-top, .ui-btn, .sev and .fr-metrics. */
+
+.df {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+}
+.df-stages {
+  display: flex;
+  gap: 4px;
+  margin-right: auto;
+}
+.df-stages button {
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted-ink);
+  font: inherit;
+  cursor: pointer;
+  transition: background 160ms, color 160ms;
+}
+.df-stages button:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+.df-stages button[aria-current] {
+  background: var(--secondary-blue);
+  color: var(--ink);
+}
+.df-stages button:focus-visible {
+  outline: 2px solid var(--secondary-blue);
+  outline-offset: 2px;
+}
+.df-stage {
+  flex: 1;
+  padding: 24px var(--margin) 40px;
+}
+.df-muted {
+  color: var(--muted-ink);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.df h2 {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.df h3 {
+  font-size: 16px;
+  font-weight: 500;
+}
+.df-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* audit */
+.df-audit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  height: calc(100svh - 140px);
+  min-height: 460px;
+}
+.df-topo {
+  border: 1px solid var(--ui-line);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--ui-bg);
+}
+.topo {
+  width: 100%;
+  height: 100%;
+  --xy-background-color: #121214;
+  --xy-node-background-color: #17171a;
+  --xy-controls-button-background-color: #17171a;
+  --xy-controls-button-background-color-hover: #222226;
+  --xy-controls-button-color: #f2f2f0;
+  --xy-controls-button-border-color: #2a2a2f;
+  --xy-attribution-background-color: transparent;
+}
+.topo .react-flow__controls {
+  box-shadow: none;
+  border: 1px solid #2a2a2f;
+}
+.topo-node {
+  width: 230px;
+  background: var(--surface);
+  border-color: var(--ui-line-2);
+  color: var(--ink);
+}
+.topo-node.is-flagged {
+  border-color: var(--danger);
+  background: #1d1314;
+}
+.topo-title {
+  font-weight: 500;
+  font-size: 14px;
+}
+.topo-kind {
+  font-size: 12.5px;
+  color: var(--muted-ink);
+}
+.topo-body {
+  padding-top: 4px;
+}
+.topo-file {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--muted-ink);
+}
+.topo-flag {
+  font-size: 13px;
+  color: #ff7b72;
+}
+.df-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--ui-line);
+  border-radius: 6px;
+  background: var(--ui-bg);
+}
+.df-finding {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  padding: 12px;
+  border: 1px solid var(--ui-line-2);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.df-finding.is-on {
+  border-color: var(--danger);
+}
+.df-finding strong {
+  font-weight: 500;
+}
+.df-detail p {
+  margin-top: 6px;
+  line-height: 1.5;
+}
+.df-side .ui-btn-primary {
+  margin-top: auto;
+}
+
+/* chaos */
+.df-chaos {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 1100px;
+}
+.df-banner {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 6px;
+  font-size: 16px;
+}
+.df-banner strong {
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.df-banner.is-broke {
+  background: #1d1314;
+  border: 1px solid var(--danger);
+}
+.df-banner.is-broke strong {
+  color: #ff7b72;
+}
+.df-banner.is-held {
+  background: #111a15;
+  border: 1px solid var(--ok);
+}
+.df-banner.is-held strong {
+  color: var(--ok);
+}
+.df-chart {
+  padding: 14px;
+  border: 1px solid var(--ui-line);
+  border-radius: 6px;
+  background: var(--ui-bg);
+}
+.df-legend {
+  display: flex;
+  gap: 18px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--muted-ink);
+}
+.df-legend span::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+  background: currentColor;
+}
+.lg-bad {
+  color: #ff7b72;
+}
+.lg-ok {
+  color: var(--ok);
+}
+.lg-rps {
+  color: #6cb6e3;
+}
+.df-metrics dd {
+  font-size: 28px;
+}
+
+/* grill */
+.df-grill {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 760px;
+}
+.df-q {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  border-left: 3px solid var(--secondary-blue);
+  background: var(--surface);
+  border-radius: 0 6px 6px 0;
+}
+.df-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.df-answer textarea {
+  padding: 10px 12px;
+  border: 1px solid var(--ui-line-2);
+  border-radius: 4px;
+  background: var(--ui-panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+  resize: vertical;
+}
+.df-answer textarea:focus-visible {
+  outline: 2px solid var(--secondary-blue);
+  outline-offset: -1px;
+}
+.df-points,
+.df-reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.df-points li,
+.df-reasons li {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+}
+.df-points span,
+.df-reasons span {
+  min-width: 64px;
+  font-weight: 500;
+}
+.is-hit > span {
+  color: var(--ok);
+}
+.is-miss > span {
+  color: #ff7b72;
+}
+
+/* verdict */
+.df-verdict {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 20px;
+  max-width: 760px;
+}
+.df-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 20px 24px;
+  border-radius: 6px;
+  min-width: 280px;
+}
+.df-gate strong {
+  font-size: 56px;
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.df-gate.is-pass {
+  background: #111a15;
+  border: 1px solid var(--ok);
+}
+.df-gate.is-pass strong {
+  color: var(--ok);
+}
+.df-gate.is-fail {
+  background: #1d1314;
+  border: 1px solid var(--danger);
+}
+.df-gate.is-fail strong {
+  color: #ff7b72;
+}
+
+@media (max-width: 900px) {
+  .df-audit {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .df-topo {
+    height: 420px;
+  }
+  .rm-top {
+    flex-wrap: wrap;
+  }
+}

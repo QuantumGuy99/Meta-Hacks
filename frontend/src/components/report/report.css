@@ -1,0 +1,300 @@
+/* Report + replay demo (FE-7 shape). Reuses .rm-top, .fr-metrics, .df-muted and .ui-btn. */
+
+.rp {
+  min-height: 100svh;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 15px;
+}
+.rp-crumb {
+  color: var(--muted-ink);
+  font-size: 13px;
+}
+.rp-body {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  padding: 28px var(--margin) 64px;
+}
+.rp h1 {
+  font-size: var(--step-head);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.rp h2 {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+.rp-summary {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+.rp-overall {
+  display: flex;
+  flex-direction: column;
+}
+.rp-overall strong {
+  font-size: 112px;
+  font-weight: 500;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+  color: var(--signal);
+  font-variant-numeric: tabular-nums;
+}
+.rp-text p {
+  margin-top: 16px;
+  max-width: 60ch;
+  line-height: 1.55;
+}
+.rp-lists {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 24px;
+}
+.rp-lists ul {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--ink);
+}
+.rp-lists li::before {
+  content: "–";
+  margin-right: 8px;
+  color: var(--muted-ink);
+}
+.rp-chart {
+  padding: 16px;
+  border: 1px solid var(--ui-line);
+  border-radius: 6px;
+  background: var(--ui-bg);
+}
+.rp-chart-box {
+  height: 210px;
+  width: 100%;
+  margin-top: 8px;
+}
+.rp-metrics {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  padding: 16px 0;
+  border-top: 1px solid var(--ui-line);
+  border-bottom: 1px solid var(--ui-line);
+}
+
+/* replay */
+.rp-replay {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.rp-replay-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.rp-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.rp-speeds {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 4px;
+  background: var(--surface);
+}
+.rp-speeds button {
+  min-width: 40px;
+  min-height: 30px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted-ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.rp-speeds button[aria-pressed="true"] {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.rp-speeds button:focus-visible,
+.rp-marker:focus-visible,
+.rp-moment:focus-visible {
+  outline: 2px solid var(--secondary-blue);
+  outline-offset: 2px;
+}
+.rp-time {
+  min-width: 96px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-ink);
+}
+.rp-scrub {
+  position: relative;
+  padding: 8px 0 22px;
+}
+.rp-scrub [data-slot="slider-track"] {
+  background: var(--surface-2);
+  height: 6px;
+}
+.rp-scrub [data-slot="slider-range"] {
+  background: var(--signal);
+}
+.rp-scrub [data-slot="slider-thumb"] {
+  width: 16px;
+  height: 16px;
+  background: var(--ink);
+  border-color: var(--signal);
+}
+.rp-markers {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 14px;
+}
+.rp-marker {
+  position: absolute;
+  top: 0;
+  width: 10px;
+  height: 14px;
+  margin-left: -5px;
+  border: 0;
+  border-radius: 2px;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 160ms var(--ease-out);
+}
+.rp-marker:hover {
+  transform: scaleY(1.3);
+}
+.mk-nudge,
+.rp-marker.mk-nudge {
+  background: var(--danger);
+}
+.mk-run,
+.rp-marker.mk-run {
+  background: #6cb6e3;
+}
+.mk-hint,
+.rp-marker.mk-hint {
+  background: #e9b872;
+}
+.mk-good,
+.rp-marker.mk-good {
+  background: var(--ok);
+}
+.mk-milestone,
+.rp-marker.mk-milestone {
+  background: var(--ink);
+}
+.rp-panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 16px;
+}
+.rp-code {
+  border: 1px solid var(--ui-line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.rp-transcript {
+  position: relative; /* offsetTop of lines is measured from the list */
+  max-height: 300px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--ui-line);
+  border-radius: 6px;
+  background: var(--ui-bg);
+  overscroll-behavior: contain;
+}
+.rp-transcript li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  transition: background 200ms, color 200ms;
+}
+.rp-transcript li.is-now {
+  background: var(--surface-2);
+}
+.rp-transcript li.is-future {
+  color: var(--muted-ink);
+}
+.rp-moments {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+.rp-moment {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px 12px 16px;
+  border: 0;
+  border-left: 3px solid;
+  border-radius: 0 6px 6px 0;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 160ms;
+}
+.rp-moment:hover {
+  background: var(--surface-2);
+}
+.rp-moment strong {
+  font-weight: 500;
+}
+.rp-moment.mk-nudge {
+  border-color: var(--danger);
+  background: var(--surface);
+}
+.rp-moment.mk-run {
+  border-color: #6cb6e3;
+  background: var(--surface);
+}
+.rp-moment.mk-hint {
+  border-color: #e9b872;
+  background: var(--surface);
+}
+.rp-moment.mk-good {
+  border-color: var(--ok);
+  background: var(--surface);
+}
+.rp-moment.mk-milestone {
+  border-color: var(--ink);
+  background: var(--surface);
+}
+.rp-moment:hover {
+  background: var(--surface-2);
+}
+
+@media (max-width: 1100px) {
+  .rp-summary {
+    grid-template-columns: 1fr;
+  }
+  .rp-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .rp-panes {
+    grid-template-columns: 1fr;
+  }
+}

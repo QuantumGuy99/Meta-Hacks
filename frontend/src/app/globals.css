@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+/* Streamdown ships Tailwind classes; let Tailwind see them. */
+@source "../../node_modules/streamdown/dist/*.js";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -205,4 +207,23 @@
   top: 16px;
   outline: 2px solid var(--ink);
   outline-offset: 2px;
+}
+
+/* Route crossfade: short, opacity only; instant swap for reduced motion. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 220ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation: none !important;
+  }
+}
+
+/* Sonner toasts use the app type and tabular numbers. */
+.cn-toast {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
 }

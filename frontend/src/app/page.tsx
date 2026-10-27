@@ -4,7 +4,18 @@ import { HeroRoom } from "@/components/landing/HeroRoom";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { RevealObserver } from "@/components/landing/Motion";
 import { StartDialog } from "@/components/landing/StartDialog";
+import { highlightPython } from "@/lib/highlight";
 import "@/components/landing/landing.css";
+
+const TOUR_CODE = `for right, t in enumerate(temps):
+    while lows and temps[lows[-1]] >= t:
+        lows.pop()
+    lows.append(right)
+    while highs and temps[highs[-1]] <= t:
+        highs.pop()
+    highs.append(right)
+    while temps[highs[0]] - temps[lows[0]] > k:
+        left += 1`;
 
 const REPO = "https://github.com/QuantumGuy99/Meta-Hacks";
 
@@ -37,7 +48,8 @@ const MODELS: { group: string; rows: { name: string; use: string; tone: string }
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const tourCodeHtml = await highlightPython(TOUR_CODE);
   return (
     <div className="lp">
       <RevealObserver />
@@ -103,7 +115,7 @@ export default function Home() {
           <h2 id="how-title" data-reveal>
             One Coding Interview
           </h2>
-          <HowItWorks />
+          <HowItWorks codeHtml={tourCodeHtml} />
         </section>
 
         <section id="models" className="sec sec-models" aria-labelledby="models-title">
