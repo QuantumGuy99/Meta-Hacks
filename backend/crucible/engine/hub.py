@@ -162,6 +162,7 @@ class SessionRuntime:
         self._wall = wall
         self._anchor: float | None = None  # monotonic time of session.started_at
         self._connections: dict[int, Connection] = {}
+        self.sender: Connection | None = None  # the tab whose message the mode is handling right now
         self._phase_lock = asyncio.Lock()
         self._flusher: asyncio.Task[None] | None = None
         if session.started_at is not None:
@@ -348,7 +349,13 @@ class SessionRuntime:
             case SessionEnd():
                 await self.end("ended by the candidate")
             case _:
-                if not await self.controller.on_client_message(self, msg):
+                # The mode's handler can answer the tab that asked (`rt.sender`) instead of every tab.
+                self.sender = connection
+                try:
+                    handled = await self.controller.on_client_message(self, msg)
+                finally:
+                    self.sender = None
+                if not handled:
                     await self.error(connection, "unsupported", f"{msg.type} isn't available in this session")
 
     async def _editor_event(self, event: EditorEvent) -> None:

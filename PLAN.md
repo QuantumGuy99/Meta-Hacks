@@ -1136,14 +1136,28 @@ Owner: **SG**. Data: **ST**.
   (`ProblemBank.load(root, strict=...)`). Folders starting with `_` are drafts, and the slug must match its
   folder. The loader and `pick(difficulty, topic)` landed with ENG-4, which needs a rubric to attach.
 - `random(difficulty, topic)` excludes problems used in the last 5 sessions from the same IP (best effort).
-- `CodingMode(bank)` is coding's mode factory: an explicit `problem_slug` must exist, otherwise a problem is
-  picked at the difficulty and topic, and the problem's `time_limit_min` sets the session limit.
+  Not built yet: `pick()` is uniform among matches.
+- `CodingMode(bank, runner=...)` is coding's mode factory: an explicit `problem_slug` must exist, otherwise a
+  problem is picked at the difficulty and topic, and the problem's `time_limit_min` sets the session limit.
+  `runner` may be a factory (`main.py` passes `lambda: make_runner(settings)`), so a misconfigured runner
+  surfaces as an error on Run, not at startup.
+- **API** (`coding/api.py`): `GET /api/problems?difficulty=&topic=` → `ProblemSummary[]` (sorted by slug) and
+  `GET /api/problems/{slug}` → `ProblemPublic` (404 `problem_not_found`). `main.py` shares one `ProblemBank`
+  between the hub and this router (`app.state.problems`).
 
 ### 10.3 Tests (`tests.py`)
 - **Run** = visible tests; **Submit** = visible + hidden. Calls `Runner.run_tests` (§12) with code,
-  function signature, cases and limits (2 s per test, 10 s total).
+  function signature, cases and limits (2 s per test, 10 s total), with a 20 s outer deadline.
 - Hidden test inputs/outputs never leave the backend: the browser gets pass/fail + error class only.
 - Results → timeline `run` → `run.result` → analyzer trigger.
+- Built in COD-3 as `RunService`: one run at a time per session (a second press gets a retryable `busy`). If
+  the code sent with Run differs from the tracked code, it's recorded as a snapshot first, so the replay shows
+  exactly what ran. The full result goes on the timeline and the browser gets `redact_run()` (§9.2). A runner
+  failure leaves a `system` note and sends `runner_unavailable` (retryable) to the tab that pressed Run, via
+  `rt.sender` (the connection whose message the mode is handling). Run works from `clarify` on; a submit that
+  passes every test during `coding` moves to `wrap_up` (§10.1).
+- The Modal runner's `run_tests` is RUN-2. Until then, coding sessions need `RUNNER=local` +
+  `ALLOW_LOCAL_RUNNER=1` (dev).
 
 ### 10.4 Integrity (`integrity.py`)
 - Editor `paste` with ≥ 40 chars or ≥ 2 lines → `IntegrityFlag(kind="paste")`.

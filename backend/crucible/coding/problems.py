@@ -46,17 +46,24 @@ class ProblemBank:
     def get(self, slug: str | None) -> ProblemSpec | None:
         return self._by_slug.get(slug) if slug else None
 
+    def matching(self, difficulty: Difficulty | None, topic: str | None) -> list[ProblemSpec]:
+        """Problems at `difficulty` whose topics mention `topic` (case-insensitive), sorted by slug."""
+        wanted = topic.strip().lower() if topic else None
+        return sorted(
+            (
+                p
+                for p in self._by_slug.values()
+                if (difficulty is None or p.difficulty == difficulty)
+                and (wanted is None or any(wanted in t.lower() for t in p.topics))
+            ),
+            key=lambda p: p.slug,
+        )
+
     def pick(
         self, difficulty: Difficulty | None, topic: str | None, rng: random.Random | None = None
     ) -> ProblemSpec | None:
         """A random problem at `difficulty` whose topics mention `topic`; None if nothing matches."""
-        wanted = topic.strip().lower() if topic else None
-        matches = [
-            p
-            for p in self._by_slug.values()
-            if (difficulty is None or p.difficulty == difficulty)
-            and (wanted is None or any(wanted in t.lower() for t in p.topics))
-        ]
+        matches = self.matching(difficulty, topic)
         return (rng or random).choice(matches) if matches else None
 
     def __len__(self) -> int:
