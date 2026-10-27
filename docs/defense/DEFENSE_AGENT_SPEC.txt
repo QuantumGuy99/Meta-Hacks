@@ -35,7 +35,7 @@ COORDINATE (do not edit without the owner):
                                  `backend/tests/fixtures/` to unblock the Runner.
 - `frontend/` (except lib/defense.ts) LG.
 
-LICENSE NOTE: do NOT add MIT License headers or LICENSE references in code or docs.
+LICENSE NOTE: no license headers in source files. The repo's LICENSE file and README section stay as they are.
 
 2. DEFENSE FLOW (PLAN §3.2, §11.2)
 ----------------------------------
@@ -107,8 +107,9 @@ Spark returns GrillEval.points_hit / points_missed (indexes), needs_follow_up, f
 
 ```python
 n = len(spec.expected_points)
-root_cause_hit = 0 in eval.points_hit
-score = round(10 * len(set(eval.points_hit)) / n)
+hits = {i for i in eval.points_hit if 0 <= i < n}   # invented indexes are ignored
+root_cause_hit = 0 in hits
+score = round(10 * len(hits) / n)
 if sam_node_id is not None and sam_node_id == finding.node_id:
     score = min(10, score + 1)          # P1 bonus for locating the flaw on the diagram
 ```
@@ -132,7 +133,8 @@ Attack scripts — template, not free-form:
   BASE; CONCURRENCY ≤ 200, DURATION_S ≤ 30. One regeneration on rejection, then verdict "error".
 - Output: one JSON line every 500 ms
   {"t_ms","in_flight","rps","p50_ms","p95_ms","p99_ms","errors","violations"}, then
-  {"done": true, "invariant_ok": bool, "detail": str}.
+  {"done": true, "invariant_ok": bool, "violations": int, "detail": str, ...}. check_invariant returns
+  (ok, violations, detail).
 
 Defense execution:
 - One shared project image built at startup: debian_slim(python_version="3.12").pip_install("fastapi",

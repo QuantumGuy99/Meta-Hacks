@@ -123,6 +123,17 @@ The project needs Node ≥ 22 (Next 16, and shadcn's `cn` package). Your Node 24
 
 ## Work packages
 
+### Defense data changes from PR #4 (contracts in #5)
+- **`defense.audit` carries `AuditPublic`:** findings have no `explanation`, grill spec or fix rubric. Show
+  title, category, severity, file and lines. The full `Finding` arrives with `defense.grill.eval`
+  (`{turn, finding}`) once that finding's grill is graded; fill in the explanation then.
+- **`ChaosMetric` adds `in_flight` and `p99_ms`** next to rps, p50, p95, errors and violations. `violations`
+  is the live count to chart (dollars missing, seats double-booked); the verdict banner text is
+  `ChaosRun.summary`.
+- **P1, only if you agree, after IC3 (Mon Nov 2):** a "Circle it" pen on the topology diagram for DEF-9.
+  It sends `defense.circle` with a PNG of the canvas and each node's box in canvas pixels, and pulses the
+  node named in `defense.sam.highlight`. Skip it if FE-8 or the demo path needs the time.
+
 The day-by-day detail is in your `CRUCIBLE_FRONTEND_PLAN.md`. The summary below is what the others plan
 around.
 
@@ -135,7 +146,7 @@ around.
 | 4 Fri | **FE-4** voice + TTS, **FE-6** grill + fix/verify | **IC2:** live chaos charts and a text grill on the real backend |
 | 5 Sat | **FE-7** report + replay; Vercel deploy with Shreyas | Replay plays a recorded session |
 | 6 Sun | **FE-8** states, permissions, shortcuts, motion; integration fixes | **IC3:** both modes end-to-end on the deployed build |
-| 7 Mon | Demo-path polish (PLAN §20.1) | Demo script passes twice |
+| 7 Mon | Demo-path polish (PLAN §20.1); the DEF-9 pen only if agreed | Demo script passes twice |
 | 8 Tue | **Feature freeze 12 PM.** Bug fixes; record takes | Takes recorded |
 | 9 Wed | Video; **submit by 6 PM** | Submitted |
 

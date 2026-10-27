@@ -31,7 +31,8 @@ PR, §22 rule 15). If PLAN and the code disagree, or a task is ambiguous, stop a
    explicitly; a real failure never silently returns recorded data.
 7. **Untrusted code runs only in the Runner** (Modal sandbox; LocalRunner is dev-only).
 8. **Secrets stay in `.env`** (read only by `config.py`); never in git, logs, chat or the browser.
-9. **No License Headers:** do not add MIT license references anywhere.
+9. **No license headers in source files.** The repo's `LICENSE` file and the README's License section
+   stay as they are; just don't add license comments to code.
 
 ## Model roles (Claude Code subagents: pass `model` to the Agent tool)
 - **Architect (Opus 5.5, the main session):** owns blueprints, contracts, guardrails and error-recovery
