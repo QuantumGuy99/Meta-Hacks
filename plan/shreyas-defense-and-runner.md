@@ -151,10 +151,9 @@ Your part: review `defense.py` hard, since you'll live with it. Build it from PL
 fields on `GrillTurn`, `SamHighlight`, `DefenseExtra.card_url`) plus the `defense.circle` /
 `defense.sam.highlight` messages.
 
-**Settle this in S-1.** The chaos verdict says "`p95_ms > plan threshold`" (PLAN §11.4), but `ChaosPlan` has no
-threshold field. Either add `p95_threshold_ms: int | None` to `ChaosPlan` (it's an LLM output, so the field
-is required and nullable), or drop that clause and have `check_invariant` measure latency itself (for
-`report-service`, time `/health` calls during the load). Then update PLAN §7.4 and §11.4 to match.
+**Settled (pending Srinithin's OK in S-1):** `ChaosPlan.p95_threshold_ms: int | None` (required, nullable,
+since it's LLM output). The verdict is `broke` when it's set and p95 exceeds it. `FindingPublic.category` and
+`severity` reuse the `FindingCategory` and `Severity` literals from `Finding`.
 
 ### RUN-1 — Runner protocol, harness, LocalRunner
 **P0 · Tue · needs S-1** · Read: PLAN §12

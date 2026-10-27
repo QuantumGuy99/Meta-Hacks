@@ -601,6 +601,10 @@ class TopologyEdge(Strict):
     target: str
     label: str | None
 
+FindingCategory = Literal["race_condition", "blocking_io", "complexity", "resource_leak",
+                          "error_handling", "security"]
+Severity = Literal["low", "medium", "high", "critical"]
+
 class ChaosPlan(Strict):
     endpoint: str                # "/transfer"
     method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
@@ -608,6 +612,7 @@ class ChaosPlan(Strict):
     concurrency: int             # ≤ 200
     duration_s: int              # ≤ 30
     invariant: str               # "sum of all balances stays 10000"
+    p95_threshold_ms: int | None # latency findings: p95 above this = broke; None = no latency check
 
 class GrillSpec(Strict):
     question: str
@@ -618,8 +623,8 @@ class GrillSpec(Strict):
 class Finding(Strict):
     id: str
     title: str                   # neutral: names the area, not the cause ("Balance transfers under load")
-    category: Literal["race_condition", "blocking_io", "complexity", "resource_leak", "error_handling", "security"]
-    severity: Literal["low", "medium", "high", "critical"]
+    category: FindingCategory
+    severity: Severity
     file: str
     line_start: int
     line_end: int
@@ -632,8 +637,8 @@ class Finding(Strict):
 class FindingPublic(Strict):     # what the browser gets until the finding's grill is graded
     id: str
     title: str
-    category: str
-    severity: str
+    category: FindingCategory    # same closed sets as Finding, so the TS types match exactly
+    severity: Severity
     file: str
     line_start: int
     line_end: int
@@ -1155,7 +1160,7 @@ template.
 **Execution:** `Runner.start_project(project_files, entrypoint, port)` → readiness probe on the port →
 `exec("python", "/work/attack.py")`, streaming stdout. Each metric line → `ChaosMetric` → timeline +
 `defense.chaos.metric`. The final line sets the verdict: `broke` if `invariant_ok == false`, errors > 5% or
-`p95_ms > plan threshold`; `held` otherwise; `error` on a crash or timeout (60 s hard cap).
+`p95_ms > plan.p95_threshold_ms` (when set); `held` otherwise; `error` on a crash or timeout (60 s hard cap).
 
 **P1 agent loop:** if the baseline `held` but the finding claims it should break, give the model the metrics
 and detail and ask for a revised attack (max 2 refinements). Glimmer's tool calling can drive this loop
