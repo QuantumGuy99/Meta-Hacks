@@ -16,14 +16,15 @@ Crucible has two modes that share one live AI interviewer:
 > - **The foundation:** shared contracts with generated TypeScript types; the Meta model wrapper, checked live
 >   against the API; the session hub and timeline over WebSocket; the first analyzer → nudge path; SQLite
 >   storage; dev commands; CI.
-> - **Project Defense, end to end over the WebSocket:** audit → attack under load in a sandbox → grill →
->   fix → verify with the same attack → merge gate. Tested on real Modal sandboxes.
+> - **Project Defense backend, first full pass:** audit → attack under load in a sandbox → grill → fix →
+>   verify with the same attack → merge gate, over the WebSocket with the test app. The attack runs on real
+>   Modal sandboxes. Review fixes (#22) and the real sample apps are next, so it isn't demo-ready yet.
 > - **For coding interviews:** the test harness that runs candidate code.
 > - **For the frontend:** MOCK replay of a recorded Defense session.
 > - **Deploy:** a Docker image that CI builds and boots.
 >
 > The landing page and the Defense design demo are in `frontend/`. The interview room and the live Defense
-> screens come next (Wed–Fri). Deployment is set for Sat Nov 1.
+> screens come next (Wed–Fri). Deployment is set for Sat Oct 31.
 >
 > The full build plan for humans and coding agents is **[PLAN.md](PLAN.md)**, and each teammate's part of it is
 > in **[plan/](plan/README.md)**.

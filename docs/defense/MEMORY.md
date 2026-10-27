@@ -25,9 +25,9 @@ session. Update it before you finish any session that changed code, decisions or
 |---|---|---|---|
 | S-0, store | Scaffold, Makefile, CI, SQLite store | merged (#10) | main.py import guard can go once nothing needs it |
 | RUN-1 | Harness + LocalRunner.run_tests | merged (#15) | Checked on a real problem; re-run on Sharvil's gold problems |
-| RUN-3 | ModalRunner for projects | merged (#15) | Real Modal: race reproduces, egress blocked (V7 done) |
+| RUN-3 | ModalRunner for projects | merged (#15), gaps open | Real Modal: race reproduces, egress blocked (V7). Open (#22 item 8): image built lazily, sample requirements.txt not installed, no asyncio timeouts on Modal calls |
 | RUN-2 | Warm Modal sandbox for coding tests | Thu | ModalRunner.run_tests raises a clear RUN-2 error until then |
-| DEF-1..6 | Defense pipeline + DefenseController | merged (#15) | 7 WebSocket e2e tests; resume works |
+| DEF-1..6 | Defense pipeline + DefenseController | merged (#15), review fixes open | 7 WebSocket e2e tests; resume works. Blockers 1-4 of #22 fixed in #29; items 5, 7, 9, 10 open |
 | OPS-2 | MOCK replay + recorder | merged (#15) | `defense-bank-transfer.jsonl` |
 | OPS-1 | Deploy | prep merged (#14); deploy Sat | Railway signup was down; Render/Fly take the same Dockerfile; free credit only |
 | DEF-11 | Muse fix assistant (full coding assistant, logged) | spec in #17 | Build after IC2 |
