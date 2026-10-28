@@ -106,6 +106,8 @@ These are where UI choices touch the spec. Breaking one breaks a design rule or 
   messages; Hold to Ask sends `ask` frames. The interviewer's replies with `speak: true` are read aloud by
   `lib/tts.ts` (SG builds it, you review). While it speaks, the room calls the audio capture's `setPaused(true)`,
   so the mic sends silence instead of transcribing the interviewer; holding Ask cancels the speech (barge-in).
+  The header has the mute toggle and a voice picker (remembered per browser), and a one-line hint suggests
+  Edge or a macOS Premium voice when only Google's or older voices are installed.
 - **Monaco:** Python, `quickSuggestions: false`, `wordBasedSuggestions: "off"`, minimap off (PLAN §14.2).
 - **`/coding` setup** pre-fills from the `?topic=&feedback=` your landing start dialog sends, and adds
   difficulty, voice (speech to text) and read replies aloud (`speak_replies`), both on by default →

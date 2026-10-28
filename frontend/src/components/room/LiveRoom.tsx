@@ -31,7 +31,7 @@ import { TestPanel } from "./TestPanel";
 import { UnderTheHood } from "./UnderTheHood";
 import { useMic } from "./useMic";
 import { useVoice } from "./useVoice";
-import { VoiceToggle } from "./VoiceToggle";
+import { VoiceControls, VoiceHint } from "./VoiceControls";
 
 // The live coding room (/coding/[id], PLAN §14.2): everything on screen comes from the session socket.
 // Edits go out through the capture lib; Run/Submit, Ask, Hint and the phase buttons are ClientMessages.
@@ -246,7 +246,7 @@ export function LiveRoom({ id }: { id: string }) {
             </NumberFlowGroup>
           </span>
         )}
-        <VoiceToggle voice={voice} />
+        <VoiceControls voice={voice} />
         <button type="button" className="ui-btn" aria-pressed={showNotes} onClick={() => setShowNotes((v) => !v)}>
           Notes
         </button>
@@ -282,6 +282,7 @@ export function LiveRoom({ id }: { id: string }) {
           </button>
         )}
       </header>
+      <VoiceHint voice={voice} />
 
       <ResizablePanelGroup orientation="horizontal" className="rm-body">
         <ResizablePanel defaultSize="26%" minSize="18%">

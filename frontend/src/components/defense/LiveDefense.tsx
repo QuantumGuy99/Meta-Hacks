@@ -11,7 +11,7 @@ import { MicControls } from "@/components/room/MicControls";
 import { UnderTheHood } from "@/components/room/UnderTheHood";
 import { useMic } from "@/components/room/useMic";
 import { useVoice } from "@/components/room/useVoice";
-import { VoiceToggle } from "@/components/room/VoiceToggle";
+import { VoiceControls, VoiceHint } from "@/components/room/VoiceControls";
 import { api, errorText } from "@/lib/api";
 import { attachEditorCapture, type EditorCapture } from "@/lib/capture/editor";
 import { clock, levelLabel, severityLabel } from "@/lib/fixtures";
@@ -276,7 +276,7 @@ export function LiveDefense({ id }: { id: string }) {
             {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}
           </span>
         )}
-        <VoiceToggle voice={voice} />
+        <VoiceControls voice={voice} />
         {finished ? (
           <Link href={`/report/${id}`} className="ui-btn ui-btn-primary">
             See Report
@@ -287,6 +287,7 @@ export function LiveDefense({ id }: { id: string }) {
           </button>
         )}
       </header>
+      <VoiceHint voice={voice} />
 
       <div className="live-df-body">
         <AnimatePresence mode="wait" initial={false}>
