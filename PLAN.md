@@ -86,7 +86,7 @@ coding agents daily. Both modes solve problems we have firsthand.
 |---|---|---|---|
 | **Room** | Monaco editor (Python), edit capture, interviewer panel, text chat, timer, phase stepper | Voice in (Muse Voice Transcribe), voice out (browser TTS), "interviewer's notes" panel | Multi-language (JS) |
 | **Coding mode** | 12 validated problems, difficulty picker, run/submit tests, analyzer + policy (active and passive), hint ladder, paste/tab notes, report | 30 problems, plan-vs-code check, coded-before-plan check, wrap-up complexity question, problem illustrations | 40+ problems, SAM 3.1 paper sketch, proctor mode |
-| **Defense mode** | 3 sample apps, Wonder audit + topology diagram, chaos run (breaks before the fix, holds after), grill (text answers OK), fix in editor, verify, verdict | Voice grill, "circle the flaw" with SAM 3.1, attack refine loop, zip upload, 5 sample apps | GitHub URL import, suggested refactor patch / Muse Code handoff, Muse Image merge-gate card |
+| **Defense mode** | 3 sample apps, Wonder audit + topology diagram, chaos run (breaks before the fix, holds after), grill (text answers OK), fix in editor, verify, verdict | Voice grill, "circle the flaw" with SAM 3.1, Muse fix assistant (DEF-11, logged), attack refine loop, zip upload, 5 sample apps | GitHub URL import, suggested refactor patch / Muse Code handoff, Muse Image merge-gate card |
 | **Report** | Scores, summary, strengths/improvements, metrics, moments, replay (code playback + transcript + nudges) | Defense before/after charts in the report, share link | Muse Image report card |
 | **Platform** | Local dev, MOCK mode, SQLite, deployed frontend + backend | Spend guard (sessions per IP per day), contributor-model dev switch | Accounts (not planned) |
 
@@ -771,6 +771,8 @@ class DefenseExtra(Strict):
     grill: list[GrillTurn]
     verdict: Verdict
     card_url: str | None         # P2: merge-gate card image (§11.8)
+    # P1 (§11.9), proposed: ai_assist: AiAssistStats | None   {asks, suggestions, accepted, ai_chars,
+    #   typed_chars, ai_share_pct}. Added with DEF-11, with SG + SS approval.
 
 class Report(Strict):
     session_id: str
@@ -818,12 +820,13 @@ ServerMessage = Annotated[Union[SessionState, InterviewerMessage, TranscriptUpda
 | GET | `/api/problems/{slug}` | → `ProblemPublic` | never includes hidden tests/rubric/reference |
 | GET | `/api/problems/{slug}/illustration` | → image | P1 |
 | GET | `/api/defense/samples` | → `Project[]` | sample apps |
+| GET | `/api/defense/projects/{id}/files` | → `ProjectSource` (path → content; never `flaws.json`, `fixed/` or `fix.patch`) | the fix-stage editor and audit file preview; samples only until uploads (P1) |
 | POST | `/api/defense/projects` | multipart zip → `Project` | P1, limits §11.1 |
 | POST | `/api/sessions` | `SessionConfig` → `Session` | picks a random problem if only difficulty is given |
 | GET | `/api/sessions/{id}` | → `Session` | |
 | POST | `/api/sessions/{id}/end` | → `Session` | starts report generation |
 | GET | `/api/sessions/{id}/timeline` | → `TimelineEvent[]` | for replay. Hidden-test details never appear (nor a submit's stdout). While the session is live, also no analyses, system notes, suppressed interventions or audit details (explanations, expected points, fix steps) (§9.2) |
-| GET | `/api/sessions/{id}/report` | → `Report` or 202 `{status}` | |
+| GET | `/api/sessions/{id}/report` | → `Report` or 202 `{status}` | 409 `session_live` while live; 404 `report_unavailable` for a failed session. Asking restarts a report that a server restart cut short |
 
 Errors: `{"error": {"code": str, "message": str}}` with proper HTTP status codes.
 
@@ -842,6 +845,8 @@ Client → server:
 | `phase.advance` | `to: Phase` | Candidate-driven transitions only: clarify → coding ("Start coding") and coding → wrap_up ("I'm done"); the server rejects anything else |
 | `defense.run_chaos` | `finding_id` | Normally automatic; manual retry button |
 | `defense.verify` | `finding_id`, `files: {path: code}` | Re-run the attack on edited files |
+| `assistant.ask` | `text`, `file: str \| None`, `selection: str \| None` | P1 (§11.9): ask the Muse fix assistant → `assistant.reply` |
+| `assistant.apply` | `turn_id`, `accepted: bool` | P1: accept or reject that reply's edits (logged; accepted edits come back as an editor snapshot) |
 | `defense.circle` | `finding_id`, `source: canvas\|webcam`, `image_b64` (PNG/JPEG ≤ 1 MB), `node_boxes: {node_id: [x1,y1,x2,y2]}` (canvas only) | P1: SAM 3.1 locates the circle/sketch → `defense.sam.highlight` (§11.7) |
 | `session.end` | — | → ended → report |
 
@@ -858,8 +863,9 @@ Server → client:
 | `defense.audit` | `AuditPublic` (findings without explanation/grill/fix rubric) |
 | `defense.chaos.metric` | `ChaosMetric` |
 | `defense.chaos.done` | `ChaosRun` |
-| `defense.grill.eval` | `GrillTurn` + `finding: Finding` (the full finding is revealed only now) |
+| `defense.grill.eval` | `GrillTurn` + `finding: Finding`, sent once the grill for that finding is final (after the follow-up, if one is asked); the full finding is revealed only then |
 | `defense.sam.highlight` | `SamHighlight` (P1) |
+| `assistant.reply` | `AssistantTurn {id, t, question, answer, edits: AssistantEdit[], model}` (P1, §11.9) |
 | `defense.verdict` | `Verdict` |
 | `report.ready` | `session_id` |
 | `error` | `code`, `message`, `retryable` |
@@ -867,8 +873,14 @@ Server → client:
 ### 8.3 WebSocket `/ws/sessions/{id}/audio` (binary)
 
 - The client sends **raw PCM, signed 16-bit little-endian, mono, 24 kHz**, in **80 ms frames (1,920 samples =
-  3,840 bytes)** at real-time pace. Text frames: `{"type":"start"}` / `{"type":"stop"}`.
+  3,840 bytes)** at real-time pace. Text frames: `{"type":"start"}` / `{"type":"stop"}`, and
+  `{"type":"ask","holding":true|false}` when the **Ask** button is pressed and released.
+- While TTS speaks, the client sends **silence** instead of the mic (not nothing): the stream keeps real-time
+  pace (Meta closes streams that fall behind) and the audio clock stays aligned with session time.
 - The server forwards the frames to Meta's realtime ASR (§9.7) and publishes transcripts on the JSON socket.
+- Close codes: `4404` unknown session, `4403` the session has voice off, `4503` voice unavailable (no key, or
+  realtime and file transcription both failed), `4409` another tab took the microphone, `1000` the session
+  ended. The browser shows "use chat" for the 44xx/45xx codes.
 
 ---
 
@@ -905,10 +917,22 @@ Owner: **SG**. Used by coding mode (whole session) and defense mode (grill + fix
   `plan_session` raises `SessionSetupError` for a bad config (→ `400 bad_config`).
   `await rt.attach(RubricContext)` / `await rt.detach()` start and stop the live engine (analyzer → policy →
   interviewer) for a rubric: coding at `clarify`, defense at `fix`. Ending a session detaches it.
-  `RubricContext` is in `engine/context.py`. `Interviewer.say()` arrives with ENG-6.
+  `RubricContext` is in `engine/context.py`.
+  - **`on_resume`** runs on the first *connect* after a runtime is reopened, once the socket is attached, so
+    what the mode says reaches the tab. Ending a session over REST doesn't resume it.
+  - **`on_close(rt)`** is optional: if a controller defines it, the hub awaits it when the runtime closes, to
+    cancel the mode's own timers and tasks.
+  - **`rt.sender`** is the connection whose message `on_client_message` is handling, so a mode can answer just
+    that tab (`rt.error(rt.sender, …)`).
+  - **`say(rt, text, trigger, level, *, speak=None, step_id=None, fallback=None)`** in `engine/interviewer.py`
+    sends a line the mode chose, through the leak guard (§9.6; `reference=` adds the overlap check). Coding
+    uses it for phase lines; Defense can use it for grill lines.
+  - **After `ended`:** `rt.end()` starts the report task (§9.8): `ended → reporting → reported`, then
+    `report.ready`. `rt.last_context` keeps the last attached `RubricContext` after detach, for the report.
 - Routes live in `engine/api.py` (`router`); `main.py` includes it and puts
   `SessionHub(store, {Mode.CODING: CodingMode(ProblemBank.load()), …}, model=llm)` on `app.state.hub`. Until
-  `crucible.store` lands, `engine/store.py` has an in-memory `MemoryStore` with the same interface.
+  `crucible.store` lands, `engine/store.py` has an in-memory `MemoryStore` with the same interface (sessions,
+  events, and `save_report`/`get_report`).
 
 ### 9.2 Timeline (`timeline.py`)
 - `append(kind, payload, t=None) -> TimelineEvent`: assigns `seq` (monotonic per session) and `t` (server
@@ -1055,63 +1079,99 @@ quiet window and hold, stale drop), the ladder and passive mode. `tests/engine/t
 wiring; `test_first_nudge.py` runs the hint button end to end.
 
 ### 9.6 Interviewer (`interviewer.py`)
-- `phrase(rule, proposal, context) -> InterventionText{text}`: uses the analyzer's draft text when present
-  and the level matches; otherwise one Spark call (`reasoning_effort="low"`, timeout 6 s). Fallback: the
-  rubric hint text, or a canned line per trigger (`prompts/canned.md`, built in ENG-5).
-- `answer(question, context)`: replies to `ASKED`. It answers clarifying questions from the problem spec
-  only; for "is this right?" it answers with a question; it never confirms correctness of hidden tests.
+- **Nudges, questions and hints** (`deliver(rt, decision, context)`): the analyzer's draft when the policy kept it,
+  else the rubric hint for the step and level, else the trigger's canned line (`prompts/canned.md`). No extra
+  model call to phrase them: the analyzer already drafts at the right level, and a second Spark call would add
+  2–6 s to every nudge.
+- `answer(rt, model, context, question) -> str | None`: replies to `ASKED` with one Spark call (role
+  `interviewer`, prompt `prompts/interviewer_answer.md`, 15 s deadline covering the wrapper's 6 s timeout and
+  retry). The model sees only what the candidate can see: the statement, signature, examples and constraints
+  (`RubricContext.brief_md`), their numbered code, the last 8 final transcript turns within 3 min, and the
+  question. Never the rubric, hidden tests or reference. It answers clarifying questions from the spec (or
+  says to state an assumption), answers "is this right?" with a question, and never confirms correctness. A
+  leaky reply gets one retry asking for a Socratic question; a second leak, a timeout or a model error sends
+  the canned `asked` line, with a `system` note.
 - Phase lines: intro (problem presentation, ≤ 60 words), wrap-up questions (from `rubric.wrap_up_questions`),
-  closing line. The intro is pre-generated at session creation so it plays instantly.
-- **Leak guard** (applies to every outgoing text): reject it if it contains a code fence, ≥ 2 lines that
-  parse as Python statements, or any normalized line with ≥ 0.6 token overlap with a non-trivial line of
-  the reference solution. On rejection: regenerate once at a lower level; if it still fails, send the rubric
-  hint text for the current level. Log every rejection.
-- `say(rt, text, trigger, level, speak, step_id=None, *, fallback=None)`: the entry point other modes use
-  (Defense grill questions, feedback and follow-ups). It runs the same leak guard; on rejection it sends the
-  caller's `fallback` text (Defense passes a canned Socratic question) instead of a rubric hint, which
-  grill messages don't have. With no fallback it sends the canned line for the trigger.
+  closing line. They are canned templates (`coding/prompts/phase_lines.md`), so the intro plays as soon as
+  the candidate joins and can't leak.
+- **Leak guard** (`leak_reason(text, reference)`, applies to every outgoing text): reject it if it contains a
+  code fence or ≥ 2 lines that parse as Python statements, or if any line of it (or the whole text) shares
+  ≥ 60% of the tokens of a non-trivial reference line. Non-trivial means ≥ 5 tokens and not a signature,
+  comment, docstring or import. The reference is the problem's reference solution (or a sample's fix). On
+  rejection in `deliver()`: send the rubric hint or canned line instead, else a generic prompt to walk through
+  the code. In `answer()`: retry once, then the canned line. Every rejection is logged and noted on the
+  timeline.
+- `say(rt, text, trigger, level, *, speak=None, step_id=None, fallback=None, reference=None)`: the entry point
+  other modes use (Defense grill questions, feedback and follow-ups, coding phase lines). It runs the same leak
+  guard, checking overlap against `reference` when given. On rejection it sends the caller's `fallback` text
+  (Defense passes a canned Socratic question) instead of a rubric hint, which grill messages don't have. With
+  no fallback it sends the canned line for the trigger.
 - Speech: `speak = config.speak_replies`, except PASTE and TIME_WARNING notes, which are text-only. The browser speaks
   it; the backend appends an interviewer `TranscriptTurn` (source=text) so the replay shows it.
 
 ### 9.7 VoiceBridge (`voice.py`)
-- On the audio socket's `start`, open `wss://api.meta.ai/v1/asr/realtime` and send the handshake as the first
-  text frame within 10 s:
-  `{"authorization": {"accessToken": "Bearer <MODEL_API_KEY>"}, "model": "muse-voice-transcribe-1.0",
-  "audioEncoding": "PCM_24KHZ", "mode": "ENDPOINTING"}` (⚠️ VERIFY the full `RealtimeHandshakeRequest`
-  schema). The server's acknowledgement is the only frame without `type`; it contains `sessionId`.
-- Forward binary frames as they arrive (the browser already paces them in real time; never buffer and burst,
-  or Meta closes with 1008).
-- **ENDPOINTING events:** `speechStart`, `transcript` (partials; cumulative; no `turnId`), `speechEnd`,
-  `speechComplete`. Key turns on `turnId` (⚠️ VERIFY where the final text and `startMs`/`endMs` live).
-  Partials → `transcript.update` (final=false, not stored); completed turns → a `TranscriptTurn` (final=true)
-  in the timeline, which triggers the analyzer.
-- **Is the candidate talking to the interviewer?** P0: only `chat.send` or the **Ask** button (hold to talk)
-  counts as a question, and a `chat.send` only when it reads as one (`policy.is_question`: ends in "?" or
-  opens with a question word). P1: a cheap classifier (Spark, `reasoning_effort="minimal"`, timeout 3 s) labels
-  final turns `question_to_interviewer | thinking_aloud`.
-- Close codes: `1000` done; `1011` → reconnect with backoff (also when the reason is "Max session duration
-  reached"; sessions are capped at 60 min); `1013` → back off 5 s, then reconnect; `1008` → stop and report a
-  config error. On `stop`, send `{"type":"endStream"}` and read until the server closes.
-- **Fallbacks:** if realtime fails 3 times, switch to chunked file transcription (10 s WAV chunks →
-  `POST /v1/asr/transcribe`, multipart fields `request` + `audio`); if that fails too, show "voice
-  unavailable, use chat" and continue. Word timestamps aren't available (turn-level only), so speaking
-  pace is computed per turn.
+One `VoiceBridge` per session (`rt.voice`), opened by the audio socket; `models/asr.py` talks to Meta (V1).
+- **Realtime:** on `start`, open `wss://api.meta.ai/v1/asr/realtime` and send the handshake as the first text
+  frame (10 s limit): `{"authorization": {"accessToken": "Bearer <MODEL_API_KEY>"}, "model":
+  "muse-voice-transcribe-1.0", "audioEncoding": "PCM_24KHZ", "mode": "ENDPOINTING", "partialMode":
+  "CUMULATIVE", "emitAudioProgress": false, "languageBias": ["English"]}`. The acknowledgement is
+  `{"sessionId"}`, the only frame without `type`.
+- Forward binary frames as they arrive. Audio that arrives while (re)connecting is dropped, never buffered and
+  burst (Meta closes with 1008 when a stream runs ahead of real time).
+- **ENDPOINTING events:** `speechStart{turnId}` → cumulative `transcript` partials (no `turnId`: they belong to
+  the latest `speechStart`) → `speechEnd{turnId}` → `speechComplete{turnId, transcript}` with the final text.
+  Every event carries `audioProcessedMs`; there are no `startMs`/`endMs` in realtime. A turn's session times are
+  `t0 + audioProcessedMs` of its `speechStart` and `speechEnd`, where `t0` is the session time the stream's first
+  frame began. Partials → `transcript.update` (final=false, not stored); `speechComplete` → a final
+  `TranscriptTurn(source="voice")` on the timeline, then `transcript.update`. Speech in progress holds unsolicited
+  messages (`rt.heard_speech()`) and sets `interviewer_state` to `listening`.
+- **Is the candidate talking to the interviewer?** P0: a `chat.send` that reads as a question
+  (`policy.is_question`), or a voice turn spoken while **Ask** was held for at least half of it (any overlap
+  isn't enough: candidates let go and keep talking, and turn times can be a few hundred ms off). Questions asked
+  before the reply are answered together (a spoken question often arrives as two turns). P1 (COD-6): a cheap
+  classifier (Spark, `reasoning_effort="minimal"`, timeout 3 s) labels other final turns
+  `question_to_interviewer | thinking_aloud`.
+- **Close codes:** `1000` done (after our `endStream`; otherwise reconnect). `1011` → reconnect with backoff
+  (0.5 s, doubling); at "Max session duration reached" (the 60-min cap) reconnect without counting a failure.
+  `1013` → wait 5 s, then reconnect. `1008` (bad request or streaming policy) → straight to the chunked fallback,
+  since retrying the same stream fails again. On `stop`, send `{"type":"endStream"}` and read up to 5 s for the
+  last turns.
+- **Fallbacks:** after 3 realtime failures in a row, transcribe 10 s WAV chunks with `POST /v1/asr/transcribe`
+  (multipart `request` = `{"model", "audioEncoding": "WAV", "mode": "ENDPOINTING"}` + `audio`), which returns
+  `turns[{startMs, endMs, transcript}]` relative to the chunk. On `stop`, a last chunk of ≥ 1 s is sent. If two
+  chunks fail in a row, voice is unavailable: a `system` note, an `error{code: "voice_unavailable"}` on the JSON
+  socket ("use chat"), and the audio socket closes with 4503. Word timestamps aren't available (turn-level
+  only), so speaking pace is computed per turn.
 
 ### 9.8 ReportBuilder (`report.py`)
-1. **Metrics in code** from the timeline (`Metrics`, §7.5).
-2. **Candidate moments in code** (8–14, sorted by `t`): first edit, approach stated, each intervention shown
-   (with time until the related step became `done` = "time to recover"), first passing run, each integrity
-   flag, longest silence, the submit result, wrap-up answers; defense: each chaos verdict, grill score and
-   verify result.
-3. **ReportDraft** from model role `report` (default `muse-wonder-1.0`, `reasoning_effort="high"`, timeout
-   90 s) with: problem/rubric or findings, final code, step history, transcript, interventions, metrics and
-   candidate moments. Fallback: Spark 1.3 with the same schema; if that fails too, a minimal template report
-   from metrics only.
-4. **Merge** the draft with metrics and extras into `Report`, store it, set phase `reported` and broadcast
-   `report.ready`.
-Score guidance in the prompt: independence falls with hint levels used; communication uses
-`explanation_quality` history + talk time; correctness uses hidden-test results; never penalize missing voice
-when voice was off.
+1. **Metrics in code** from the stored timeline (`Metrics`, §7.5). Interventions shown and `hints_by_level`
+   count only help the candidate saw: not suppressed ones, phase lines, grill questions, or paste and time
+   notes. Talk time is voice turns only. The longest silence is the longest stretch with no talking, typing or
+   runs, counted only in phases where the candidate is expected to act (clarify, coding, wrap-up, grill, fix).
+2. **Candidate moments in code** (up to 14, sorted by `t`; a short session has fewer): first edit, approach
+   stated, each intervention shown (with "time to recover": when its step next became `done`), questions the
+   candidate asked, first passing run, each integrity flag, the longest silence (≥ 60 s), the final submit,
+   wrap-up answers; defense: each chaos verdict, grill score and verify result, and the verdict. Over 14, the
+   most important kinds are kept (submit, verdicts, broken findings, first edit first).
+3. **ReportDraft** from model role `report` (`muse-wonder-1.0`, `reasoning_effort="high"`, timeout 90 s →
+   Spark 1.3, same schema) via `complete_json_with_model`, which also returns the model that answered. Prompt:
+   `engine/prompts/report_system.md`, with the problem and rubric (or findings, chaos runs, grill and verdict),
+   final code, step history, runs, transcript, interventions, metrics and candidate moments. Overall deadline
+   150 s. No model, a failure or the deadline → a **template report** from metrics only (`model: "template"`,
+   with a `system` note).
+4. **Merge, code decides:** scores code can measure replace the model's: coding `correctness` = hidden tests
+   passed (of the last submit); defense `correctness` = broken findings that held after the fix, and
+   `system_understanding` = the average grill score. Dimensions are kept in the mode's order (coding:
+   problem_solving, correctness, code_quality, communication, independence, debugging; defense:
+   system_understanding, debugging, correctness, communication, independence). `overall` = the mean of the
+   dimension scores × 10. Moments: one per candidate moment, with code's `t` and `kind` and the model's words
+   (the facts as they are when the model skipped one). Three strengths and improvements at most.
+   The template report scores `correctness` from the last run when there was no submit, and `independence` as
+   10 − (1 per nudge, 1.5 per question, 2.5 per hint, 4 per concept).
+5. **Store** it, set phase `reported` and broadcast `report.ready`. A bug in the builder sets `failed` with a
+   `system` note instead of leaving the session in `reporting`.
+Score guidance in the prompt: independence falls with hint levels used; communication uses explanation quality
+and talk time, and never penalizes missing voice when voice was off; correctness uses hidden-test results.
 
 ---
 
@@ -1129,6 +1189,21 @@ Owner: **SG**. Data: **ST**.
 - `wrap_up → ended`: after both wrap-up answers (or 3 min).
 - Time limits: easy 20 min, medium 30, hard 40 (`time_limit_min` in the problem overrides). **Demo preset:**
   10 min.
+- **As built (COD-2, `coding/session.py`):**
+  - **Intro:** the interviewer says a phase line from `coding/prompts/phase_lines.md` (problem title, minutes)
+    through `say()`, then moves straight to `clarify` and attaches the rubric. ENG-6 keeps it canned rather
+    than model-phrased, so it plays at once.
+  - **"Started coding"** = 3 new non-blank lines compared with the starter code, typed or pasted. Programmatic
+    snapshots don't count.
+  - **Time limit:** a 0.5 s timer moves `clarify` or `coding` to `wrap_up` when `remaining_s` reaches 0.
+    `clarify → wrap_up` is allowed only for this.
+  - **Wrap-up:** entered for any of three reasons, each with its own opener line ("passes every test",
+    "That's time", or a plain one for "I'm done"). The live engine is detached, so chat answers aren't treated
+    as questions. The rubric's `wrap_up_questions` are asked one per candidate answer, then the closing line,
+    and the session ends. With no answer for 3 min (`wrap_up_limit_s`), it closes anyway.
+  - **Resuming during the wrap-up** recounts the questions already asked from the timeline and waits for the
+    next answer.
+  - Phase lines show in passive mode too: they run the interview, they aren't feedback.
 
 ### 10.2 ProblemBank (`problems.py`)
 - Loads `data/problems/*/problem.json` (+ `statement.md`, `reference.py`, `brute.py`) at startup and
@@ -1136,14 +1211,28 @@ Owner: **SG**. Data: **ST**.
   (`ProblemBank.load(root, strict=...)`). Folders starting with `_` are drafts, and the slug must match its
   folder. The loader and `pick(difficulty, topic)` landed with ENG-4, which needs a rubric to attach.
 - `random(difficulty, topic)` excludes problems used in the last 5 sessions from the same IP (best effort).
-- `CodingMode(bank)` is coding's mode factory: an explicit `problem_slug` must exist, otherwise a problem is
-  picked at the difficulty and topic, and the problem's `time_limit_min` sets the session limit.
+  Not built yet: `pick()` is uniform among matches.
+- `CodingMode(bank, runner=...)` is coding's mode factory: an explicit `problem_slug` must exist, otherwise a
+  problem is picked at the difficulty and topic, and the problem's `time_limit_min` sets the session limit.
+  `runner` may be a factory (`main.py` passes `lambda: make_runner(settings)`), so a misconfigured runner
+  surfaces as an error on Run, not at startup.
+- **API** (`coding/api.py`): `GET /api/problems?difficulty=&topic=` → `ProblemSummary[]` (sorted by slug) and
+  `GET /api/problems/{slug}` → `ProblemPublic` (404 `problem_not_found`). `main.py` shares one `ProblemBank`
+  between the hub and this router (`app.state.problems`).
 
 ### 10.3 Tests (`tests.py`)
 - **Run** = visible tests; **Submit** = visible + hidden. Calls `Runner.run_tests` (§12) with code,
-  function signature, cases and limits (2 s per test, 10 s total).
+  function signature, cases and limits (2 s per test, 10 s total), with a 20 s outer deadline.
 - Hidden test inputs/outputs never leave the backend: the browser gets pass/fail + error class only.
 - Results → timeline `run` → `run.result` → analyzer trigger.
+- Built in COD-3 as `RunService`: one run at a time per session (a second press gets a retryable `busy`). If
+  the code sent with Run differs from the tracked code, it's recorded as a snapshot first, so the replay shows
+  exactly what ran. The full result goes on the timeline and the browser gets `redact_run()` (§9.2). A runner
+  failure leaves a `system` note and sends `runner_unavailable` (retryable) to the tab that pressed Run, via
+  `rt.sender` (the connection whose message the mode is handling). Run works from `clarify` on; a submit that
+  passes every test during `coding` moves to `wrap_up` (§10.1).
+- The Modal runner's `run_tests` is RUN-2. Until then, coding sessions need `RUNNER=local` +
+  `ALLOW_LOCAL_RUNNER=1` (dev).
 
 ### 10.4 Integrity (`integrity.py`)
 - Editor `paste` with ≥ 40 chars or ≥ 2 lines → `IntegrityFlag(kind="paste")`.
@@ -1151,6 +1240,11 @@ Owner: **SG**. Data: **ST**.
 - `hidden` → `visible` lasting ≥ 10 s → `tab_hidden` with the duration.
 - P2 proctor mode: §10.6.
 - Copy in the UI and the report is neutral: "pasted 32 lines at 06:14".
+- **As built (COD-4):** `IntegrityDetector` turns editor events into flags. Each flag is recorded as an
+  `integrity` timeline event and sent as `integrity.flag`. The wording is factual only: "pasted 2 lines at
+  06:14", "120 characters appeared at once at 03:02", "switched away for 14 s at 08:40" (a tab-away flag carries
+  the time it started). The policy's `PASTE` rule (ENG-5) still decides whether the interviewer mentions a
+  paste; the flags are the record.
 
 ### 10.5 Coding report extras
 Final step statuses, chosen approach, whether the complexity answer matched an acceptable approach.
@@ -1313,6 +1407,26 @@ and detail and ask for a revised attack (max 2 refinements). A plain call per re
   prompt, because image models garble text; timeout 20 s) and compose the real numbers (app, violations
   before → after, p99 before → after, PASS/FAIL) on top in HTML/SVG. Stored as `DefenseExtra.card_url`.
 - Runs in the background after `defense.verdict`; never blocks the verdict or the report.
+
+### 11.9 P1: Muse fix assistant (`defense/assistant.py`, DEF-11)
+A Muse Spark coding assistant in a side panel during **fix** (and verify), the way people really work with AI.
+The grill comes first, so the candidate has already explained the flaw without help before the assistant
+appears. **Everything it does is on the timeline and in the report**, so the result shows how much of the fix
+the AI wrote.
+- **Ask:** the candidate types a question, optionally with a selected range (`assistant.ask`). The assistant
+  sees the full finding (revealed after the grill), the project files with their current edits, the chaos
+  summary and the latest verify result. It answers in prose and may propose **edits** (`AssistantEdit`: a
+  file and its new contents), which the panel shows as a diff (`assistant.reply`).
+- **Apply:** the candidate accepts or rejects each reply's edits (`assistant.apply`). Accepted edits go
+  into the editor through the capture lib's `programmatic()` path. CodeState counts them as **AI-written**
+  (`chars_ai`), not as typed or pasted, so they never raise an integrity flag.
+- **Not the interviewer:** the leak guard (§9.6) doesn't apply to assistant replies, because the candidate
+  asked for code. The interviewer still never volunteers the fix, and the analyzer keeps watching the editor.
+- **Merge gate unchanged:** the same attack must hold and the grill must pass. The verdict reasons and the
+  report add the AI share ("38% of the changed lines came from the assistant; 3 of 4 suggestions accepted"),
+  and independence scoring (§9.8) accounts for it.
+- **Limits:** only in fix/verify, at most 20 asks per session (cost guard, about $0.002 each). Timeout 20 s;
+  on failure the panel says the assistant is unavailable and the session continues.
 
 ---
 
@@ -1592,14 +1706,19 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 | `interviewer` | `muse-spark-1.3` | low | canned/rubric text |
 | `classifier` (P1) | `muse-spark-1.3` | minimal | treat as thinking aloud |
 | `grill_eval` | `muse-spark-1.3` | medium | Spark Open (Baseten) |
-| `audit` | `muse-wonder-1.0` | high | `muse-spark-1.3` (high) → `flaws.json` (samples only) |
+| `audit` | `muse-wonder-1.0` | xhigh | `muse-spark-1.3` (high) → `flaws.json` (samples only) |
 | `report` | `muse-wonder-1.0` | high | `muse-spark-1.3` → metrics-only template |
-| `attacker` | `muse-spark-1.3` | medium | reference attack (sample apps only) |
-| `drafter` (datatools) | `muse-spark-1.3` or Spark Open | medium | — |
+| `attacker` | `muse-spark-1.3` | high | Spark (medium) → reference attack (sample apps only) |
+| `drafter` (datatools) | `muse-wonder-1.0` | high | Spark (medium) → Spark Open |
 | `vision` (P2) | `muse-spark-1.3` with image input | low | skip |
+| `assistant` (P1, §11.9) | `muse-spark-1.3` | low | "assistant unavailable" message |
 
 - `reasoning_effort` values: `minimal | low | medium | high | xhigh | max` (`none` returns 400 on Spark and
-  Wonder). Use the lowest effort that works; measure.
+  Wonder). Live roles (analyzer, interviewer, classifier, grill_eval) use the lowest effort that works.
+  One-shot roles use the strongest setting that fits their timeout. Measured 2026-10-27 on `bank-transfer-min`:
+  audit Wonder high 31 s / $0.10 (2 topology nodes) vs xhigh 44 s / $0.15 (6 nodes); attacker Spark medium 14 s,
+  Spark high 18 s, Wonder medium 20 s, Wonder high 29 s (30 s budget), all valid; grill_eval Spark medium 4–5 s,
+  Spark high 7–8 s (10 s budget), Wonder low 4–11 s, all marked the same points.
 - **Dev cost switch:** `USE_CONTRIBUTOR_MODELS=1` maps `muse-spark-1.3` → `muse-spark-1.3-contributor`
   ($0.10/$0.20 per 1M tokens, but content may be used for training and the limit is 150 RPM). Use it only
   with synthetic data, never for real users' sessions. It doesn't support `max` effort.
@@ -1716,6 +1835,12 @@ Format: **ID — title** (owner · priority · depends on) followed by "done whe
   it needs a pen, a canvas PNG export and node boxes in FE-6): §11.7.
   *Done when* a circle drawn around the flawed node on a canvas PNG selects that node in ≥ 4 of 5 tries.
 - **DEF-10 — Merge-gate card** (P2 · DEF-6; only after both P0 paths pass the demo script twice): §11.8.
+- **DEF-11 — Muse fix assistant** (P1 · DEF-6, after IC2; needs the contract additions below with SG + SS
+  approval, an `assistant` role in `models/registry.py` (SG), `chars_ai` in CodeState (SG) and a side panel in
+  the fix stage (LG)): §11.9. Contracts: `AssistantEdit {file, new_code}`, `AssistantReply` (LLM output:
+  `answer`, `edits`), `AssistantTurn`, `TimelineKind.ASSISTANT` and `ASSISTANT_APPLY`, the three messages in §8.2,
+  `DefenseExtra.ai_assist`.
+  *Done when* a candidate can ask, see a diff, accept it, verify, and the report shows the AI share.
 - **OPS-1 — Deploy** (P0 · S-0): §19. *Done when* the deployed frontend runs a full coding session against
   the deployed backend.
 - **OPS-2 — Mock replay engine + fixtures** (P0 · S-1): §14.6.
@@ -1763,7 +1888,7 @@ checkpoint script on a clean checkout.
 | 4 | Fri Oct 30 | ENG-6, COD-2, COD-4, ENG-7 | DEF-4, DEF-5 (text) | FE-4 voice + TTS, FE-6 grill/fix | Evals v1, 20 problems |
 | | **IC2** | | | | |
 | 5 | Sat Oct 31 | ENG-8 | DEF-6, OPS-1 deploy | FE-7 report + replay | Evals, 25 problems |
-| 6 | Sun Nov 1 | P1: COD-5, COD-6 | DEF-7, DEF-8 | FE-8, integration fixes | **30 problems**, apps 4–5 |
+| 6 | Sun Nov 1 | P1: COD-5, COD-6 | DEF-7, DEF-8, DEF-11 backend (after IC2) | FE-8, integration fixes; DEF-11 side panel if time allows | **30 problems**, apps 4–5 |
 | | **IC3 + cut-line review** | | | | |
 | 7 | Mon Nov 2 | Eval tuning, latency, P2 if green | Reliability; DEF-9 (P1) if IC3 is green and LG agrees; P2 (DEF-10) if green | Polish, demo-path UX; the DEF-9 pen only if agreed | DATA-7 demo data + rehearsal |
 | 8 | Tue Nov 3 | **Feature freeze 12 PM.** Bug fixes only; record demo takes | same | same | Final data checks |
@@ -1850,6 +1975,8 @@ NEXT_PUBLIC_FIXTURES=0            # dev only: frontend FixtureTransport until MO
 ## 20. Demo video and submission
 
 ### 20.1 The 3-minute video (draft script)
+**Superseded by [docs/STORY.md](docs/STORY.md)** (v2: the story line first, Defense first, the Under the hood strip in every shot). Kept here for history.
+
 | Time | Shot |
 |---|---|
 | 0:00–0:15 | Hook: "AI writes code in seconds. Interviews and production still ask: do you understand it?" Title: Crucible, two modes, one interviewer |
@@ -1888,7 +2015,7 @@ Record each segment separately on the deployed build, at real speed (speed-ups a
 | Problem text rights | Original statements only + review checklist (§13.1) |
 | Demo-day failure | Pre-recorded takes on the deployed build by Tue Nov 3; never present MOCK as live |
 
-**Timeouts:** analyzer 12 s · interviewer 6 s · classifier 3 s · grill eval 10 s · audit 120 s · report 90 s ·
+**Timeouts:** analyzer 12 s · interviewer 6 s · classifier 3 s · grill eval 20 s (Spark medium measured 4–15 s) · audit 120 s · report 90 s ·
 attack writer 30 s · test run 10 s · chaos run 60 s · ASR handshake 10 s · SAM 5 s · image 20 s.
 
 ---
@@ -1928,9 +2055,9 @@ These apply to Muse Code, Claude Code and humans alike.
 
 | # | Item | Where to check | Owner | Status |
 |---|---|---|---|---|
-| V1 | Full `RealtimeHandshakeRequest` schema; ENDPOINTING event fields (`turnId`, final text, `startMs`/`endMs`) | dev.meta.ai/docs/api-reference/voice/realtime, /docs/speech-to-text | SG | open |
+| V1 | Full `RealtimeHandshakeRequest` schema; ENDPOINTING event fields (`turnId`, final text, `startMs`/`endMs`) | dev.meta.ai/docs/api-reference/voice/realtime, /docs/speech-to-text | SG | done (2026-10-27, docs + live): handshake fields `authorization.accessToken`, `audioEncoding` (`PCM_24KHZ`/`PCM_16KHZ`, required), `model`, `mode` (`PUSH_TO_TALK` default, `ENDPOINTING`, `DIARIZATION`), `partialMode` (`CUMULATIVE` default), `emitAudioProgress` (default true), `keywords`, `languageBias`. The final text is in `speechComplete{turnId, transcript}`; partials carry no `turnId`; realtime has only `audioProcessedMs` (no `startMs`/`endMs`), the file endpoint's `turns` have `startMs`/`endMs`. Limits: 60 min per stream, at most 5 s of audio ahead of processing. Live: stream open in 0.4–0.6 s, final turns 0.1–0.2 s after speech ends, the file endpoint 2.3 s for 13 s of audio. Realtime may merge two sentences into one turn or split one; the file endpoint sometimes repeats a word or adds a zero-length duplicate turn (dropped) |
 | V2 | How prompt caching triggers (automatic prefix caching?) | dev.meta.ai/docs (pricing mentions cached input) | SG | open |
-| V3 | `reasoning_effort` with `beta.chat.completions.parse` on Spark 1.3 and Wonder 1.0 | /docs/reasoning, /docs/structured-output | SG | done: works on `muse-spark-1.3` (minimal, low, medium) and `muse-wonder-1.0` (high). Smoke run 2026-10-27, 9 of 9 roles passed |
+| V3 | `reasoning_effort` with `beta.chat.completions.parse` on Spark 1.3 and Wonder 1.0 | /docs/reasoning, /docs/structured-output | SG | done: works on `muse-spark-1.3` (minimal, low, medium) and `muse-wonder-1.0` (high). Smoke run 2026-10-27, 9 of 9 roles passed. Also works: Spark high, Wonder medium and xhigh (benchmark 2026-10-27, §15.1) |
 | V4 | Structured output support on `muse-wonder-1.0` | /docs/models, /docs/structured-output | SG | done: `muse-wonder-1.0` returns valid structured output through `parse` at effort high (about 2 s for a tiny schema) |
 | V5 | ~~Glimmer model id + host~~ (Glimmer dropped 2026-10-27; the attacker uses Spark) | — | SS | dropped |
 | V6 | Baseten base URL for `meta-models/muse-spark-open-1026` | docs.baseten.co | ST | open |

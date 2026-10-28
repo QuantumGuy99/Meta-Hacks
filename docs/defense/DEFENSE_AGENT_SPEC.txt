@@ -129,6 +129,13 @@ Attack scripts — template, not free-form:
 - validator.py (AST) before execution: template imports only; bans open/exec/eval/compile/__import__/
   globals/locals/getattr/setattr/os/sys/subprocess/socket/pathlib/shutil; URLs must start with "/" or
   BASE; CONCURRENCY ≤ 200, DURATION_S ≤ 30. One regeneration on rejection, then verdict "error".
+- Also rejected: asyncio/loop escape hatches by attribute (create_subprocess_*, open_connection,
+  start_server, to_thread, run_in_executor, get_*event_loop, ...), any attribute starting with "_", and
+  direct use of httpx (bodies must use the `client` they're given).
+- Containment in three layers: the validator checks the code; the template's clients refuse any host but
+  loopback (catches URLs built at runtime); Modal sandboxes run with block_network=True (V7 done).
+- The template spreads CONCURRENCY workers over httpx pools of 10 with a 0.4 s ramp (one big pool collapses
+  past ~50 concurrent), checks the invariant on its own client every 0.5 s, and ends with a final metric line.
 - Output: one JSON line every 500 ms
   {"t_ms","in_flight","rps","p50_ms","p95_ms","p99_ms","errors","violations"}, then
   {"done": true, "invariant_ok": bool, "violations": int, "detail": str, ...}. check_invariant returns
@@ -149,6 +156,9 @@ Defense execution:
 MOCK: only when MOCK=1 is set explicitly. mock/replay.py streams fixtures/defense-bank-transfer.jsonl
 (recorded ServerMessages with relative timestamps). A real failure NEVER silently falls back to recorded
 data; it uses the §21 fallback or shows an "error" verdict with a retry button.
+Fixtures are recorded from a real local session, not hand-written:
+`python -m crucible.mock.record defense-bank-transfer --apps-dir tests/fixtures/apps --project bank-transfer-min`
+(no API key; every model stage takes its fallback). Re-record after contract or flow changes.
 
 7. SEEDED DEMO APPS (PLAN §13.2) — ST builds, SS reviews; needed by Thu Oct 29
 ------------------------------------------------------------------------------

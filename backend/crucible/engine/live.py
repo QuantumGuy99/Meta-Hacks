@@ -9,16 +9,24 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from crucible.contracts.coding import Analysis
 from crucible.contracts.common import FeedbackLevel
-from crucible.contracts.events import EditorEvent, RunResult, TimelineEvent, TimelineKind, TranscriptTurn
+from crucible.contracts.events import (
+    EditorEvent,
+    InterventionTrigger,
+    RunResult,
+    TimelineEvent,
+    TimelineKind,
+    TranscriptTurn,
+)
 from crucible.contracts.ws import NotesUpdate
 from crucible.engine.analyzer import TICK_S, Analyzer, StructuredModel
 from crucible.engine.codestate import TEXT_KINDS
 from crucible.engine.context import RubricContext
-from crucible.engine.interviewer import deliver
+from crucible.engine.interviewer import answer, deliver
 from crucible.engine.policy import Facts, PolicyState, decide, is_question, written_lines
 
 if TYPE_CHECKING:
@@ -35,6 +43,8 @@ class LiveEngine:
     def __init__(self, rt: SessionRuntime, context: RubricContext, model: StructuredModel) -> None:
         self.policy = PolicyState()
         self.analyzer = Analyzer(rt, context, model, self._on_analysis)
+        self._model = model
+        self._last_question: str | None = None  # what the candidate asked, not yet answered (ASKED)
         self._rt = rt
         self._context = context
         self._main = context.files[0] if context.files else "solution.py"
@@ -68,6 +78,18 @@ class LiveEngine:
         self.policy.request_hint(step_id)
         self._wake.set()
 
+    def ask(self, question: str) -> None:
+        """A question to the interviewer: typed in chat, or spoken while holding Ask (§9.7). ASKED answers it.
+
+        Questions asked before the reply are answered together: a spoken question often arrives as two turns.
+        """
+        if self._last_question:
+            self._last_question = f"{self._last_question} {question}"  # one answer is already on its way
+        else:
+            self._last_question = question
+            self.policy.ask()
+        self._wake.set()
+
     def heard_speech(self) -> None:
         """Candidate speech in progress (a partial transcript): unsolicited messages wait until it stops.
 
@@ -81,6 +103,15 @@ class LiveEngine:
             decision = decide(self.policy, self._facts())
             if decision is None:
                 return
+            if (
+                decision.trigger == InterventionTrigger.ASKED
+                and not decision.suppressed
+                and self._last_question
+            ):
+                question, self._last_question = self._last_question, None
+                reply = await answer(self._rt, self._model, self._context, question)
+                if reply is not None:  # otherwise deliver() sends the canned line
+                    decision = replace(decision, draft=reply)
             await deliver(self._rt, decision, self._context)
 
     async def _on_analysis(self, analysis: Analysis) -> None:
@@ -112,8 +143,7 @@ class LiveEngine:
                 turn = TranscriptTurn.model_validate(event.payload)
                 self._last_speech_ms = now
                 if turn.source == "text" and is_question(turn.text):
-                    self.policy.ask()
-                    self._wake.set()
+                    self.ask(turn.text)
             case TimelineKind.RUN:
                 self.policy.observe_run(RunResult.model_validate(event.payload))
                 self._wake.set()

@@ -11,7 +11,7 @@ from fastapi import APIRouter, FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from crucible.config import Settings
-from crucible.contracts.defense import Project
+from crucible.contracts.defense import Project, ProjectSource
 from crucible.defense.model_client import WrapperModelClient
 from crucible.defense.pipeline import DefensePipeline, run_scripted
 from crucible.defense.ports import MemorySink
@@ -27,6 +27,16 @@ dev_router = APIRouter(prefix="/api/defense/dev", tags=["defense-dev"])
 @router.get("/samples", response_model=list[Project])
 async def list_samples(request: Request) -> list[Project]:
     return [s.project for s in _samples(request).values()]
+
+
+@router.get("/projects/{project_id}/files", response_model=ProjectSource)
+async def project_files(project_id: str, request: Request) -> ProjectSource:
+    """The project's source for the editor and the audit preview (PLAN §11.6, §14.4). Samples only: the
+    candidate fixes these files, so they aren't secret. Uploads (P1) must check the session that owns them."""
+    sample = _samples(request).get(project_id)
+    if sample is None:
+        raise HTTPException(404, f"unknown project {project_id!r}")
+    return ProjectSource(project_id=project_id, files=dict(sample.files))
 
 
 class DevRunRequest(BaseModel):

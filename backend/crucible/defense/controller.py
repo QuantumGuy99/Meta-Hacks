@@ -265,12 +265,14 @@ class DefenseController:
                 return
             turn = await p.answer_grill(fid, answer)
         finding = p.finding(fid)
-        await rt.broadcast(DefenseGrillEval(type="defense.grill.eval", turn=turn, finding=finding))
         if turn.eval.feedback:
             await self._say(rt, turn.eval.feedback, InterventionLevel.INFO)
         if p.needs_follow_up(fid):
+            # The eval carries the full finding (explanation, expected points), so it goes out only once
+            # the grill for this finding is final; revealing it before the follow-up hands over the answer.
             await self._say(rt, finding.grill.follow_up, InterventionLevel.QUESTION)
             return
+        await rt.broadcast(DefenseGrillEval(type="defense.grill.eval", turn=turn, finding=finding))
         self._current = None
         await self._ask_next(rt)
 

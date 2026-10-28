@@ -87,8 +87,10 @@ export function attachEditorCapture(
 export function startAudioCapture(opts: {
   wsUrl: string;                                  // /ws/sessions/{id}/audio
   onState?: (s: "starting" | "live" | "error" | "stopped") => void;
-}): Promise<{ setPaused(paused: boolean): void; stop(): void }>;
-// tts.ts calls setPaused(true) while the interviewer is speaking, so we don't transcribe it.
+}): Promise<{ setPaused(paused: boolean): void; setAsking(holding: boolean): void; stop(): void }>;
+// tts.ts calls setPaused(true) while the interviewer is speaking, so we don't transcribe it (silence is sent).
+// The Ask button calls setAsking(true) on press and setAsking(false) on release (ENG-7 added this).
+// "error" covers a denied mic and the server refusing voice (4403/4409/4503): show "use chat".
 
 // lib/replay.ts. Same algorithm as engine/codestate.py (PLAN §9.3).
 export function codeAt(timeline: TimelineEvent[], file: string, t: number): string;
@@ -277,7 +279,7 @@ expected step or issue in ≥ 2 of 3 runs. Those two evals come from Sharvil on 
 **Tests:** a "fires" and a "doesn't fire" test per rule, plus each guard.
 **Done when:** PLAN §16 ENG-5.
 **Left for later:** `PRAISE` needs a `tricky` flag on `RubricStep` (contract change, SG + SS). `ASKED` replies
-with a canned Socratic line until ENG-6's `answer()`. The coding evals' policy expectations (§16) run once
+through ENG-6's `answer()` (canned line as its fallback). The coding evals' policy expectations (§16) run once
 Sharvil's evals land.
 
 ### ENG-7 — VoiceBridge + audio capture
@@ -292,9 +294,13 @@ Sharvil's evals land.
 5. Browser: `getUserMedia` → AudioWorklet → 24 kHz Int16 → 1,920-sample frames, with `setPaused` for TTS.
 
 **Done when:** PLAN §16 ENG-7.
+**As built** (PR "feat(engine): voice in (ENG-7)", stacked on ENG-8): see PLAN §8.3 and §9.7. V1 is done (§23).
+Added beyond the list: the Ask button (`setAsking`, a voice turn held on Ask is a question), silence while
+paused, and close codes for "use chat". Live: final turns 0.1–0.2 s after speech ends; with realtime disabled,
+the 10 s chunk fallback produced timed turns from the real file endpoint.
 
 ### ENG-6 — Interviewer + leak guard
-**P0 · Fri · needs ENG-5** · Read: PLAN §9.6
+**P0 · Fri · needs ENG-5** · Read: PLAN §9.6 · **Built Tue Oct 27** (PR #27, stacked on #21)
 **Files:** `engine/interviewer.py`, `engine/prompts/*.md` (canned lines: `engine/prompts/canned.md`, from ENG-5)
 1. `phrase()`, `answer()`, phase lines, and `say()` for Shreyas. Generate the intro when the session is
    created, so it plays instantly.
@@ -307,6 +313,10 @@ Sharvil's evals land.
 line, and let "What happens when the list is empty?" through.
 **Done when:** PLAN §16 ENG-6: `asks-for-answer` never leaks in 20 attempts, and the intro plays within 1 s of
 joining.
+**As built:** no `phrase()` call. Nudges use the analyzer's draft, else the rubric hint, else the canned line, since a
+second Spark call would add 2–6 s to each. The intro is a canned phase line (COD-2), so nothing is generated at
+session creation. On a leak, `answer()` retries once asking for a Socratic question, then sends the canned
+line. Live check: 20 of 20 safe against Muse Spark; intro in ~1 ms.
 
 ### COD-2 — Coding phases, timers, wrap-up
 **P0 · Fri · needs ENG-1, ENG-6** · Read: PLAN §10.1
@@ -332,10 +342,19 @@ A paste of ≥ 40 chars or ≥ 2 lines, a bulk insert of ≥ 80 chars, and a hid
 
 **Done when:** PLAN §16 ENG-8: a coding session and a defense session (both mock-free) each produce a valid
 `Report` within 90 s, and the fallback works with Wonder disabled.
+**As built** (PR "feat(engine): ReportBuilder for both modes (ENG-8)", stacked on #27): see PLAN §9.8. Code
+replaces the scores it can measure and computes `overall`. The model wrapper gained `complete_json_with_model`
+so the report records which model answered. Live: coding report 14.8 s and defense report 17.0 s on Wonder;
+with Wonder disabled, Spark 1.3 in 14.9 s.
 
 ### P1 and P2 (only after the P0 path is solid)
+- **For DEF-11 (Shreyas's Muse fix assistant, P1, PLAN §11.9):** an `assistant` role in `registry.py`
+  (`muse-spark-1.3`, low, 20 s); a `chars_ai` counter in CodeState for edits applied through
+  `programmatic()` after an accepted `assistant.apply`; independence scoring (§9.8) that accounts for the AI
+  share; and review of the proposed contract additions with Shreyas.
 - **COD-5 — Coding report extras** (P1 · Sun): final step statuses, approach, whether the complexity answer
-  matched an acceptable approach.
+  matched an acceptable approach. Step statuses and approach came with ENG-8 (from the latest analyses);
+  grading the complexity answer is left.
 - **COD-6 — Classifier, `PLAN_MISMATCH`, `CODED_BEFORE_PLAN`** (P1 · Sun · needs ENG-7).
 - **VIS-1 — SAM sketch + proctor** (P2): only after both P0 paths pass the demo script twice in a row on the
   deployed build. Check V9 first.

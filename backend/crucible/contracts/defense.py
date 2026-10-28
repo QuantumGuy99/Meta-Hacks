@@ -16,6 +16,11 @@ class ProjectFile(Strict):
     size: int
 
 
+class ProjectSource(Strict):  # GET /api/defense/projects/{id}/files: the editor and audit file preview
+    project_id: str
+    files: dict[str, str]  # path → content; the app only (never flaws.json, fixed/ or fix.patch)
+
+
 class Project(Strict):
     id: str
     name: str

@@ -22,9 +22,20 @@ class RubricContext:
     def from_problem(cls, spec: ProblemSpec) -> "RubricContext":
         params = ", ".join(f"{p.name}: {p.type}" for p in spec.function.params)
         signature = f"def {spec.function.name}({params}) -> {spec.function.returns}"
+        examples = "\n".join(
+            f"- Input: {e.input} → Output: {e.output}" + (f" ({e.explanation})" if e.explanation else "")
+            for e in spec.examples
+        )
+        constraints = "\n".join(f"- {c}" for c in spec.constraints)
+        # Only what the candidate can already see: the interviewer answers clarifying questions from this.
+        brief = f"{spec.statement_md.strip()}\n\nFunction to implement: `{signature}`"
+        if examples:
+            brief += f"\n\nExamples:\n{examples}"
+        if constraints:
+            brief += f"\n\nConstraints:\n{constraints}"
         return cls(
             title=spec.title,
-            brief_md=f"{spec.statement_md.strip()}\n\nFunction to implement: `{signature}`",
+            brief_md=brief,
             steps=spec.rubric.steps,
             edge_cases=spec.rubric.edge_cases,
             common_mistakes=spec.rubric.common_mistakes,
