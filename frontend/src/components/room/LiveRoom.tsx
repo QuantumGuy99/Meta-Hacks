@@ -15,8 +15,9 @@ import { feedMessages, liveCaption, statusLine, useLiveSession, useRemaining } f
 import type { Phase, ProblemPublic } from "@/types/contracts";
 import { CodeEditor } from "./CodeEditor";
 import { InterviewerPanel, type RoomNote } from "./InterviewerPanel";
+import { MicControls } from "./MicControls";
 import { TestPanel } from "./TestPanel";
-import { MIC_LABEL, useRoomVoice } from "./useRoomVoice";
+import { useMic } from "./useMic";
 
 // The live coding room (/coding/[id], PLAN §14.2): everything on screen comes from the session socket.
 // Edits go out through the capture lib; Run/Submit, Ask, Hint and the phase buttons are ClientMessages.
@@ -48,7 +49,7 @@ export function LiveRoom({ id }: { id: string }) {
   const { state, send, streamDone } = useLiveSession(id);
   const remaining = useRemaining(state);
   const caption = liveCaption(state);
-  const { speaking, mic, toggleMic } = useRoomVoice(id, state, caption);
+  const { mic, toggleMic, setAsking } = useMic(id);
   const [problem, setProblem] = useState<ProblemPublic | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -274,7 +275,7 @@ export function LiveRoom({ id }: { id: string }) {
         <ResizablePanel defaultSize="26%" minSize="20%">
           <InterviewerPanel
             messages={feedMessages(state)}
-            state={speaking ? "speaking" : state.interviewer}
+            state={state.interviewer}
             streamingId={state.streamingId}
             onStreamDone={streamDone}
             onAsk={(text) => send({ type: "chat.send", text })}
@@ -284,9 +285,7 @@ export function LiveRoom({ id }: { id: string }) {
             caption={caption}
             extra={
               state.session?.config.voice ? (
-                <button type="button" className="ui-btn" aria-pressed={mic === "live"} onClick={toggleMic} disabled={ended}>
-                  {MIC_LABEL[mic]}
-                </button>
+                <MicControls mic={mic} onToggle={toggleMic} onAsking={setAsking} disabled={ended} />
               ) : null
             }
           />

@@ -20,8 +20,7 @@ export function SetupForm() {
   const [difficulty, setDifficulty] = useState<Difficulty | "any">("any");
   const [topic, setTopic] = useState("");
   const [feedback, setFeedback] = useState<FeedbackLevel>(params.get("feedback") === "passive" ? "passive" : "active");
-  const [voice, setVoice] = useState(false);
-  const [speakReplies, setSpeakReplies] = useState(true);
+  const [voice, setVoice] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,7 +53,7 @@ export function SetupForm() {
         mode: "coding",
         feedback,
         voice,
-        speak_replies: speakReplies,
+        speak_replies: false, // voice is speech to text only: the interviewer's replies stay text
         problem_slug: slug || null,
         difficulty: slug || difficulty === "any" ? null : difficulty,
         topic: slug || !topic ? null : topic,
@@ -135,11 +134,7 @@ export function SetupForm() {
       <div className="setup-checks">
         <label>
           <input type="checkbox" checked={voice} onChange={(e) => setVoice(e.target.checked)} />
-          Talk with the microphone
-        </label>
-        <label>
-          <input type="checkbox" checked={speakReplies} onChange={(e) => setSpeakReplies(e.target.checked)} />
-          Read the interviewer&apos;s replies aloud
+          Speech to text: talk through your approach with the microphone
         </label>
       </div>
       {error && (

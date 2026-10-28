@@ -30,7 +30,7 @@ components/
   coding/       SetupForm, ProblemPanel
   defense/      SamplePicker, AuditView (React Flow), ChaosLab (Recharts), GrillCard, VerifyView, MergeGate
   report/       ReportHeader, DimensionBars, MetricsGrid, MomentCards, Replay (scrubber + read-only Monaco + transcript)
-lib/            api.ts  ws.ts  store.ts  tts.ts   (LG)   ·  capture/*, replay.ts (SG)  ·  defense.ts (SS)
+lib/            api.ts  ws.ts  session.ts        (LG)   ·  capture/*, replay.ts (SG)  ·  defense.ts (SS)
 types/          contracts.ts (generated)
 ```
 `store.ts`: one zustand store per session — session/phase/remaining_s, interviewer_state, messages, transcript (partial+final), notes, run results, integrity flags, defense audit/metrics/runs/grill/verdict — fed only by ServerMessages.
@@ -42,7 +42,7 @@ types/          contracts.ts (generated)
 | 1 Tue | **FE-2**, FE-3 start | `api.ts` (REST §8.1, `{error:{code,message}}` handling), `ws.ts` transport, `store.ts`; room skeleton | Fixture scenario drives store; reconnect + `hello` works |
 | 2 Wed | **FE-3**, **FE-4** (text), **FE-5** | Room 30/45/25 split: top bar (stepper, timer, feedback badge, mic, End); Monaco (Python, `quickSuggestions:false`, `wordBasedSuggestions:"off"`, minimap off) + capture hook; Run/Submit, Ctrl+Enter; TestPanel drawer (cases, hidden counts only, stdout/stderr). InterviewerPanel (state indicator, messages w/ level chip, chat Ask, Hint, "Start coding"/"I'm done" phase.advance), NotesPanel toggle. `/coding` setup form → `POST /api/sessions` → redirect; ProblemPanel (markdown, examples, constraints, illustration) | **IC1:** room shows a nudge from the analyzer; Run shows results |
 | 3 Thu | **FE-6** (audit, chaos) | `/defense` sample cards; stage stepper; AuditView (dagre layout, flagged nodes red, findings list ↔ node highlight + file preview); ChaosLab (live rps / p95 lines, error + violation counters, "BROKE: …" banner, collapsible script) | `bank-transfer` audit + chaos render from fixtures |
-| 4 Fri | **FE-4** voice, **FE-6** grill/fix | `tts.ts` (queue, natural voice, barge-in cancel, drives speaking indicator); mic toggle + live captions using SG audio capture; GrillCard (90 s countdown, voice/chat answer, points hit/missed); Fix = InterviewRoom with file tabs + Verify | **IC2:** live chaos charts + text grill on real backend |
+| 4 Fri | **FE-4** voice, **FE-6** grill/fix | speech-to-text mic (toggle, Hold to Ask, live captions) on SG's audio capture, no TTS; GrillCard (90 s countdown, voice/chat answer, points hit/missed); Fix = InterviewRoom with file tabs + Verify | **IC2:** live chaos charts + text grill on real backend |
 | 5 Sat | **FE-7** | `/report/[id]`: generating state until `report.ready` / 202; overall + dimension bars w/ evidence tooltips, summary, strengths, improvements, metrics grid; Replay: scrubber w/ markers by kind, read-only Monaco via `codeAt(t)`, auto-scrolling transcript, 1×/4×/16×, moment cards seek; defense extras (before/after overlay, grill turns, verdict) | Replay plays a recorded session |
 | 6 Sun | **FE-8** | Loading/error/empty states, mic permission UX, keyboard shortcuts, consistent motion, integration fixes | **IC3:** both modes end-to-end on deployed build |
 | 7–9 | Polish | Demo-path UX per PLAN §20 script; freeze Tue 12 PM | Demo takes recorded |

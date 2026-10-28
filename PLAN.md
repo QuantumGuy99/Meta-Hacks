@@ -84,7 +84,7 @@ coding agents daily. Both modes solve problems we have firsthand.
 
 | Area | P0 (demo-critical) | P1 (should) | P2 (stretch) |
 |---|---|---|---|
-| **Room** | Monaco editor (Python), edit capture, interviewer panel, text chat, timer, phase stepper | Voice in (Muse Voice Transcribe), voice out (browser TTS), "interviewer's notes" panel | Multi-language (JS) |
+| **Room** | Monaco editor (Python), edit capture, interviewer panel, text chat, timer, phase stepper | Voice in: speech to text (Muse Voice Transcribe), "interviewer's notes" panel | Multi-language (JS) |
 | **Coding mode** | 12 validated problems, difficulty picker, run/submit tests, analyzer + policy (active and passive), hint ladder, paste/tab notes, report | 30 problems, plan-vs-code check, coded-before-plan check, wrap-up complexity question, problem illustrations | 40+ problems, SAM 3.1 paper sketch, proctor mode |
 | **Defense mode** | 3 sample apps, Wonder audit + topology diagram, chaos run (breaks before the fix, holds after), grill (text answers OK), fix in editor, verify, verdict | Voice grill, "circle the flaw" with SAM 3.1, Muse fix assistant (DEF-11, logged), attack refine loop, zip upload, 5 sample apps | GitHub URL import, suggested refactor patch / Muse Code handoff, Muse Image merge-gate card |
 | **Report** | Scores, summary, strengths/improvements, metrics, moments, replay (code playback + transcript + nudges) | Defense before/after charts in the report, share link | Muse Image report card |
@@ -104,9 +104,9 @@ coding agents daily. Both modes solve problems we have firsthand.
 
 ### 3.1 Live Coding Interview
 1. `/` → choose **Live Coding Interview**.
-2. `/coding` setup: difficulty (easy/medium/hard), optional topic, feedback **active/passive**, voice on/off,
-   "speak replies" on/off. → `POST /api/sessions` → redirect to `/coding/{id}`.
-3. **Intro** (≈30 s): the interviewer greets and presents the problem (text + TTS). The problem panel shows
+2. `/coding` setup: difficulty (easy/medium/hard), optional topic, feedback **active/passive**, voice (speech to
+   text) on/off. → `POST /api/sessions` → redirect to `/coding/{id}`.
+3. **Intro** (≈30 s): the interviewer greets and presents the problem (text). The problem panel shows
    the statement, examples and constraints.
 4. **Clarify:** the candidate asks questions (voice or chat) and states an approach. The interviewer answers
    clarifying questions from the problem spec only. The editor is unlocked the whole time; coding before
@@ -169,7 +169,7 @@ Monaco change ──► EditorCapture batches 500 ms ──► WS editor.events 
                  └─► Timeline.append(analysis) ──► Policy.decide(analysis, state)
                         ├─ no  → nothing (passive mode: log a suppressed intervention)
                         └─ yes → Interviewer.phrase() ──► leak guard ──► Timeline.append(intervention)
-                                   ──► WS interviewer.message ──► panel + TTS
+                                   ──► WS interviewer.message ──► panel
 ```
 
 Runs, final transcript turns and explicit asks also trigger the scheduler (§9.4).
@@ -213,7 +213,7 @@ Finding.chaos (plan) ──► AttackWriter (Spark → reference attack) fills 3
 | Diagram / charts | `@xyflow/react` (React Flow) with `@dagrejs/dagre` auto-layout; **uPlot** for the live chaos-lab charts; **Recharts** (shadcn `chart`) for the report's static charts | uPlot draws on a canvas with no tweening, so it stays cheap at a metric sample every 500 ms; Recharts is fine where nothing streams |
 | Other frontend libs | `streamdown` (problem statements and streamed interviewer replies), `shiki` (static code on the landing page), `motion` (state-change animation), `gsap` + `lenis` (landing-page scroll motion only), `@number-flow/react` (animated numbers), `sonner` (toasts), `lucide-react` (icons) | Each listed in the PR that adds it (§22 rule 12) |
 | Client state | **zustand** | One store per session |
-| TTS | Browser **`speechSynthesis`** | Meta has no TTS model; this is free and needs no key |
+| Voice | **Speech to text only** (Muse Voice Transcribe, §9.7) | The interviewer's replies stay text; no TTS (§14.7) |
 | Lint/test | ruff, pytest, pytest-asyncio; eslint, tsc, Playwright (P1) | |
 | CI | GitHub Actions: `make check` | |
 | Hosting | Frontend **Vercel**; backend **Railway** or **Fly.io** (Docker, WebSockets, volume) | |
@@ -277,7 +277,6 @@ Owners: **SG** Srinithin Ganesh · **SS** Shreyas Sahoo · **LG** Likhil Gudipat
         │   ├── capture/editor.ts              (SG)  Monaco → EditorEvent batches + snapshots
         │   ├── capture/audio/*                (SG)  mic → AudioWorklet → PCM 24 kHz Int16 frames
         │   ├── replay.ts                      (SG)  code at time t (mirrors engine/codestate.py)
-        │   ├── tts.ts                         (LG)
         │   └── defense.ts                     (SS)  defense-stage helpers/selectors
         └── types/contracts.ts                 # GENERATED (make contracts); do not edit
 ```
@@ -331,7 +330,7 @@ class SessionConfig(Strict):
     mode: Mode
     feedback: FeedbackLevel = FeedbackLevel.ACTIVE
     voice: bool = True               # mic + Muse Voice Transcribe
-    speak_replies: bool = True       # browser TTS for interviewer messages
+    speak_replies: bool = True       # unused: the frontend sends False, voice is speech to text only (§14.7)
     proctor: bool = False            # P2: SAM 3.1 webcam checks (opt-in)
     problem_slug: str | None = None  # coding: explicit problem
     difficulty: Difficulty | None = None  # coding: random problem at this difficulty
@@ -875,7 +874,7 @@ Server → client:
 - The client sends **raw PCM, signed 16-bit little-endian, mono, 24 kHz**, in **80 ms frames (1,920 samples =
   3,840 bytes)** at real-time pace. Text frames: `{"type":"start"}` / `{"type":"stop"}`, and
   `{"type":"ask","holding":true|false}` when the **Ask** button is pressed and released.
-- While TTS speaks, the client sends **silence** instead of the mic (not nothing): the stream keeps real-time
+- While the mic is paused, the client sends **silence** instead (not nothing): the stream keeps real-time
   pace (Meta closes streams that fall behind) and the audio clock stays aligned with session time.
 - The server forwards the frames to Meta's realtime ASR (§9.7) and publishes transcripts on the JSON socket.
 - Close codes: `4404` unknown session, `4403` the session has voice off, `4503` voice unavailable (no key, or
@@ -1595,7 +1594,7 @@ Until S-1 and OPS-2 land, the frontend uses two **dev-only bridges**, and neithe
 | Route | Content |
 |---|---|
 | `/` | Hero, the two mode cards, "how it works", the Meta models strip |
-| `/coding` | Setup form (difficulty, topic, feedback, voice, speak replies); pre-fills from the `?topic=&feedback=` the landing page's start dialog sends |
+| `/coding` | Setup form (difficulty, topic, feedback, voice: speech to text, on by default); pre-fills from the `?topic=&feedback=` the landing page's start dialog sends |
 | `/coding/[id]` | `InterviewRoom` in coding configuration |
 | `/defense` | Sample app cards (+ zip upload, P1) |
 | `/defense/[id]` | Stage stepper: Audit → Chaos → Grill → Fix → Verify → Verdict |
@@ -1674,11 +1673,13 @@ MOCK is only ever switched on explicitly: a timeout, a missing credential or a M
 session never falls back to recorded data (it follows §21: a real fallback model, or an `error` verdict with
 a retry button), because recorded results shown as live would be a faked demo.
 
-### 14.7 TTS (`lib/tts.ts`)
-`speechSynthesis` with a chosen English voice (prefer a natural voice when available), a queue, `cancel()`
-when the candidate starts speaking (barge-in), and an `onstart`/`onend` that drives the speaking indicator.
-No third-party TTS (e.g. ElevenLabs): it would be the only non-Meta model call at runtime, needs another
-key, and `speechSynthesis` has no outage to fall back from.
+### 14.7 Voice: speech to text only
+Voice in the room is **speech to text**: the candidate's mic streams to the audio socket (§8.3), Muse Voice
+Transcribe turns it into `transcript.update` turns, and the room shows them as live captions and chat
+messages. **Hold to Ask** marks a spoken question for the interviewer. The setup forms turn voice on by
+default and fall back to the chat box when the socket closes with 44xx/45xx.
+There is **no text to speech**: the interviewer's replies are shown as text and never read aloud (the
+frontend sends `speak_replies: false`). That also keeps every runtime model call a Meta one.
 
 ---
 

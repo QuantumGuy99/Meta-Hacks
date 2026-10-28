@@ -7,7 +7,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CodeEditor } from "@/components/room/CodeEditor";
 import { InterviewerPanel } from "@/components/room/InterviewerPanel";
-import { MIC_LABEL, useRoomVoice } from "@/components/room/useRoomVoice";
+import { MicControls } from "@/components/room/MicControls";
+import { useMic } from "@/components/room/useMic";
 import { api, errorText } from "@/lib/api";
 import { attachEditorCapture, type EditorCapture } from "@/lib/capture/editor";
 import { levelLabel, severityLabel } from "@/lib/fixtures";
@@ -51,7 +52,7 @@ export function LiveDefense({ id }: { id: string }) {
   const { state, send, streamDone } = useLiveSession(id);
   const remaining = useRemaining(state);
   const caption = liveCaption(state);
-  const { speaking, mic, toggleMic } = useRoomVoice(id, state, caption);
+  const { mic, toggleMic, setAsking } = useMic(id);
   const [picked, setPicked] = useState<{ stage: Phase; at: Phase | null } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
@@ -497,16 +498,14 @@ export function LiveDefense({ id }: { id: string }) {
 
         <InterviewerPanel
           messages={feedMessages(state)}
-          state={speaking ? "speaking" : state.interviewer}
+          state={state.interviewer}
           streamingId={state.streamingId}
           onStreamDone={streamDone}
           onAsk={(text) => send({ type: "chat.send", text })}
           caption={caption}
           extra={
             state.session?.config.voice ? (
-              <button type="button" className="ui-btn" aria-pressed={mic === "live"} onClick={toggleMic} disabled={phase === "ended"}>
-                {MIC_LABEL[mic]}
-              </button>
+              <MicControls mic={mic} onToggle={toggleMic} onAsking={setAsking} disabled={phase === "ended"} />
             ) : null
           }
         />

@@ -135,6 +135,25 @@
 .room-phases li.is-done {
   color: var(--ink);
 }
+/* speech-to-text mic bar above the chat box */
+.rm-voice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 0;
+  border-top: 1px solid var(--ui-line);
+}
+.rm-voice .ui-btn {
+  touch-action: none; /* Hold to Ask is a press-and-hold */
+  user-select: none;
+}
+.rm-voice-note {
+  flex: 1 1 160px;
+  color: var(--muted-ink);
+  font-size: 12px;
+  line-height: 1.4;
+}
 .msg-caption {
   margin-top: 4px;
   padding: 8px 10px;

@@ -99,7 +99,7 @@ export function InterviewerPanel({
   notes?: RoomNote[];
   /** A live caption under the messages: what the candidate is saying right now (partial transcript). */
   caption?: string | null;
-  /** Extra controls in the ask row, e.g. the mic toggle. */
+  /** A bar above the chat box, e.g. the speech-to-text mic controls. */
   extra?: ReactNode;
 }) {
   const [draft, setDraft] = useState("");
@@ -164,6 +164,7 @@ export function InterviewerPanel({
         </div>
       )}
 
+      {extra}
       <form
         className="rm-ask"
         onSubmit={(e) => {
@@ -193,7 +194,6 @@ export function InterviewerPanel({
             Hint
           </button>
         )}
-        {extra}
       </form>
     </section>
   );

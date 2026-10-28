@@ -70,7 +70,7 @@ If a signature doesn't fit how you're building the store, say so before they bui
 | A room that shows interviewer messages and run results | Srinithin (IC1) | Wed Oct 28 |
 | A plain findings list on `/defense/[id]` | Shreyas (IC1) | Wed Oct 28 |
 | Audit (React Flow) + chaos lab (uPlot) views | Shreyas | Thu Oct 29 |
-| Mic toggle, live captions, TTS, grill card, fix + verify | Srinithin, Shreyas (IC2) | Fri Oct 30 |
+| Mic toggle (speech to text), live captions, grill card, fix + verify | Srinithin, Shreyas (IC2) | Fri Oct 30 |
 | Report + replay | Everyone | Sat Oct 31 |
 | The Vercel deploy, set up with Shreyas | Everyone (IC3) | Sat Oct 31 |
 | Demo-path UX, screenshots for the README and video | Everyone | Mon Nov 2 |
@@ -102,11 +102,11 @@ These are where UI choices touch the spec. Breaking one breaks a design rule or 
   the text) go inside the capture lib's `programmatic(() => …)`. Otherwise they look like typing or a
   bulk paste, and the candidate gets an integrity note they didn't earn. Switching defense tabs is
   `setFile(path)`.
-- **TTS:** while `tts.ts` is speaking, call the audio capture's `setPaused(true)`, so the mic doesn't
-  transcribe the interviewer. When the candidate starts speaking, cancel TTS (barge-in).
+- **Voice is speech to text only** (PLAN §14.7): the mic streams to the audio socket and the turns come back
+  as captions and chat messages; Hold to Ask sends `ask` frames. No TTS: the interviewer's replies stay text.
 - **Monaco:** Python, `quickSuggestions: false`, `wordBasedSuggestions: "off"`, minimap off (PLAN §14.2).
 - **`/coding` setup** pre-fills from the `?topic=&feedback=` your landing start dialog sends, and adds
-  difficulty, voice and speak replies → `POST /api/sessions` with a `SessionConfig`.
+  difficulty and voice (speech to text, on by default; `speak_replies: false`) → `POST /api/sessions`.
 - **No MOCK or fixtures in the demo video,** ever.
 
 ## Dependencies to add, by work package
@@ -152,7 +152,7 @@ around.
 | 1 Tue | **FE-2** `api.ts`, `ws.ts` (reconnect with backoff, `hello` on every connect), `store.ts`; start FE-3 | A fixture scenario drives the store |
 | 2 Wed | **FE-3** room + Monaco + TestPanel, **FE-4** text, **FE-5** setup + problem panel; plain findings list | **IC1:** a nudge appears and Run shows results |
 | 3 Thu | **FE-6** audit + chaos views | `bank-transfer` audit and chaos render from MOCK |
-| 4 Fri | **FE-4** voice + TTS, **FE-6** grill + fix/verify | **IC2:** live chaos charts and a text grill on the real backend |
+| 4 Fri | **FE-4** voice (speech to text), **FE-6** grill + fix/verify | **IC2:** live chaos charts and a text grill on the real backend |
 | 5 Sat | **FE-7** report + replay; Vercel deploy with Shreyas | Replay plays a recorded session |
 | 6 Sun | **FE-8** states, permissions, shortcuts, motion; integration fixes | **IC3:** both modes end-to-end on the deployed build |
 | 7 Mon | Demo-path polish (PLAN §20.1); the DEF-9 pen only if agreed | Demo script passes twice |
