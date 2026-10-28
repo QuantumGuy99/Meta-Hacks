@@ -12,6 +12,8 @@ export type RoomMessage = {
   id: string;
   who: "interviewer" | "you";
   level?: InterventionLevel;
+  /** For a line that isn't help (the warm-up, a follow-up, a check-in): shown instead of a level; empty for none. */
+  tag?: string;
   text: string;
 };
 
@@ -136,7 +138,7 @@ export function InterviewerPanel({
             >
               <span className="msg-who">
                 {msg.who === "you" ? "You" : "Interviewer"}
-                {msg.level ? ` · ${levelLabel(msg.level)}` : ""}
+                {msg.tag !== undefined ? (msg.tag ? ` · ${msg.tag}` : "") : msg.level ? ` · ${levelLabel(msg.level)}` : ""}
               </span>
               {msg.who === "you" ? (
                 <p>{msg.text}</p>

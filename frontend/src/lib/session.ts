@@ -281,19 +281,38 @@ export function useLiveSession(id: string) {
   return { state, send, streamDone };
 }
 
-export type FeedMessage = { id: string; who: "interviewer" | "you"; level?: Intervention["level"]; text: string };
+/** `tag` names a line that isn't help (empty: no label); otherwise `level` is its help level. */
+export type FeedMessage = { id: string; who: "interviewer" | "you"; level?: Intervention["level"]; tag?: string; text: string };
+
+// The interviewer's side of the conversation isn't help (#57, #58): the warm-up, replies to what the candidate
+// says, follow-up questions on their code and check-ins when they go quiet. The feed says which kind of line it
+// is instead of a help level. Keyed by string: contracts.ts gets warmup, reply and probe with #57.
+const TALK_TAGS: Record<string, string> = {
+  warmup: "Warm-up",
+  reply: "",
+  probe: "Follow-up",
+  silent: "Check-in",
+  idle: "Check-in",
+};
 
 /** The interviewer's shown messages and the candidate's finished turns, in session order. */
 export function feedMessages(state: LiveState): FeedMessage[] {
   const shown = new Set(state.shown);
+  // The candidate's turns go first so that, at the same millisecond (a canned reply), what they said stays above
+  // the line that answers it: the sort keeps that order for equal times.
   const items: (FeedMessage & { t: number })[] = [
-    ...state.interventions
-      .filter((iv) => shown.has(iv.id))
-      .map((iv) => ({ id: iv.id, who: "interviewer" as const, level: iv.level, text: iv.text, t: iv.t })),
     // the interviewer's own turns duplicate its interventions, so only the candidate's are listed
     ...state.turns
       .filter((turn) => turn.speaker === "candidate" && turn.final && turn.text.trim())
       .map((turn) => ({ id: turn.turn_id, who: "you" as const, text: turn.text, t: turn.start_ms })),
+    ...state.interventions
+      .filter((iv) => shown.has(iv.id))
+      .map((iv) => {
+        const tag = TALK_TAGS[iv.trigger];
+        return tag === undefined
+          ? { id: iv.id, who: "interviewer" as const, level: iv.level, text: iv.text, t: iv.t }
+          : { id: iv.id, who: "interviewer" as const, tag, text: iv.text, t: iv.t };
+      }),
   ];
   return items.sort((a, b) => a.t - b.t);
 }
@@ -315,7 +334,8 @@ export function isFinished(phase: Phase | null): boolean {
 /** Seconds left, counting down locally between the server's session.state updates. */
 export function useRemaining(state: LiveState): number | null {
   const [now, setNow] = useState(0);
-  const live = state.remainingS !== null && !isFinished(state.phase);
+  // The clock holds through the warm-up and starts with the problem (#57): the server sends the new time then.
+  const live = state.remainingS !== null && !isFinished(state.phase) && state.phase !== "setup" && state.phase !== "intro";
   useEffect(() => {
     if (!live) return;
     const tick = () => setNow(performance.now());
