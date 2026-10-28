@@ -1,5 +1,7 @@
 """Tests for engine/analyzer.py (PLAN §9.4): when the analyzer runs, what it sees, and failed calls."""
 
+import asyncio
+
 import pytest
 
 from crucible.contracts.coding import Analysis, ProblemSpec
@@ -9,6 +11,7 @@ from crucible.engine.analyzer import (
     PAUSE_MS,
     STEADY_CHANGE_MS,
     AnalysisInput,
+    Analyzer,
     SchedulerState,
     build_messages,
     due,
@@ -172,3 +175,30 @@ async def test_a_failed_call_skips_the_tick_and_keeps_the_changes_for_next_time(
     notes = rt.timeline.tail([TimelineKind.SYSTEM])
     assert len(notes) == 1 and "analysis skipped" in notes[0].payload["message"]
     assert rt.code.changed_since_analysis()
+
+
+class HangingModel(FakeModel):
+    """Never answers, like a call still running when the engine detaches."""
+
+    async def complete_json(self, *args: object, **kwargs: object) -> Analysis:  # type: ignore[override]
+        await asyncio.Event().wait()
+        raise AssertionError("unreachable")
+
+
+@pytest.mark.asyncio
+async def test_a_call_stopped_midway_keeps_the_changes_for_next_time() -> None:
+    # Wrap-up detaches the engine right after the passing submit, often while the fixed code is being analyzed.
+    rt = runtime(HangingModel(analysis()))
+    rt.code.code_by_file["solution.py"] = "x = 1\n"
+    analyzer = Analyzer(rt, context(), rt._model, _ignore)  # type: ignore[arg-type]
+    call = asyncio.create_task(analyzer.run("pause"))
+    await asyncio.sleep(0)
+    assert not rt.code.changed_since_analysis()  # marked when the call starts
+    call.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await call
+    assert rt.code.changed_since_analysis()  # so the report's final analysis looks at it
+
+
+async def _ignore(analysis: Analysis) -> None:
+    return None
