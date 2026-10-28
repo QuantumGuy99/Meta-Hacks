@@ -348,6 +348,10 @@ so the report records which model answered. Live: coding report 14.8 s and defen
 with Wonder disabled, Spark 1.3 in 14.9 s.
 
 ### P1 and P2 (only after the P0 path is solid)
+- **For DEF-11 (Shreyas's Muse fix assistant, P1, PLAN §11.9):** an `assistant` role in `registry.py`
+  (`muse-spark-1.3`, low, 20 s); a `chars_ai` counter in CodeState for edits applied through
+  `programmatic()` after an accepted `assistant.apply`; independence scoring (§9.8) that accounts for the AI
+  share; and review of the proposed contract additions with Shreyas.
 - **COD-5 — Coding report extras** (P1 · Sun): final step statuses, approach, whether the complexity answer
   matched an acceptable approach. Step statuses and approach came with ENG-8 (from the latest analyses);
   grading the complexity answer is left.

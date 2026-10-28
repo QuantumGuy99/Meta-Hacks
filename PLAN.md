@@ -86,7 +86,7 @@ coding agents daily. Both modes solve problems we have firsthand.
 |---|---|---|---|
 | **Room** | Monaco editor (Python), edit capture, interviewer panel, text chat, timer, phase stepper | Voice in (Muse Voice Transcribe), voice out (browser TTS), "interviewer's notes" panel | Multi-language (JS) |
 | **Coding mode** | 12 validated problems, difficulty picker, run/submit tests, analyzer + policy (active and passive), hint ladder, paste/tab notes, report | 30 problems, plan-vs-code check, coded-before-plan check, wrap-up complexity question, problem illustrations | 40+ problems, SAM 3.1 paper sketch, proctor mode |
-| **Defense mode** | 3 sample apps, Wonder audit + topology diagram, chaos run (breaks before the fix, holds after), grill (text answers OK), fix in editor, verify, verdict | Voice grill, "circle the flaw" with SAM 3.1, attack refine loop, zip upload, 5 sample apps | GitHub URL import, suggested refactor patch / Muse Code handoff, Muse Image merge-gate card |
+| **Defense mode** | 3 sample apps, Wonder audit + topology diagram, chaos run (breaks before the fix, holds after), grill (text answers OK), fix in editor, verify, verdict | Voice grill, "circle the flaw" with SAM 3.1, Muse fix assistant (DEF-11, logged), attack refine loop, zip upload, 5 sample apps | GitHub URL import, suggested refactor patch / Muse Code handoff, Muse Image merge-gate card |
 | **Report** | Scores, summary, strengths/improvements, metrics, moments, replay (code playback + transcript + nudges) | Defense before/after charts in the report, share link | Muse Image report card |
 | **Platform** | Local dev, MOCK mode, SQLite, deployed frontend + backend | Spend guard (sessions per IP per day), contributor-model dev switch | Accounts (not planned) |
 
@@ -771,6 +771,8 @@ class DefenseExtra(Strict):
     grill: list[GrillTurn]
     verdict: Verdict
     card_url: str | None         # P2: merge-gate card image (§11.8)
+    # P1 (§11.9), proposed: ai_assist: AiAssistStats | None   {asks, suggestions, accepted, ai_chars,
+    #   typed_chars, ai_share_pct}. Added with DEF-11, with SG + SS approval.
 
 class Report(Strict):
     session_id: str
@@ -843,6 +845,8 @@ Client → server:
 | `phase.advance` | `to: Phase` | Candidate-driven transitions only: clarify → coding ("Start coding") and coding → wrap_up ("I'm done"); the server rejects anything else |
 | `defense.run_chaos` | `finding_id` | Normally automatic; manual retry button |
 | `defense.verify` | `finding_id`, `files: {path: code}` | Re-run the attack on edited files |
+| `assistant.ask` | `text`, `file: str \| None`, `selection: str \| None` | P1 (§11.9): ask the Muse fix assistant → `assistant.reply` |
+| `assistant.apply` | `turn_id`, `accepted: bool` | P1: accept or reject that reply's edits (logged; accepted edits come back as an editor snapshot) |
 | `defense.circle` | `finding_id`, `source: canvas\|webcam`, `image_b64` (PNG/JPEG ≤ 1 MB), `node_boxes: {node_id: [x1,y1,x2,y2]}` (canvas only) | P1: SAM 3.1 locates the circle/sketch → `defense.sam.highlight` (§11.7) |
 | `session.end` | — | → ended → report |
 
@@ -861,6 +865,7 @@ Server → client:
 | `defense.chaos.done` | `ChaosRun` |
 | `defense.grill.eval` | `GrillTurn` + `finding: Finding`, sent once the grill for that finding is final (after the follow-up, if one is asked); the full finding is revealed only then |
 | `defense.sam.highlight` | `SamHighlight` (P1) |
+| `assistant.reply` | `AssistantTurn {id, t, question, answer, edits: AssistantEdit[], model}` (P1, §11.9) |
 | `defense.verdict` | `Verdict` |
 | `report.ready` | `session_id` |
 | `error` | `code`, `message`, `retryable` |
@@ -1403,6 +1408,26 @@ and detail and ask for a revised attack (max 2 refinements). A plain call per re
   before → after, p99 before → after, PASS/FAIL) on top in HTML/SVG. Stored as `DefenseExtra.card_url`.
 - Runs in the background after `defense.verdict`; never blocks the verdict or the report.
 
+### 11.9 P1: Muse fix assistant (`defense/assistant.py`, DEF-11)
+A Muse Spark coding assistant in a side panel during **fix** (and verify), the way people really work with AI.
+The grill comes first, so the candidate has already explained the flaw without help before the assistant
+appears. **Everything it does is on the timeline and in the report**, so the result shows how much of the fix
+the AI wrote.
+- **Ask:** the candidate types a question, optionally with a selected range (`assistant.ask`). The assistant
+  sees the full finding (revealed after the grill), the project files with their current edits, the chaos
+  summary and the latest verify result. It answers in prose and may propose **edits** (`AssistantEdit`: a
+  file and its new contents), which the panel shows as a diff (`assistant.reply`).
+- **Apply:** the candidate accepts or rejects each reply's edits (`assistant.apply`). Accepted edits go
+  into the editor through the capture lib's `programmatic()` path. CodeState counts them as **AI-written**
+  (`chars_ai`), not as typed or pasted, so they never raise an integrity flag.
+- **Not the interviewer:** the leak guard (§9.6) doesn't apply to assistant replies, because the candidate
+  asked for code. The interviewer still never volunteers the fix, and the analyzer keeps watching the editor.
+- **Merge gate unchanged:** the same attack must hold and the grill must pass. The verdict reasons and the
+  report add the AI share ("38% of the changed lines came from the assistant; 3 of 4 suggestions accepted"),
+  and independence scoring (§9.8) accounts for it.
+- **Limits:** only in fix/verify, at most 20 asks per session (cost guard, about $0.002 each). Timeout 20 s;
+  on failure the panel says the assistant is unavailable and the session continues.
+
 ---
 
 ## 12. Runner
@@ -1686,6 +1711,7 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 | `attacker` | `muse-spark-1.3` | high | Spark (medium) → reference attack (sample apps only) |
 | `drafter` (datatools) | `muse-wonder-1.0` | high | Spark (medium) → Spark Open |
 | `vision` (P2) | `muse-spark-1.3` with image input | low | skip |
+| `assistant` (P1, §11.9) | `muse-spark-1.3` | low | "assistant unavailable" message |
 
 - `reasoning_effort` values: `minimal | low | medium | high | xhigh | max` (`none` returns 400 on Spark and
   Wonder). Live roles (analyzer, interviewer, classifier, grill_eval) use the lowest effort that works.
@@ -1809,6 +1835,12 @@ Format: **ID — title** (owner · priority · depends on) followed by "done whe
   it needs a pen, a canvas PNG export and node boxes in FE-6): §11.7.
   *Done when* a circle drawn around the flawed node on a canvas PNG selects that node in ≥ 4 of 5 tries.
 - **DEF-10 — Merge-gate card** (P2 · DEF-6; only after both P0 paths pass the demo script twice): §11.8.
+- **DEF-11 — Muse fix assistant** (P1 · DEF-6, after IC2; needs the contract additions below with SG + SS
+  approval, an `assistant` role in `models/registry.py` (SG), `chars_ai` in CodeState (SG) and a side panel in
+  the fix stage (LG)): §11.9. Contracts: `AssistantEdit {file, new_code}`, `AssistantReply` (LLM output:
+  `answer`, `edits`), `AssistantTurn`, `TimelineKind.ASSISTANT` and `ASSISTANT_APPLY`, the three messages in §8.2,
+  `DefenseExtra.ai_assist`.
+  *Done when* a candidate can ask, see a diff, accept it, verify, and the report shows the AI share.
 - **OPS-1 — Deploy** (P0 · S-0): §19. *Done when* the deployed frontend runs a full coding session against
   the deployed backend.
 - **OPS-2 — Mock replay engine + fixtures** (P0 · S-1): §14.6.
@@ -1856,7 +1888,7 @@ checkpoint script on a clean checkout.
 | 4 | Fri Oct 30 | ENG-6, COD-2, COD-4, ENG-7 | DEF-4, DEF-5 (text) | FE-4 voice + TTS, FE-6 grill/fix | Evals v1, 20 problems |
 | | **IC2** | | | | |
 | 5 | Sat Oct 31 | ENG-8 | DEF-6, OPS-1 deploy | FE-7 report + replay | Evals, 25 problems |
-| 6 | Sun Nov 1 | P1: COD-5, COD-6 | DEF-7, DEF-8 | FE-8, integration fixes | **30 problems**, apps 4–5 |
+| 6 | Sun Nov 1 | P1: COD-5, COD-6 | DEF-7, DEF-8, DEF-11 backend (after IC2) | FE-8, integration fixes; DEF-11 side panel if time allows | **30 problems**, apps 4–5 |
 | | **IC3 + cut-line review** | | | | |
 | 7 | Mon Nov 2 | Eval tuning, latency, P2 if green | Reliability; DEF-9 (P1) if IC3 is green and LG agrees; P2 (DEF-10) if green | Polish, demo-path UX; the DEF-9 pen only if agreed | DATA-7 demo data + rehearsal |
 | 8 | Tue Nov 3 | **Feature freeze 12 PM.** Bug fixes only; record demo takes | same | same | Final data checks |
