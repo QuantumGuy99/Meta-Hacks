@@ -9,8 +9,8 @@ import type { Difficulty, FeedbackLevel, ProblemSummary } from "@/types/contract
 
 const DIFFICULTIES: (Difficulty | "any")[] = ["any", "easy", "medium", "hard"];
 
-// /coding: pick a problem (or a difficulty and topic), feedback and voice, then POST /api/sessions and open the
-// room. Pre-fills from the ?topic=&feedback= the landing page's start dialog sends.
+// /coding: pick a problem (or a difficulty and topic), feedback, voice and spoken replies, then POST /api/sessions
+// and open the room. Pre-fills from the ?topic=&feedback= the landing page's start dialog sends.
 export function SetupForm() {
   const router = useRouter();
   const params = useSearchParams();
@@ -25,6 +25,7 @@ export function SetupForm() {
   const [topic, setTopic] = useState("");
   const [feedback, setFeedback] = useState<FeedbackLevel>(params.get("feedback") === "passive" ? "passive" : "active");
   const [voice, setVoice] = useState(true);
+  const [speakReplies, setSpeakReplies] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,7 +58,7 @@ export function SetupForm() {
         mode: "coding",
         feedback,
         voice,
-        speak_replies: false, // voice is speech to text only: the interviewer's replies stay text
+        speak_replies: speakReplies,
         problem_slug: slug || null,
         difficulty: slug || difficulty === "any" ? null : difficulty,
         topic: slug || !topic ? null : topic,
@@ -139,6 +140,10 @@ export function SetupForm() {
         <label>
           <input type="checkbox" checked={voice} onChange={(e) => setVoice(e.target.checked)} />
           Speech to text: talk through your approach with the microphone
+        </label>
+        <label>
+          <input type="checkbox" checked={speakReplies} onChange={(e) => setSpeakReplies(e.target.checked)} />
+          Read the interviewer&apos;s replies aloud
         </label>
       </div>
       {error && (

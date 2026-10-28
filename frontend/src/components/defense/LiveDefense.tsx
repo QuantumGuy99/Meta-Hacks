@@ -10,6 +10,8 @@ import { InterviewerPanel } from "@/components/room/InterviewerPanel";
 import { MicControls } from "@/components/room/MicControls";
 import { UnderTheHood } from "@/components/room/UnderTheHood";
 import { useMic } from "@/components/room/useMic";
+import { useVoice } from "@/components/room/useVoice";
+import { VoiceToggle } from "@/components/room/VoiceToggle";
 import { api, errorText } from "@/lib/api";
 import { attachEditorCapture, type EditorCapture } from "@/lib/capture/editor";
 import { clock, levelLabel, severityLabel } from "@/lib/fixtures";
@@ -68,7 +70,9 @@ export function LiveDefense({ id }: { id: string }) {
   const { state, send, streamDone } = useLiveSession(id);
   const remaining = useRemaining(state);
   const caption = liveCaption(state);
-  const { mic, toggleMic, setAsking } = useMic(id);
+  const { mic, toggleMic, setAsking, setPaused } = useMic(id);
+  // the grill questions are read aloud, with the mic silent meanwhile (PLAN §14.7)
+  const voice = useVoice(state, setPaused);
   const [picked, setPicked] = useState<{ stage: Phase; at: Phase | null } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   // The finding whose file is open under the topology (the audit's file preview, PLAN §14.4).
@@ -272,6 +276,7 @@ export function LiveDefense({ id }: { id: string }) {
             {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}
           </span>
         )}
+        <VoiceToggle voice={voice} />
         {finished ? (
           <Link href={`/report/${id}`} className="ui-btn ui-btn-primary">
             See Report
@@ -627,14 +632,22 @@ export function LiveDefense({ id }: { id: string }) {
 
         <InterviewerPanel
           messages={feedMessages(state)}
-          state={state.interviewer}
+          state={voice.speaking ? "speaking" : state.interviewer}
           streamingId={state.streamingId}
           onStreamDone={streamDone}
           onAsk={(text) => send({ type: "chat.send", text })}
           caption={caption}
           extra={
             state.session?.config.voice ? (
-              <MicControls mic={mic} onToggle={toggleMic} onAsking={setAsking} disabled={finished} />
+              <MicControls
+                mic={mic}
+                onToggle={toggleMic}
+                onAsking={(holding) => {
+                  if (holding) voice.interrupt(); // barge-in: the candidate wants the floor
+                  setAsking(holding);
+                }}
+                disabled={finished}
+              />
             ) : null
           }
         />

@@ -16,6 +16,7 @@ export function SamplePicker() {
   const [projectId, setProjectId] = useState("");
   const [feedback, setFeedback] = useState<FeedbackLevel>(params.get("feedback") === "passive" ? "passive" : "active");
   const [voice, setVoice] = useState(true);
+  const [speakReplies, setSpeakReplies] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,8 +40,13 @@ export function SamplePicker() {
     setStarting(true);
     setError(null);
     try {
-      // voice is speech to text only: the interviewer's replies stay text
-      const session = await api.createSession({ mode: "defense", project_id: projectId, feedback, voice, speak_replies: false });
+      const session = await api.createSession({
+        mode: "defense",
+        project_id: projectId,
+        feedback,
+        voice,
+        speak_replies: speakReplies,
+      });
       router.push(`/defense/${session.id}`);
     } catch (err) {
       setError(errorText(err));
@@ -99,6 +105,10 @@ export function SamplePicker() {
         <label>
           <input type="checkbox" checked={voice} onChange={(e) => setVoice(e.target.checked)} />
           Speech to text: answer the grill with the microphone
+        </label>
+        <label>
+          <input type="checkbox" checked={speakReplies} onChange={(e) => setSpeakReplies(e.target.checked)} />
+          Read the interviewer&apos;s questions aloud
         </label>
       </div>
       {error && (

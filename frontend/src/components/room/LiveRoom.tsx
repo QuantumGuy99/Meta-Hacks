@@ -30,6 +30,8 @@ import { NotesPanel } from "./NotesPanel";
 import { TestPanel } from "./TestPanel";
 import { UnderTheHood } from "./UnderTheHood";
 import { useMic } from "./useMic";
+import { useVoice } from "./useVoice";
+import { VoiceToggle } from "./VoiceToggle";
 
 // The live coding room (/coding/[id], PLAN §14.2): everything on screen comes from the session socket.
 // Edits go out through the capture lib; Run/Submit, Ask, Hint and the phase buttons are ClientMessages.
@@ -54,6 +56,9 @@ const PHASE_INDEX: Partial<Record<Phase, number>> = {
 // Edit kinds that change the code; focus and visibility events don't (#47).
 const CODE_EVENTS = new Set(["change", "paste", "undo", "redo"]);
 const RUN_TIMEOUT_MS = 90_000;
+// How long after Skip Intro a bad_phase error is the server refusing it (servers before the warm-up only take
+// clarify → coding and coding → wrap_up), which needs no toast.
+const SKIP_REFUSAL_MS = 5_000;
 
 type Editor = Parameters<NonNullable<Parameters<typeof CodeEditor>[0]["onEditor"]>>[0];
 
@@ -74,13 +79,16 @@ export function LiveRoom({ id }: { id: string }) {
   const { state, send, streamDone } = useLiveSession(id);
   const remaining = useRemaining(state);
   const caption = liveCaption(state);
-  const { mic, toggleMic, setAsking } = useMic(id);
+  const { mic, toggleMic, setAsking, setPaused } = useMic(id);
+  const voice = useVoice(state, setPaused);
   const [problem, setProblem] = useState<ProblemPublic | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [pending, setPending] = useState<{ runs: number; at: number; wall: number } | null>(null);
   const [showNotes, setShowNotes] = useState(false);
   const [ending, setEnding] = useState(false);
+  const [skipped, setSkipped] = useState(false);
+  const skippedAt = useRef<number | null>(null);
   const capture = useRef<EditorCapture | null>(null);
 
   const slug = state.session?.problem_slug ?? null;
@@ -137,7 +145,10 @@ export function LiveRoom({ id }: { id: string }) {
     else if (lastRun.passed < lastRun.total) toast.error(`${lastRun.total - lastRun.passed} of ${lastRun.total} tests failed`, { id });
   }, [lastRun, lastRunIsLive]);
   useEffect(() => {
-    if (state.error) toast.error(socketErrorText(state.error), { id: `err-${state.error.at}` });
+    if (!state.error) return;
+    const skip = skippedAt.current;
+    if (state.error.code === "bad_phase" && skip !== null && state.error.at - skip < SKIP_REFUSAL_MS) return;
+    toast.error(socketErrorText(state.error), { id: `err-${state.error.at}` });
   }, [state.error]);
 
   // When the interview ends (time, wrap-up or End), the report is next.
@@ -185,6 +196,15 @@ export function LiveRoom({ id }: { id: string }) {
     }
   };
 
+  // Skip Intro: stop the interviewer talking and go straight to the problem. On a server that refuses it, the
+  // intro just carries on.
+  const skipIntro = () => {
+    voice.interrupt();
+    skippedAt.current = performance.now();
+    setSkipped(true);
+    send({ type: "phase.advance", to: "clarify" });
+  };
+
   const onEditor = useCallback((ed: Editor) => setEditor(ed), []);
 
   const mins = remaining === null ? null : Math.floor(remaining / 60);
@@ -220,9 +240,15 @@ export function LiveRoom({ id }: { id: string }) {
             </NumberFlowGroup>
           </span>
         )}
+        <VoiceToggle voice={voice} />
         <button type="button" className="ui-btn" aria-pressed={showNotes} onClick={() => setShowNotes((v) => !v)}>
           Notes
         </button>
+        {phase === "intro" && !skipped && (
+          <button type="button" className="ui-btn" onClick={skipIntro}>
+            Skip Intro
+          </button>
+        )}
         {(phase === "clarify" || beforeClarify) && (
           // the server only takes clarify → coding, so the button waits out the intro
           <button
@@ -312,7 +338,7 @@ export function LiveRoom({ id }: { id: string }) {
         <ResizablePanel defaultSize="26%" minSize="20%">
           <InterviewerPanel
             messages={feedMessages(state)}
-            state={state.interviewer}
+            state={voice.speaking ? "speaking" : state.interviewer}
             streamingId={state.streamingId}
             onStreamDone={streamDone}
             onAsk={(text) => send({ type: "chat.send", text })}
@@ -322,7 +348,15 @@ export function LiveRoom({ id }: { id: string }) {
             caption={caption}
             extra={
               state.session?.config.voice ? (
-                <MicControls mic={mic} onToggle={toggleMic} onAsking={setAsking} disabled={ended} />
+                <MicControls
+                  mic={mic}
+                  onToggle={toggleMic}
+                  onAsking={(holding) => {
+                    if (holding) voice.interrupt(); // barge-in: the candidate wants the floor
+                    setAsking(holding);
+                  }}
+                  disabled={ended}
+                />
               ) : null
             }
           />
