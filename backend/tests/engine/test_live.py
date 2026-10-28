@@ -83,6 +83,18 @@ async def test_a_question_in_chat_gets_an_answer_and_thinking_aloud_does_not() -
 
 
 @pytest.mark.asyncio
+async def test_questions_asked_before_the_reply_are_answered_together() -> None:
+    rt, engine, _, _ = live(Clock())
+    rt.asked("Can the readings list be empty?")  # a spoken question, split into two turns
+    rt.asked("And does a reading equal to the threshold count?")
+    await engine.tick()
+    [answer] = interventions(rt)
+    assert answer["trigger"] == "asked"
+    prompt = engine._model.calls[-1][-1]["content"]  # type: ignore[attr-defined]
+    assert prompt.endswith("Can the readings list be empty? And does a reading equal to the threshold count?")
+
+
+@pytest.mark.asyncio
 async def test_passive_mode_still_answers_questions() -> None:
     rt, engine, connection, socket = live(Clock(), feedback="passive")
     await rt.handle(connection, ChatSend(type="chat.send", text="What should an empty list return?"))
