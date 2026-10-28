@@ -13,6 +13,10 @@ export const PITCH = 1;
 export const MAX_SENTENCE_CHARS = 220; // only a sentence longer than this (about 14 s) is split, at its clauses
 export const VOICES_WAIT_MS = 1_500; // some browsers never fire voiceschanged: speak in the default voice after this
 export const STALL_CHECK_MS = 1_000; // how often to look for a chunk whose end event never came
+export const START_TIMEOUT_MS = 3_000; // a sentence that hasn't started by then is cleared and retried once
+// Chrome can wedge its queue when speak() follows cancel() at once (the room's remount in development, or Skip
+// Intro then the problem), so the next sentence waits this long after a cancel.
+export const SETTLE_MS = 120;
 export const VOICE_KEY = "ares.voice"; // the candidate's voice pick, per browser
 
 /** Novelty voices (sound effects, singing) and the Eloquence voices (Eddy, Flo, Reed…): never picked or listed. */
@@ -35,6 +39,9 @@ const VOICE_TIERS: RegExp[] = [
   /^moira\b/i,
 ];
 const NATURAL_TIERS = 5; // the tiers above Google's voices
+
+// When each speechSynthesis was last cancelled: shared by every Tts on the page, since they share the engine.
+const cancelledAt = new WeakMap<object, number>();
 
 export interface Tts {
   /** False when the browser has no speechSynthesis: every call is then a no-op. */
@@ -144,8 +151,10 @@ export function createTts(opts: TtsOptions = {}, deps: SpeechDeps | null = brows
   let blocked = false;
   let muted = false;
   let disposed = false;
+  let retryNext = false; // the next chunk is a retry of one that never started
   let stallTimer: ReturnType<typeof setTimeout> | null = null;
   let voicesTimer: ReturnType<typeof setTimeout> | null = null;
+  let settleTimer: ReturnType<typeof setTimeout> | null = null;
 
   const setBlocked = (next: boolean) => {
     if (blocked === next) return;
@@ -160,6 +169,14 @@ export function createTts(opts: TtsOptions = {}, deps: SpeechDeps | null = brows
   const clearStall = () => {
     if (stallTimer !== null) clearTimeout(stallTimer);
     stallTimer = null;
+  };
+  const hardCancel = () => {
+    cancelledAt.set(synth, Date.now());
+    synth.cancel();
+  };
+  const settling = () => {
+    const at = cancelledAt.get(synth);
+    return at === undefined ? 0 : Math.max(0, at + SETTLE_MS - Date.now());
   };
   const chooseVoice = () => {
     voice = voices.find((v) => v.name === voiceName) ?? voices[0] ?? null;
@@ -186,9 +203,18 @@ export function createTts(opts: TtsOptions = {}, deps: SpeechDeps | null = brows
   };
 
   const pump = () => {
-    if (disposed || muted || current || !voicesReady) return;
-    const chunk = queue.shift();
-    if (chunk === undefined) return;
+    if (disposed || muted || current || !voicesReady || settleTimer !== null || !queue.length) return;
+    const wait = settling();
+    if (wait > 0) {
+      settleTimer = setTimeout(() => {
+        settleTimer = null;
+        pump();
+      }, wait);
+      return;
+    }
+    const chunk = queue.shift() as string;
+    const isRetry = retryNext;
+    retryNext = false;
     const u = makeUtterance(chunk);
     u.voice = voice;
     u.lang = voice?.lang ?? "en-US";
@@ -217,24 +243,34 @@ export function createTts(opts: TtsOptions = {}, deps: SpeechDeps | null = brows
     started = false;
     if (synth.paused) synth.resume(); // Chrome can stay paused after a tab switch
     synth.speak(u);
-    watch(u, chunk, Date.now());
+    watch(u, chunk, Date.now(), isRetry);
   };
 
-  // Chrome sometimes never fires end (or gets stuck speaking). Once the engine is idle, a chunk that started
-  // has ended; one that never started was refused (Safari refuses without an error). A chunk running far past
-  // its length is cut so the mic isn't held silent for good.
-  const watch = (u: UtteranceLike, chunk: string, since: number) => {
+  // Chrome sometimes never fires end, or wedges its queue. Once the engine is idle, a chunk that started has
+  // ended; one that never started was refused (Safari refuses without an error). A chunk the busy engine hasn't
+  // started after START_TIMEOUT_MS is stuck behind a wedged queue: clear it and try once more. A chunk running
+  // far past its length is cut. Either way the mic isn't held silent for good.
+  const watch = (u: UtteranceLike, chunk: string, since: number, isRetry: boolean) => {
     stallTimer = setTimeout(() => {
       if (u !== current) return;
+      const elapsed = Date.now() - since;
       if (!synth.speaking && !synth.pending) {
         if (started) advance();
         else hold(chunk);
-      } else if (Date.now() - since > 5_000 + chunk.length * 150) {
+      } else if (!started && elapsed > START_TIMEOUT_MS) {
         current = null;
-        synth.cancel();
+        hardCancel();
+        if (!isRetry) {
+          queue = [chunk, ...queue];
+          retryNext = true;
+        }
+        advance();
+      } else if (elapsed > 5_000 + chunk.length * 150) {
+        current = null;
+        hardCancel();
         advance();
       } else {
-        watch(u, chunk, since);
+        watch(u, chunk, since, isRetry);
       }
     }, STALL_CHECK_MS);
   };
@@ -259,22 +295,25 @@ export function createTts(opts: TtsOptions = {}, deps: SpeechDeps | null = brows
     }, VOICES_WAIT_MS);
   }
 
-  // An empty utterance: it can't be heard, but it starts the browser's speech engine.
+  // An empty utterance in the default (local) voice: it can't be heard, but it starts the speech engine and, in
+  // a click, unlocks speech. Network voices like Google's don't warm up (each sentence is its own request).
   const silent = () => {
     const u = makeUtterance("");
-    u.voice = voice;
-    u.lang = voice?.lang ?? "en-US";
+    u.lang = "en-US";
     u.volume = 0;
     synth.speak(u);
   };
 
   const cancel = () => {
     queue = [];
+    retryNext = false;
     const wasCurrent = current;
     current = null;
     started = false;
     clearStall();
-    if (wasCurrent || synth.speaking || synth.pending) synth.cancel();
+    if (settleTimer !== null) clearTimeout(settleTimer);
+    settleTimer = null;
+    if (wasCurrent || synth.speaking || synth.pending) hardCancel();
     stopSpeaking();
   };
 
@@ -310,7 +349,8 @@ export function createTts(opts: TtsOptions = {}, deps: SpeechDeps | null = brows
       chooseVoice();
     },
     warm() {
-      if (!disposed && !muted && !current && !synth.speaking && !synth.pending) silent();
+      const idle = !current && !queue.length && !synth.speaking && !synth.pending;
+      if (!disposed && !muted && idle && settling() === 0) silent();
     },
     unlock() {
       if (disposed || muted) return;

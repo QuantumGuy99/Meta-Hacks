@@ -1762,10 +1762,14 @@ only non-Meta model call at runtime, needs another key, and `speechSynthesis` ha
 - **Prosody:** rate 1.05, pitch 1. One utterance per sentence, so the first sentence starts at once and nothing
   breaks mid-phrase; only a sentence over 220 characters (Chrome cuts an utterance off after about 15 s) splits,
   at its commas, semicolons and colons. Markdown is read as plain text and code blocks are skipped. `warm()`
-  speaks one silent, empty utterance to start the engine (the room calls it on load and on the first click).
+  speaks one silent, empty utterance in the default local voice to start the engine (the room calls it on load
+  and on the first click; Google's network voices don't warm up, each sentence is its own request).
 - **Queue:** sentences are spoken one at a time. `onStart` fires when the first one starts and `onEnd` once the
-  queue is empty or cancelled. A lost end event (Chrome) is caught once the engine goes idle, and a chunk stuck
-  far past its length is cut, so the mic is never held silent for good.
+  queue is empty or cancelled. Chrome can wedge its queue when `speak()` follows `cancel()` at once (seen with
+  the room's remount in development), so the next sentence waits 120 ms after any cancel, and a sentence the
+  busy engine hasn't started within 3 s is cleared and retried once, then skipped. A lost end event is caught
+  once the engine goes idle, and a sentence stuck far past its length is cut, so the mic is never held silent
+  for good.
 - **Blocked:** a browser that refuses to speak before the user has interacted with the page (`not-allowed`, or
   Safari dropping it silently) sets `blocked` and holds the newest message; the room shows "Turn on voice",
   whose click calls `unlock()`.
