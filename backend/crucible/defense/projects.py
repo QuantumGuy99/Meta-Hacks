@@ -60,7 +60,7 @@ def _load_samples(dirs: tuple[Path | None, ...]) -> dict[str, Sample]:
         for d in sorted(p for p in root.iterdir() if (p / "app").is_dir()):
             try:
                 s = load_project_dir(d)
-            except ProjectInvalid as exc:
+            except (ProjectInvalid, OSError, UnicodeDecodeError) as exc:  # one bad sample never stops startup
                 logger.error("skipping sample %s: %s", d.name, exc)
                 continue
             out[s.project.id] = s
@@ -81,12 +81,15 @@ def load_project_dir(d: Path, *, source: str = "sample") -> Sample:
     ref = _read_json(d / "reference_attack.json")
     reference = None
     if ref:
-        reference = ReferenceAttack(
-            concurrency=int(ref["concurrency"]),
-            duration_s=int(ref["duration_s"]),
-            functions=AttackFunctions.model_validate(ref["functions"]),
-            flaw_id=ref.get("flaw_id"),
-        )
+        try:
+            reference = ReferenceAttack(
+                concurrency=int(ref["concurrency"]),
+                duration_s=int(ref["duration_s"]),
+                functions=AttackFunctions.model_validate(ref["functions"]),
+                flaw_id=ref.get("flaw_id"),
+            )
+        except (KeyError, TypeError, ValueError) as exc:  # ValidationError is a ValueError
+            raise ProjectInvalid(f"reference_attack.json is invalid: {exc}") from exc
     return Sample(
         project=project,
         files=files,
@@ -183,14 +186,22 @@ def apply_patch(files: dict[str, str], patch_text: str) -> dict[str, str]:
         for rel, content in files.items():
             (root / rel).parent.mkdir(parents=True, exist_ok=True)
             (root / rel).write_text(content)
-        result = subprocess.run(
-            ["patch", "-p1", "--quiet", "--forward"],
-            input=patch_text,
-            text=True,
-            cwd=root,
-            capture_output=True,
-            check=False,
-        )
+        try:
+            result = subprocess.run(
+                ["patch", "-p1", "--quiet", "--forward"],
+                input=patch_text,
+                text=True,
+                cwd=root,
+                capture_output=True,
+                check=False,
+            )
+        except FileNotFoundError as exc:  # the backend image installs GNU patch (Dockerfile)
+            raise ProjectInvalid("fix.patch needs the `patch` program, which isn't installed") from exc
         if result.returncode:
             raise ProjectInvalid(f"fix.patch doesn't apply: {result.stdout or result.stderr}")
-        return {rel: (root / rel).read_text() for rel in files}
+        # Read back every file, so files the patch creates are included too.
+        return {
+            p.relative_to(root).as_posix(): p.read_text()
+            for p in sorted(root.rglob("*"))
+            if p.is_file() and p.suffix not in (".orig", ".rej")
+        }

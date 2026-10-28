@@ -26,6 +26,19 @@ def test_samples_list_the_fixture_app(client):
     assert "bank-transfer-min" in ids
 
 
+def test_project_files_returns_the_app_source_only(client):
+    body = client.get("/api/defense/projects/bank-transfer-min/files").json()
+    assert body["project_id"] == "bank-transfer-min"
+    assert "app/main.py" in body["files"] and "def transfer" in body["files"]["app/main.py"]
+    hidden = ("flaws.json", "reference_attack.json", "fix.patch", "fixed/")
+    assert not [p for p in body["files"] if any(h in p for h in hidden)]
+
+
+def test_project_files_unknown_project_is_404(client):
+    r = client.get("/api/defense/projects/nope/files")
+    assert r.status_code == 404 and r.json()["error"]["code"] == "not_found"
+
+
 def test_dev_run_unknown_project_is_404(client):
     assert client.post("/api/defense/dev/runs", json={"project_id": "nope", "answer": "x"}).status_code == 404
 

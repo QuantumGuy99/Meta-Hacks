@@ -4,6 +4,7 @@ Local runner, real FastAPI app processes and real attacks; every model is down, 
 fallback (flaws.json, the reference attack, keyword grading). ~2 s attacks keep each test to seconds.
 """
 
+import json
 import time
 from collections.abc import Callable, Iterator
 from typing import Any
@@ -15,6 +16,7 @@ from fastapi.testclient import TestClient
 from crucible.contracts.common import Mode
 from crucible.defense import audit as audit_mod
 from crucible.defense.attack_writer import extract_functions, render_attack
+from crucible.defense.audit import audit_from_flaws
 from crucible.defense.controller import make_mode
 from crucible.engine.api import router
 from crucible.engine.hub import SessionHub
@@ -129,10 +131,15 @@ def test_weak_answer_gets_one_follow_up_then_counts_both(client, bank):
         ws.send_json({"type": "hello", "client_now_ms": 0})
         through_grill(log)
         ws.send_json({"type": "chat.send", "text": WEAK_ANSWER})
-        first = log.until(typed("defense.grill.eval"))
-        assert not first["turn"]["root_cause_hit"]
-        follow_up = log.until(typed("interviewer.message"))
-        assert follow_up["intervention"]["text"] == first["finding"]["grill"]["follow_up"]
+        expected = audit_from_flaws(bank).findings[0]
+        log.until(
+            lambda m: (
+                m["type"] == "interviewer.message" and m["intervention"]["text"] == expected.grill.follow_up
+            )
+        )
+        # The answer key stays hidden until the grill is final: no eval, no explanation before the follow-up.
+        assert not any(m["type"] == "defense.grill.eval" for m in log.seen)
+        assert expected.explanation not in json.dumps(log.seen)
 
         ws.send_json({"type": "chat.send", "text": GOOD_ANSWER})
         second = log.until(typed("defense.grill.eval"))

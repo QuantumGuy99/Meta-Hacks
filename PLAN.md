@@ -818,6 +818,7 @@ ServerMessage = Annotated[Union[SessionState, InterviewerMessage, TranscriptUpda
 | GET | `/api/problems/{slug}` | → `ProblemPublic` | never includes hidden tests/rubric/reference |
 | GET | `/api/problems/{slug}/illustration` | → image | P1 |
 | GET | `/api/defense/samples` | → `Project[]` | sample apps |
+| GET | `/api/defense/projects/{id}/files` | → `ProjectSource` (path → content; never `flaws.json`, `fixed/` or `fix.patch`) | the fix-stage editor and audit file preview; samples only until uploads (P1) |
 | POST | `/api/defense/projects` | multipart zip → `Project` | P1, limits §11.1 |
 | POST | `/api/sessions` | `SessionConfig` → `Session` | picks a random problem if only difficulty is given |
 | GET | `/api/sessions/{id}` | → `Session` | |
@@ -858,7 +859,7 @@ Server → client:
 | `defense.audit` | `AuditPublic` (findings without explanation/grill/fix rubric) |
 | `defense.chaos.metric` | `ChaosMetric` |
 | `defense.chaos.done` | `ChaosRun` |
-| `defense.grill.eval` | `GrillTurn` + `finding: Finding` (the full finding is revealed only now) |
+| `defense.grill.eval` | `GrillTurn` + `finding: Finding`, sent once the grill for that finding is final (after the follow-up, if one is asked); the full finding is revealed only then |
 | `defense.sam.highlight` | `SamHighlight` (P1) |
 | `defense.verdict` | `Verdict` |
 | `report.ready` | `session_id` |
@@ -1976,7 +1977,7 @@ Record each segment separately on the deployed build, at real speed (speed-ups a
 | Problem text rights | Original statements only + review checklist (§13.1) |
 | Demo-day failure | Pre-recorded takes on the deployed build by Tue Nov 3; never present MOCK as live |
 
-**Timeouts:** analyzer 12 s · interviewer 6 s · classifier 3 s · grill eval 10 s · audit 120 s · report 90 s ·
+**Timeouts:** analyzer 12 s · interviewer 6 s · classifier 3 s · grill eval 20 s (Spark medium measured 4–15 s) · audit 120 s · report 90 s ·
 attack writer 30 s · test run 10 s · chaos run 60 s · ASR handshake 10 s · SAM 5 s · image 20 s.
 
 ---
