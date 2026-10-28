@@ -1,0 +1,54 @@
+{
+  "slug": "your-problem-slug",
+  "title": "Your Problem Title",
+  "difficulty": "easy",
+  "topics": ["arrays"],
+  "function": {
+    "name": "function_name",
+    "params": [{"name": "param1", "type": "list[int]"}],
+    "returns": "int"
+  },
+  "starter_code": "def function_name(param1: list[int]) -> int:\n    pass\n",
+  "examples": [
+    {"input": "param1 = [1, 2, 3]", "output": "0", "explanation": "Why this is the answer."}
+  ],
+  "constraints": ["0 <= len(param1) <= 10^5"],
+  "tests_visible": [
+    {"id": "v1", "args": [[1, 2, 3]], "expected": 0, "comparator": "exact", "edge_case_id": null}
+  ],
+  "tests_hidden": [
+    {"id": "h1", "args": [[]], "expected": 0, "comparator": "exact", "edge_case_id": "e1"}
+  ],
+  "rubric": {
+    "approaches": [
+      {"name": "efficient approach", "time": "O(n)", "space": "O(1)", "acceptable": true},
+      {"name": "brute force", "time": "O(n^2)", "space": "O(1)", "acceptable": false}
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "title": "Clarify the input",
+        "required": true,
+        "order": 1,
+        "description": "What a strong candidate does in this step.",
+        "look_for": ["a signal you could see in code or hear in speech"],
+        "hints": [
+          "Hint 1: point at the area.",
+          "Hint 2: a Socratic question.",
+          "Hint 3: name the technique, with no code."
+        ]
+      }
+    ],
+    "edge_cases": [{"id": "e1", "description": "empty input"}],
+    "common_mistakes": [
+      {"id": "m1", "description": "The mistake.", "symptom": "Which test it fails and why."}
+    ],
+    "wrap_up_questions": [
+      "What are the time and space complexity?",
+      "A trade-off or edge-case follow-up."
+    ]
+  },
+  "time_limit_min": 20,
+  "illustration": null,
+  "origin_note": "Original. Pattern: <pattern name>."
+}
