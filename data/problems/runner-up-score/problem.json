@@ -1,0 +1,325 @@
+{
+  "slug": "runner-up-score",
+  "title": "Runner-Up Score",
+  "difficulty": "easy",
+  "topics": [
+    "arrays"
+  ],
+  "function": {
+    "name": "runner_up",
+    "params": [
+      {
+        "name": "scores",
+        "type": "list[int]"
+      }
+    ],
+    "returns": "int"
+  },
+  "starter_code": "def runner_up(scores: list[int]) -> int:\n    pass\n",
+  "examples": [
+    {
+      "input": "scores = [88, 92, 92, 75]",
+      "output": "88",
+      "explanation": "The highest score is 92. The next highest different score is 88."
+    },
+    {
+      "input": "scores = [50, 50]",
+      "output": "-1",
+      "explanation": "Everyone tied, so there is no runner-up score."
+    }
+  ],
+  "constraints": [
+    "0 <= len(scores) <= 10^5",
+    "0 <= scores[i] <= 100"
+  ],
+  "tests_visible": [
+    {
+      "id": "v1",
+      "args": [
+        [
+          88,
+          92,
+          92,
+          75
+        ]
+      ],
+      "expected": 88,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v2",
+      "args": [
+        [
+          50,
+          50
+        ]
+      ],
+      "expected": -1,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v3",
+      "args": [
+        [
+          10,
+          30,
+          20
+        ]
+      ],
+      "expected": 20,
+      "comparator": "exact",
+      "edge_case_id": null
+    }
+  ],
+  "tests_hidden": [
+    {
+      "id": "h1",
+      "args": [
+        []
+      ],
+      "expected": -1,
+      "comparator": "exact",
+      "edge_case_id": "e1"
+    },
+    {
+      "id": "h2",
+      "args": [
+        [
+          77
+        ]
+      ],
+      "expected": -1,
+      "comparator": "exact",
+      "edge_case_id": "e2"
+    },
+    {
+      "id": "h3",
+      "args": [
+        [
+          60,
+          60,
+          60
+        ]
+      ],
+      "expected": -1,
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    },
+    {
+      "id": "h4",
+      "args": [
+        [
+          99,
+          100
+        ]
+      ],
+      "expected": 99,
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    },
+    {
+      "id": "h5",
+      "args": [
+        [
+          0,
+          0,
+          1
+        ]
+      ],
+      "expected": 0,
+      "comparator": "exact",
+      "edge_case_id": "e5"
+    },
+    {
+      "id": "h6",
+      "args": [
+        [
+          100,
+          99
+        ]
+      ],
+      "expected": 99,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h7",
+      "args": [
+        [
+          5,
+          9,
+          9,
+          7,
+          9
+        ]
+      ],
+      "expected": 7,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h8",
+      "args": [
+        [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ]
+      ],
+      "expected": 9,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h9",
+      "args": [
+        [
+          100,
+          100,
+          90,
+          90
+        ]
+      ],
+      "expected": 90,
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    }
+  ],
+  "rubric": {
+    "approaches": [
+      {
+        "name": "one pass tracking the top two distinct values",
+        "time": "O(n)",
+        "space": "O(1)",
+        "acceptable": true
+      },
+      {
+        "name": "sort the distinct scores",
+        "time": "O(n log n)",
+        "space": "O(n)",
+        "acceptable": true
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "title": "Clarify the input",
+        "required": true,
+        "order": 1,
+        "description": "Confirms that ties don't count as a second place and what to return when there's no runner-up.",
+        "look_for": [
+          "asks whether duplicates of the top score count",
+          "mentions the empty list or a single score"
+        ],
+        "hints": [
+          "Before you start, is there anything about ties you'd want to confirm?",
+          "If two players share the top score, is the second of them the runner-up?",
+          "Pin down that the runner-up must be a different score, and what the answer is when none exists."
+        ]
+      },
+      {
+        "id": "s2",
+        "title": "Track the top two in one pass",
+        "required": true,
+        "order": 2,
+        "description": "Keeps the best and second-best distinct scores while scanning once.",
+        "look_for": [
+          "keeps two variables",
+          "updates both when a new best appears"
+        ],
+        "hints": [
+          "Look at what you keep track of as you scan.",
+          "When a new highest score arrives, what happens to the old highest?",
+          "Keep a best and a second-best; a new best pushes the old best down to second."
+        ]
+      },
+      {
+        "id": "s3",
+        "title": "Ignore copies of the top score",
+        "required": true,
+        "order": 3,
+        "description": "Doesn't let a repeat of the current best become the second-best.",
+        "look_for": [
+          "uses a strict comparison against the best",
+          "tests a list with a tied top score"
+        ],
+        "hints": [
+          "Try your code on a list where the top score appears twice.",
+          "Should a second copy of the best score ever become the runner-up?",
+          "Only take a score as second-best if it's strictly below the best."
+        ]
+      },
+      {
+        "id": "s4",
+        "title": "Start from a safe value",
+        "required": true,
+        "order": 4,
+        "description": "Initializes so that 0 can be a real runner-up and -1 comes back when there isn't one.",
+        "look_for": [
+          "initializes to -1 or None",
+          "tests [50, 50] and [0, 0, 1]"
+        ],
+        "hints": [
+          "Look at the values your variables start with.",
+          "If every score is the same, what does your function give back right now?",
+          "Start both trackers below any valid score, like -1, so 'no runner-up' and 0 stay different."
+        ]
+      }
+    ],
+    "edge_cases": [
+      {
+        "id": "e1",
+        "description": "empty list"
+      },
+      {
+        "id": "e2",
+        "description": "a single score"
+      },
+      {
+        "id": "e3",
+        "description": "only one distinct score"
+      },
+      {
+        "id": "e4",
+        "description": "the top score comes after the runner-up"
+      },
+      {
+        "id": "e5",
+        "description": "zero is a valid score"
+      }
+    ],
+    "common_mistakes": [
+      {
+        "id": "m1",
+        "description": "starts the trackers at 0",
+        "symptom": "returns 0 instead of -1 for [50, 50]"
+      },
+      {
+        "id": "m2",
+        "description": "sorts and takes the second-to-last element",
+        "symptom": "returns 92 instead of 88 for [88, 92, 92, 75]"
+      },
+      {
+        "id": "m3",
+        "description": "forgets to move the old best down to second place when a new best arrives",
+        "symptom": "returns -1 instead of 99 for [99, 100]"
+      }
+    ],
+    "wrap_up_questions": [
+      "What are the time and space complexity?",
+      "How would you change this to return the k-th highest distinct score?"
+    ]
+  },
+  "time_limit_min": 20,
+  "illustration": null,
+  "origin_note": "Original. Pattern: one pass tracking the top two distinct values."
+}

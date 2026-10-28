@@ -1,0 +1,457 @@
+{
+  "slug": "battery-budget",
+  "title": "Battery Budget",
+  "difficulty": "medium",
+  "topics": [
+    "sliding window",
+    "arrays"
+  ],
+  "function": {
+    "name": "longest_within_budget",
+    "params": [
+      {
+        "name": "usage",
+        "type": "list[int]"
+      },
+      {
+        "name": "budget",
+        "type": "int"
+      }
+    ],
+    "returns": "int"
+  },
+  "starter_code": "def longest_within_budget(usage: list[int], budget: int) -> int:\n    pass\n",
+  "examples": [
+    {
+      "input": "usage = [2, 1, 5, 1, 1, 1], budget = 4",
+      "output": "3",
+      "explanation": "The last three hours use 3 units in total. No longer stretch stays within 4."
+    },
+    {
+      "input": "usage = [4, 1, 1, 4], budget = 3",
+      "output": "2",
+      "explanation": "The two middle hours use 2 units. Any stretch including a 4 is over budget."
+    }
+  ],
+  "constraints": [
+    "0 <= len(usage) <= 10^5",
+    "0 <= usage[i] <= 10^4",
+    "0 <= budget <= 10^9"
+  ],
+  "tests_visible": [
+    {
+      "id": "v1",
+      "args": [
+        [
+          2,
+          1,
+          5,
+          1,
+          1,
+          1
+        ],
+        4
+      ],
+      "expected": 3,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v2",
+      "args": [
+        [
+          3,
+          3,
+          3
+        ],
+        10
+      ],
+      "expected": 3,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v3",
+      "args": [
+        [
+          4,
+          1,
+          1,
+          4
+        ],
+        3
+      ],
+      "expected": 2,
+      "comparator": "exact",
+      "edge_case_id": null
+    }
+  ],
+  "tests_hidden": [
+    {
+      "id": "h1",
+      "args": [
+        [],
+        5
+      ],
+      "expected": 0,
+      "comparator": "exact",
+      "edge_case_id": "e1"
+    },
+    {
+      "id": "h2",
+      "args": [
+        [
+          9,
+          8,
+          7
+        ],
+        5
+      ],
+      "expected": 0,
+      "comparator": "exact",
+      "edge_case_id": "e2"
+    },
+    {
+      "id": "h3",
+      "args": [
+        [
+          0,
+          0,
+          0
+        ],
+        0
+      ],
+      "expected": 3,
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    },
+    {
+      "id": "h4",
+      "args": [
+        [
+          5
+        ],
+        5
+      ],
+      "expected": 1,
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    },
+    {
+      "id": "h5",
+      "args": [
+        [
+          1,
+          1,
+          1,
+          1
+        ],
+        100
+      ],
+      "expected": 4,
+      "comparator": "exact",
+      "edge_case_id": "e5"
+    },
+    {
+      "id": "h6",
+      "args": [
+        [
+          6,
+          1,
+          1,
+          1,
+          6,
+          1,
+          1,
+          1,
+          1
+        ],
+        4
+      ],
+      "expected": 4,
+      "comparator": "exact",
+      "edge_case_id": "e6"
+    },
+    {
+      "id": "h7",
+      "args": [
+        [
+          3,
+          1,
+          2,
+          1,
+          4,
+          1,
+          1
+        ],
+        4
+      ],
+      "expected": 3,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h8",
+      "args": [
+        [
+          2,
+          2,
+          2,
+          2,
+          2
+        ],
+        5
+      ],
+      "expected": 2,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h9",
+      "args": [
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          100,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        40
+      ],
+      "expected": 40,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h10",
+      "args": [
+        [
+          10,
+          0,
+          0,
+          0,
+          10
+        ],
+        0
+      ],
+      "expected": 3,
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    }
+  ],
+  "rubric": {
+    "approaches": [
+      {
+        "name": "sliding window with a running total",
+        "time": "O(n)",
+        "space": "O(1)",
+        "acceptable": true
+      },
+      {
+        "name": "prefix sums and binary search",
+        "time": "O(n log n)",
+        "space": "O(n)",
+        "acceptable": true
+      },
+      {
+        "name": "check every stretch",
+        "time": "O(n^2)",
+        "space": "O(1)",
+        "acceptable": false
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "title": "Clarify the input",
+        "required": true,
+        "order": 1,
+        "description": "Asks what to return for an empty list or when even a single hour is over budget, and whether a total equal to the budget is allowed.",
+        "look_for": [
+          "mentions the empty list",
+          "asks what happens if no hour fits",
+          "asks whether equal to the budget counts"
+        ],
+        "hints": [
+          "Before you code, is there anything about the input you'd want to pin down?",
+          "What should happen if there are no hours at all, or every hour on its own is over budget?",
+          "Settle the empty list, the nothing-fits case and the equal-to-budget case before you start."
+        ]
+      },
+      {
+        "id": "s2",
+        "title": "Grow the window to the right",
+        "required": true,
+        "order": 2,
+        "description": "Adds each new hour to a running total of the current stretch.",
+        "look_for": [
+          "keeps a running total",
+          "moves a right edge forward one hour at a time"
+        ],
+        "hints": [
+          "Look at how you track the total of the current stretch.",
+          "Do you need to re-add the whole stretch every time, or can you keep a running total?",
+          "Use a sliding window: add each new hour to a running total as the right edge moves."
+        ]
+      },
+      {
+        "id": "s3",
+        "title": "Shrink from the left while over budget",
+        "required": true,
+        "order": 3,
+        "description": "Removes hours from the left, in a loop, until the total is back within budget.",
+        "look_for": [
+          "uses a while loop to shrink",
+          "subtracts the leftmost hour and moves the left edge"
+        ],
+        "hints": [
+          "Check what your code does when one new hour pushes the total far over budget.",
+          "Is removing a single hour from the left always enough to get back under budget?",
+          "Keep removing hours from the left in a loop until the total is within budget."
+        ]
+      },
+      {
+        "id": "s4",
+        "title": "Record the best after shrinking",
+        "required": true,
+        "order": 4,
+        "description": "Updates the best length only once the window is valid, which can be an empty window.",
+        "look_for": [
+          "updates the best length after the shrink loop",
+          "starts the best length at 0"
+        ],
+        "hints": [
+          "Look at where you update the best length.",
+          "Could your best length ever come from a stretch that's still over budget, or start too high?",
+          "Update the best only after shrinking, and start it at 0 so 'nothing fits' gives 0."
+        ]
+      }
+    ],
+    "edge_cases": [
+      {
+        "id": "e1",
+        "description": "empty list"
+      },
+      {
+        "id": "e2",
+        "description": "every single hour is over budget"
+      },
+      {
+        "id": "e3",
+        "description": "zero usage with a zero budget"
+      },
+      {
+        "id": "e4",
+        "description": "a total exactly equal to the budget"
+      },
+      {
+        "id": "e5",
+        "description": "the whole list fits"
+      },
+      {
+        "id": "e6",
+        "description": "the best stretch is at the very end"
+      }
+    ],
+    "common_mistakes": [
+      {
+        "id": "m1",
+        "description": "starts the best length at 1, assuming at least one hour fits",
+        "symptom": "returns 1 instead of 0 for [9, 8, 7] with budget 5, and for an empty list"
+      },
+      {
+        "id": "m2",
+        "description": "shrinks with an if instead of a loop",
+        "symptom": "the window can stay over budget, so the answer is too long"
+      },
+      {
+        "id": "m3",
+        "description": "records the best length before shrinking",
+        "symptom": "counts stretches that are over budget"
+      }
+    ],
+    "wrap_up_questions": [
+      "What are the time and space complexity?",
+      "What changes if some hours could have negative usage, like a solar panel charging the battery?"
+    ]
+  },
+  "time_limit_min": 30,
+  "illustration": null,
+  "origin_note": "Original. Pattern: sliding window with a running total."
+}
