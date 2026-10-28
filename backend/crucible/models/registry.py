@@ -65,15 +65,19 @@ def _wonder(effort: Effort) -> ModelTarget:
 _SPARK_OPEN = ModelTarget("baseten", SPARK_OPEN, None)
 _GLIMMER = ModelTarget("glimmer", None, None)
 
+# Live roles stay on fast Spark. One-shot roles use the strongest setting that fits their timeout, measured
+# on bank-transfer-min on 2026-10-27 (PLAN §15.1): audit Wonder xhigh 44 s (6 topology nodes vs 2 at high),
+# attacker Spark high 18 s (Wonder high took 29 s against a 30 s budget), grill Spark high 7-8 s against a
+# 10 s budget with the same points marked, so grill_eval stays at medium.
 ROLES: dict[ModelRole, RoleSpec] = {
     "analyzer": RoleSpec(_spark("minimal"), timeout_s=12),
     "interviewer": RoleSpec(_spark("low"), timeout_s=6),
     "classifier": RoleSpec(_spark("minimal"), timeout_s=3),
     "grill_eval": RoleSpec(_spark("medium"), timeout_s=10, fallbacks=(_SPARK_OPEN,)),
-    "audit": RoleSpec(_wonder("high"), timeout_s=120, fallbacks=(_spark("high"),)),
+    "audit": RoleSpec(_wonder("xhigh"), timeout_s=120, fallbacks=(_spark("high"),)),
     "report": RoleSpec(_wonder("high"), timeout_s=90, fallbacks=(_spark("high"),)),
-    "attacker": RoleSpec(_GLIMMER, timeout_s=30, fallbacks=(_spark("medium"),)),
-    "drafter": RoleSpec(_spark("medium"), timeout_s=60, fallbacks=(_SPARK_OPEN,)),
+    "attacker": RoleSpec(_GLIMMER, timeout_s=30, fallbacks=(_spark("high"), _spark("medium"))),
+    "drafter": RoleSpec(_wonder("high"), timeout_s=120, fallbacks=(_spark("medium"), _SPARK_OPEN)),
     "vision": RoleSpec(_spark("low"), timeout_s=10),
 }
 

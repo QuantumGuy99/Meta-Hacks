@@ -1681,14 +1681,18 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 | `interviewer` | `muse-spark-1.3` | low | canned/rubric text |
 | `classifier` (P1) | `muse-spark-1.3` | minimal | treat as thinking aloud |
 | `grill_eval` | `muse-spark-1.3` | medium | Spark Open (Baseten) |
-| `audit` | `muse-wonder-1.0` | high | `muse-spark-1.3` (high) → `flaws.json` (samples only) |
+| `audit` | `muse-wonder-1.0` | xhigh | `muse-spark-1.3` (high) → `flaws.json` (samples only) |
 | `report` | `muse-wonder-1.0` | high | `muse-spark-1.3` → metrics-only template |
-| `attacker` | `muse-spark-1.3` | medium | reference attack (sample apps only) |
-| `drafter` (datatools) | `muse-spark-1.3` or Spark Open | medium | — |
+| `attacker` | `muse-spark-1.3` | high | Spark (medium) → reference attack (sample apps only) |
+| `drafter` (datatools) | `muse-wonder-1.0` | high | Spark (medium) → Spark Open |
 | `vision` (P2) | `muse-spark-1.3` with image input | low | skip |
 
 - `reasoning_effort` values: `minimal | low | medium | high | xhigh | max` (`none` returns 400 on Spark and
-  Wonder). Use the lowest effort that works; measure.
+  Wonder). Live roles (analyzer, interviewer, classifier, grill_eval) use the lowest effort that works.
+  One-shot roles use the strongest setting that fits their timeout. Measured 2026-10-27 on `bank-transfer-min`:
+  audit Wonder high 31 s / $0.10 (2 topology nodes) vs xhigh 44 s / $0.15 (6 nodes); attacker Spark medium 14 s,
+  Spark high 18 s, Wonder medium 20 s, Wonder high 29 s (30 s budget), all valid; grill_eval Spark medium 4–5 s,
+  Spark high 7–8 s (10 s budget), Wonder low 4–11 s, all marked the same points.
 - **Dev cost switch:** `USE_CONTRIBUTOR_MODELS=1` maps `muse-spark-1.3` → `muse-spark-1.3-contributor`
   ($0.10/$0.20 per 1M tokens, but content may be used for training and the limit is 150 RPM). Use it only
   with synthetic data, never for real users' sessions. It doesn't support `max` effort.
@@ -2021,7 +2025,7 @@ These apply to Muse Code, Claude Code and humans alike.
 |---|---|---|---|---|
 | V1 | Full `RealtimeHandshakeRequest` schema; ENDPOINTING event fields (`turnId`, final text, `startMs`/`endMs`) | dev.meta.ai/docs/api-reference/voice/realtime, /docs/speech-to-text | SG | done (2026-10-27, docs + live): handshake fields `authorization.accessToken`, `audioEncoding` (`PCM_24KHZ`/`PCM_16KHZ`, required), `model`, `mode` (`PUSH_TO_TALK` default, `ENDPOINTING`, `DIARIZATION`), `partialMode` (`CUMULATIVE` default), `emitAudioProgress` (default true), `keywords`, `languageBias`. The final text is in `speechComplete{turnId, transcript}`; partials carry no `turnId`; realtime has only `audioProcessedMs` (no `startMs`/`endMs`), the file endpoint's `turns` have `startMs`/`endMs`. Limits: 60 min per stream, at most 5 s of audio ahead of processing. Live: stream open in 0.4–0.6 s, final turns 0.1–0.2 s after speech ends, the file endpoint 2.3 s for 13 s of audio. Realtime may merge two sentences into one turn or split one; the file endpoint sometimes repeats a word or adds a zero-length duplicate turn (dropped) |
 | V2 | How prompt caching triggers (automatic prefix caching?) | dev.meta.ai/docs (pricing mentions cached input) | SG | open |
-| V3 | `reasoning_effort` with `beta.chat.completions.parse` on Spark 1.3 and Wonder 1.0 | /docs/reasoning, /docs/structured-output | SG | done: works on `muse-spark-1.3` (minimal, low, medium) and `muse-wonder-1.0` (high). Smoke run 2026-10-27, 9 of 9 roles passed |
+| V3 | `reasoning_effort` with `beta.chat.completions.parse` on Spark 1.3 and Wonder 1.0 | /docs/reasoning, /docs/structured-output | SG | done: works on `muse-spark-1.3` (minimal, low, medium) and `muse-wonder-1.0` (high). Smoke run 2026-10-27, 9 of 9 roles passed. Also works: Spark high, Wonder medium and xhigh (benchmark 2026-10-27, §15.1) |
 | V4 | Structured output support on `muse-wonder-1.0` | /docs/models, /docs/structured-output | SG | done: `muse-wonder-1.0` returns valid structured output through `parse` at effort high (about 2 s for a tiny schema) |
 | V5 | ~~Glimmer model id + host~~ (Glimmer dropped 2026-10-27; the attacker uses Spark) | — | SS | dropped |
 | V6 | Baseten base URL for `meta-models/muse-spark-open-1026` | docs.baseten.co | ST | open |
