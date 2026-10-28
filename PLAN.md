@@ -409,6 +409,7 @@ class InterventionTrigger(StrEnum):
     BUG_SUSPECTED = "bug_suspected"; PLAN_MISMATCH = "plan_mismatch"; CODED_BEFORE_PLAN = "coded_before_plan"
     PASTE = "paste"; ASKED = "asked"; HINT_REQUESTED = "hint_requested"; TIME_WARNING = "time_warning"
     PHASE = "phase"; PRAISE = "praise"; GRILL = "grill"
+    WARMUP = "warmup"; REPLY = "reply"; PROBE = "probe"   # conversation, not help (§10.1, §9.5)
 
 class InterventionLevel(StrEnum):
     INFO = "info"; NUDGE = "nudge"; QUESTION = "question"; HINT = "hint"; CONCEPT = "concept"
@@ -857,7 +858,7 @@ Client → server:
 | `code.run` / `code.submit` | `file`, `code` | Runs tests → `run.result` |
 | `chat.send` | `text` | Text alternative to voice; becomes a candidate `TranscriptTurn` (source=text) addressed to the interviewer |
 | `hint.request` | `step_id?` | Explicit hint (counted) |
-| `phase.advance` | `to: Phase` | Candidate-driven transitions only: clarify → coding ("Start coding") and coding → wrap_up ("I'm done"); the server rejects anything else |
+| `phase.advance` | `to: Phase` | Candidate-driven transitions only: intro → clarify ("Skip intro"), clarify → coding ("Start coding") and coding → wrap_up ("I'm done"); the server rejects anything else |
 | `defense.run_chaos` | `finding_id` | Normally automatic; manual retry button |
 | `defense.verify` | `finding_id`, `files: {path: code}` | Re-run the attack on edited files |
 | `assistant.ask` | `text`, `file: str \| None`, `selection: str \| None` | P1 (§11.9): ask the Muse fix assistant → `assistant.reply` |
@@ -1228,7 +1229,12 @@ Owner: **SG**. Data: **ST**.
 
 ### 10.1 Phases and timers
 `setup → intro → clarify → coding → wrap_up → ended → reporting → reported`
-- `intro → clarify`: automatically after the intro message (or 30 s).
+- `intro → clarify`: after the warm-up (2 answers, 90 s, 25 s with no answer, or "Skip intro"). The clock
+  doesn't run during the intro: leaving it adds the elapsed time to `time_limit_s`.
+- **Warm-up (built Oct 28):** a greeting that asks about the candidate (`WARMUP`, QUESTION); the model
+  (`interviewer.reply()`, prompt `interviewer_warmup.md`, never shown the problem) reacts with one follow-up,
+  then a closing line; then the problem. Spoken answers wait for the quiet gap, like wrap-up answers. Canned
+  lines when the model fails. `CodingMode(warm_up=False)` goes straight to the problem (engine tests, evals).
 - `clarify → coding`: the candidate clicks **Start coding** (`phase.advance`) or makes the first substantive
   edit (≥ 3 non-blank lines).
 - `coding → wrap_up`: on a submit that passes all hidden tests, when time runs out, or on the candidate's
