@@ -117,13 +117,15 @@ async def test_two_typed_answers_get_a_follow_up_then_the_problem_with_the_full_
 async def test_a_spoken_answer_in_two_turns_gets_one_reply_after_the_gap(tmp_path: Path) -> None:
     intro = await opened(tmp_path, FakeModel(FOLLOW_UP, CLOSING))
     await intro.says("I'm working on a compiler")
-    await intro.wait(1.5)  # the pause Muse Voice ends a turn at
+    await intro.wait(GAP_S - 0.4)  # a pause Muse Voice ends a turn at, shorter than the gap
     await intro.says("for my programming languages class")
     await intro.wait(GAP_S - 0.3)
     assert len(intro.lines()) == 1
     await intro.wait(0.4)
     await until(lambda: len(intro.lines()) == 2)
-    assert intro.model_heard() == ["I'm working on a compiler for my programming languages class"]
+    # A reply was started on the first part and dropped when more came; the one sent heard all of it.
+    assert intro.model_heard()[-1] == "I'm working on a compiler for my programming languages class"
+    assert len(intro.lines()) == 2
     await intro.rt.close()
 
 

@@ -1093,9 +1093,15 @@ request, a run or an analysis.
 | `PLAN_MISMATCH` (P1) | `plan_matches_code == false` in 2 consecutive analyses, with a stated plan (the latest, or the one the policy remembers) | QUESTION | per plan |
 | `SILENT` (P1, voice on) | in `coding`, ≥ 75 s without a final candidate turn (voice or chat) | NUDGE, a check-in the model words from the screen (`reply(kind="checkin")`), canned "Talk me through what you're doing." | every 3 min max |
 | `IDLE` | in `coding` (or defense `fix`), no edit and no speech ≥ 60 s | QUESTION, a model-worded check-in, canned "Where are you at?" | every 2 min max |
-| `REPLY` (talk, active) | in `clarify`/`coding`, the candidate said or typed something that isn't a question (≥ 6 words; a voice turn the classifier labels thinking aloud), the interviewer has been quiet ≥ 20 s (counting from the problem's presentation), within 8 s of it being said | INFO: the model (`reply(kind="reply")`) asks one follow-up that makes them justify it, or acknowledges briefly; never confirms or hints | 1 per 40 s, 12 per session |
+| `REPLY` (talk, active) | in `clarify`/`coding`, the candidate said or typed something that isn't a question (≥ 6 words; a voice turn the classifier labels thinking aloud), the interviewer has been quiet ≥ 20 s (counting from the problem's presentation), within 8 s of it being said. It goes out as soon as it's written: the final transcript already ended their turn, so it skips the quiet window unless they talk or type again | INFO: the model (`reply(kind="reply")`) asks one follow-up that makes them justify it, or acknowledges briefly; never confirms or hints | 1 per 40 s, 12 per session |
 | `PROBE` (talk, active) | in `coding`, a step became `done` that wasn't probed yet, no serious issue open, quiet ≥ 45 s. Code decides when; the model (`reply(kind="probe")`, never shown the rubric) asks why their code works, what a line does for an input, or what a part costs | QUESTION | 4 per session; steps done together get one probe |
 | `PRAISE` | a step marked tricky in the rubric becomes `done` | INFO | max 1 per 10 min |
+
+**Response time (Oct 28).** A real run felt slow (3–4 s), so the engine doesn't make the candidate wait for
+steps in a row: on a final spoken turn it starts writing the answer and, if a reply could go out, the reply
+while the classifier decides which it is, then sends the one that fits (`LiveEngine._write_ahead`). The warm-up
+reply is written during the pause after an answer. Measured before: thinking aloud → reply 3.6 s after the
+final transcript (classifier 0.6 s, quiet window 1.5 s, model 1.3 s); question → answer 2.0 s; warm-up 4.4 s.
 
 **Talk vs help (built Oct 28).** `REPLY`, `PROBE` and the check-ins are the interviewer's side of the
 conversation, not help: they don't count as interventions shown or against independence (`NOT_HELP`), and the
@@ -1262,8 +1268,8 @@ Owner: **SG**. Data: **ST**.
     "That's time", or a plain one for "I'm done"). The live engine is detached, so chat answers aren't treated
     as questions. The rubric's `wrap_up_questions` are asked one per candidate answer, then the closing line,
     and the session ends. With no answer for 3 min (`wrap_up_limit_s`), it closes anyway.
-  - **When an answer is over:** a typed answer moves on at once. A spoken one moves on after **2.5 s** with no
-    new candidate speech (`ANSWER_GAP_MS`, the same as the analyzer's typing pause): Muse Voice ends a turn at
+  - **When an answer is over:** a typed answer moves on at once. A spoken one moves on after **1.2 s** with no
+    new candidate speech (`ANSWER_GAP_MS`; 2.5 s felt slow in a real run, Oct 28): Muse Voice ends a turn at
     every pause, so "It's O of n time" [pause] "and O of one space" arrives as two final turns. Each new final
     turn restarts the wait, and a turn still being spoken (speechStart has set the interviewer state to
     `listening` and the turn isn't final yet) holds it. A typed answer while a spoken one is waiting moves on at
@@ -1793,7 +1799,7 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 | `interviewer` | `muse-spark-1.3` | low | canned/rubric text |
 | `classifier` (P1) | `muse-spark-1.3` | minimal | treat as thinking aloud |
 | `complexity` (P1, COD-5) | `muse-spark-1.3` | low | leave the answer ungraded (null) |
-| `conversation` (warm-up, replies, probes, check-ins) | `muse-spark-1.3` | low | the canned line |
+| `conversation` (warm-up, replies, probes, check-ins) | `muse-spark-1.3` | minimal (short lines; every second is a pause the candidate hears) | the canned line |
 | `grill_eval` | `muse-spark-1.3` | medium | Spark (low) → Spark Open (Baseten) → keyword grading |
 | `audit` | `muse-wonder-1.0` | xhigh | `muse-spark-1.3` (high) → `flaws.json` (samples only) |
 | `report` | `muse-wonder-1.0` | high | `muse-spark-1.3` → metrics-only template |

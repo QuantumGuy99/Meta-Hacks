@@ -108,6 +108,19 @@ def test_a_reply_waits_for_the_candidate_to_stop_typing() -> None:
     )
 
 
+def test_a_reply_to_a_finished_turn_doesnt_wait_out_the_quiet_window() -> None:
+    state = talking()
+    state.observe_statement(PLAN, NOW)  # the final transcript just came in
+    finished_turn = facts(last_partial_ms=NOW - 300, last_speech_ms=NOW)  # the turn's own partials
+    assert what(decide(state, finished_turn)) == (Trigger.REPLY, Level.INFO, None)
+
+
+def test_a_reply_waits_if_they_start_talking_again() -> None:
+    state = talking()
+    state.observe_statement(PLAN, NOW - 1_000)
+    assert decide(state, facts(last_partial_ms=NOW - 200)) is None  # a new turn under way
+
+
 def test_talk_counts_from_when_the_problem_was_presented() -> None:
     state = seen(CLEAN, CLEAN, state=PolicyState(attached_ms=NOW - 5_000))
     state.observe_statement(PLAN, NOW - 1_000)
@@ -270,8 +283,9 @@ async def test_thinking_aloud_gets_the_models_reply() -> None:
     await settle(live)
     await live.tick()
     assert lines(rt) == [("reply", REPLY)]
-    assert model.roles() == ["classifier", "conversation"]
-    sent = model.calls[-1][1][-1]["content"]
+    # The answer and the reply were written while the classifier decided; the reply was used.
+    assert sorted(model.roles()) == ["classifier", "conversation", "interviewer"]
+    sent = next(m for role, m in model.calls if role == "conversation")[-1]["content"]
     assert "## What they just said\n" + PLAN in sent
 
 
@@ -291,7 +305,17 @@ async def test_a_spoken_question_is_still_answered_not_replied_to() -> None:
     await settle(live)
     await live.tick()
     assert [trigger for trigger, _ in lines(rt)] == ["asked"]
-    assert model.roles() == ["classifier", "interviewer"]
+    assert sorted(model.roles()) == ["classifier", "conversation", "interviewer"]  # the reply was discarded
+
+
+@pytest.mark.asyncio
+async def test_the_answer_written_ahead_is_the_one_sent() -> None:
+    rt, live, model, _ = engine(label=lambda _: "question_to_interviewer")
+    await say(rt, "Can the readings list be empty, or is it always at least one reading?")
+    await settle(live)
+    await live.tick()
+    assert [trigger for trigger, _ in lines(rt)] == ["asked"]
+    assert model.roles().count("interviewer") == 1  # written once, while the classifier ran
 
 
 @pytest.mark.asyncio
