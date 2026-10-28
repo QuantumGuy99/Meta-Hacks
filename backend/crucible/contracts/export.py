@@ -12,7 +12,7 @@ from typing import Any
 
 from pydantic import TypeAdapter
 
-from crucible.contracts import coding, common, defense, events, report, ws
+from crucible.contracts import coding, common, defense, events, guide, report, ws
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 OUTPUT = REPO_ROOT / "frontend" / "src" / "types" / "contracts.ts"
@@ -32,6 +32,8 @@ TOP_LEVEL: dict[str, Any] = {
     "ProblemPublic": coding.ProblemPublic,
     "Project": defense.Project,
     "ProjectSource": defense.ProjectSource,
+    "GuideAsk": guide.GuideAsk,
+    "GuideReply": guide.GuideReply,
     "Report": report.Report,
     # timeline payloads the replay reads (GET /api/sessions/{id}/timeline)
     "TimelineEvent": events.TimelineEvent,

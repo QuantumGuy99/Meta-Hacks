@@ -140,6 +140,8 @@ export interface CrucibleContracts {
   ProblemPublic: ProblemPublic;
   Project: Project;
   ProjectSource: ProjectSource;
+  GuideAsk: GuideAsk;
+  GuideReply: GuideReply;
   Report: Report;
   TimelineEvent: TimelineEvent;
   PhaseChange: PhaseChange;
@@ -804,6 +806,53 @@ export interface ProjectSource {
   files: {
     [k: string]: string;
   };
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "GuideAsk".
+ */
+export interface GuideAsk {
+  question: string;
+  page: "home" | "coding_setup" | "defense_picker" | "room" | "report" | "other";
+  in_session: boolean;
+  /**
+   * @maxItems 6
+   */
+  history?:
+    | []
+    | [GuideTurn]
+    | [GuideTurn, GuideTurn]
+    | [GuideTurn, GuideTurn, GuideTurn]
+    | [GuideTurn, GuideTurn, GuideTurn, GuideTurn]
+    | [GuideTurn, GuideTurn, GuideTurn, GuideTurn, GuideTurn]
+    | [GuideTurn, GuideTurn, GuideTurn, GuideTurn, GuideTurn, GuideTurn];
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "GuideTurn".
+ */
+export interface GuideTurn {
+  role: "user" | "guide";
+  text: string;
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "GuideReply".
+ */
+export interface GuideReply {
+  reply: string;
+  action: GuideAction;
+  source: "model" | "fallback";
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "GuideAction".
+ */
+export interface GuideAction {
+  kind: "none" | "open_page" | "start_coding" | "start_defense";
+  page: ("home" | "coding" | "defense" | "report") | null;
+  difficulty: Difficulty | null;
+  project_id: string | null;
 }
 /**
  * This interface was referenced by `CrucibleContracts`'s JSON-Schema
