@@ -581,6 +581,10 @@ class Analysis(Strict):             # LLM output of the analyzer (§9.4)
     chosen_approach: str | None
     explanation_quality: Literal["none", "weak", "ok", "strong"]
     proposal: InterventionProposal | None
+
+class ComplexityClaim(Strict):      # LLM output: the bounds stated at wrap-up (COD-5, §10.5)
+    time: str | None                # big-O in the rubric's variables; None if not stated
+    space: str | None
 ```
 
 ### 7.4 `defense.py`
@@ -1292,6 +1296,18 @@ Owner: **SG**. Data: **ST**.
 ### 10.5 Coding report extras
 Final step statuses, chosen approach, whether the complexity answer matched an acceptable approach.
 
+- **As built (COD-5):** at report time, `coding/complexity.py` takes what the candidate said after the wrap-up
+  question that mentions "complexity", up to the next question (a spoken turn that started before the next question
+  still counts). Role `complexity` (Spark low, 8 s, prompt `coding/prompts/complexity.md`) writes down only the
+  stated bounds as a `ComplexityClaim`, in the rubric's variable names; it is shown the rubric's approach names
+  and bounds, never which are acceptable. Code decides: `complexity_answer_ok` is true when the stated time bound,
+  and the space bound if one was given, match one acceptable approach up to notation (`O(nm log(m))` is
+  `O(n * m log m)`; constants and dominated terms drop), leaving out an added term is allowed (`O(n)` for
+  `O(n + r)`), and a missing or wrong time bound is false. Not asked, not answered or no model → null; a failed
+  call → null with a system note. The report model is told the verdict and approach so the review agrees.
+  On real Spark: 29 of 30 phrasings across the three gold problems graded as expected, p50 1.7 s (the miss
+  was two connect timeouts in a row; the 20 s guard now covers the wrapper's retry).
+
 ### 10.6 P2: SAM 3.1 features (`vision/`)
 - **Show your work:** the candidate clicks "Show sketch", holds paper up to the webcam, and the browser
   captures one JPEG → backend → SAM 3.1 (`POST /v1/responses`, `model: "sam-3.1"`, content: `input_text`
@@ -1754,6 +1770,7 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 | `analyzer` | `muse-spark-1.3` | minimal | skip tick |
 | `interviewer` | `muse-spark-1.3` | low | canned/rubric text |
 | `classifier` (P1) | `muse-spark-1.3` | minimal | treat as thinking aloud |
+| `complexity` (P1, COD-5) | `muse-spark-1.3` | low | leave the answer ungraded (null) |
 | `grill_eval` | `muse-spark-1.3` | medium | Spark (low) → Spark Open (Baseten) → keyword grading |
 | `audit` | `muse-wonder-1.0` | xhigh | `muse-spark-1.3` (high) → `flaws.json` (samples only) |
 | `report` | `muse-wonder-1.0` | high | `muse-spark-1.3` → metrics-only template |
@@ -1857,7 +1874,7 @@ Format: **ID — title** (owner · priority · depends on) followed by "done whe
 - **COD-2 — Coding phases, timers, wrap-up** (P0 · ENG-1, ENG-6).
 - **COD-3 — Test service** (P0 · RUN-1): run/submit → `run.result`, hidden-input redaction.
 - **COD-4 — Integrity detectors** (P0 · ENG-2).
-- **COD-5 — Coding report extras** (P1 · ENG-8).
+- **COD-5 — Coding report extras** (P1 · ENG-8). **Built Oct 28** (§10.5).
 - **COD-6 — Voice question classifier; plan-mismatch and coded-before-plan rules** (P1 · ENG-7).
 - **VIS-1 — SAM sketch + proctor** (P2 · COD-2).
 
@@ -2083,7 +2100,7 @@ Record each segment separately on the deployed build, at real speed (speed-ups a
 | Problem text rights | Original statements only + review checklist (§13.1) |
 | Demo-day failure | Pre-recorded takes on the deployed build by Tue Nov 3; never present MOCK as live |
 
-**Timeouts:** analyzer 12 s · interviewer 6 s · classifier 3 s · grill eval 20 s (Spark medium measured 4–15 s) · audit 120 s · report 45 s per model (Wonder measured 15–21 s, once over 90 s; then Spark) ·
+**Timeouts:** analyzer 12 s · interviewer 6 s · classifier 3 s · complexity 8 s (20 s guard, report time) · grill eval 20 s (Spark medium measured 4–15 s) · audit 120 s · report 45 s per model (Wonder measured 15–21 s, once over 90 s; then Spark) ·
 attack writer 30 s · test run 10 s · chaos run 60 s · ASR handshake 10 s · SAM 5 s · image 20 s.
 
 ---

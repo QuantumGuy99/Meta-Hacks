@@ -151,3 +151,8 @@ class Analysis(Strict):  # LLM output of the analyzer (§9.4)
     chosen_approach: str | None
     explanation_quality: Literal["none", "weak", "ok", "strong"]
     proposal: InterventionProposal | None
+
+
+class ComplexityClaim(Strict):  # LLM output: the bounds the candidate stated at wrap-up (COD-5, §10.5)
+    time: str | None  # big-O in the rubric's variables, "O(n)"; None if they didn't state one
+    space: str | None
