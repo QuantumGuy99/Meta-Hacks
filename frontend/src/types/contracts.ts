@@ -163,6 +163,9 @@ export interface Hello {
  */
 export interface EditorEvents {
   type: "editor.events";
+  /**
+   * @maxItems 500
+   */
   events: EditorEvent[];
 }
 /**
@@ -174,6 +177,9 @@ export interface EditorEvent {
   file?: string;
   version: number;
   kind: "change" | "paste" | "undo" | "redo" | "focus" | "blur" | "hidden" | "visible";
+  /**
+   * @maxItems 100
+   */
   changes?: EditorChange[];
   pasted_chars?: number | null;
 }

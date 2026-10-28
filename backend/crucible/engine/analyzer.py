@@ -35,7 +35,7 @@ TICK_S = 0.5
 TRANSCRIPT_WINDOW_MS = 90_000
 RUNS_SHOWN = 3
 
-Reason = Literal["ask", "run", "turn", "pause", "steady_change"]
+Reason = Literal["ask", "run", "turn", "pause", "steady_change", "final"]  # final: the report (§9.8)
 
 
 class StructuredModel(Protocol):
@@ -172,6 +172,10 @@ class Analyzer:
                 analysis = await self._model.complete_json(
                     "analyzer", messages, Analysis, session_id=rt.session.id
                 )
+        except asyncio.CancelledError:
+            # Stopped mid-call (the engine detached, e.g. at wrap-up): these changes were never analyzed.
+            rt.code.code_at_last_analysis = analyzed_before
+            raise
         except Exception:  # task boundary: any model failure skips this tick (§9.4)
             logger.exception("analysis failed for %s (%s)", rt.session.id, reason)
             rt.code.code_at_last_analysis = analyzed_before  # look again at the same changes next time
