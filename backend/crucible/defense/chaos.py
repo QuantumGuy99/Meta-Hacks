@@ -124,7 +124,15 @@ async def run_attack(
         except RunnerError as exc:
             failure = str(exc)
         finally:
-            await runner.stop_project(h)
+            # Cleanup comes after the attack: a failure here mustn't discard a finished run or crash the
+            # stage (that left sessions stuck in chaos with nothing to retry). It's noted, then the run stands.
+            try:
+                await runner.stop_project(h)
+            except Exception as exc:
+                logger.warning("stopping %s after the attack failed: %s", project.id, exc)
+                await note(
+                    sink, "warning", f"couldn't stop the app cleanly after the attack: {type(exc).__name__}"
+                )
 
     verdict, reasons = decide_verdict(done, finding.chaos.p95_threshold_ms)
     if failure:
