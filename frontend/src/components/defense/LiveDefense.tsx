@@ -11,8 +11,8 @@ import { MicControls } from "@/components/room/MicControls";
 import { useMic } from "@/components/room/useMic";
 import { api, errorText } from "@/lib/api";
 import { attachEditorCapture, type EditorCapture } from "@/lib/capture/editor";
-import { levelLabel, severityLabel } from "@/lib/fixtures";
-import { feedMessages, liveCaption, statusLine, useLiveSession, useRemaining, type LiveState } from "@/lib/session";
+import { clock, levelLabel, severityLabel } from "@/lib/fixtures";
+import { feedMessages, liveCaption, statusLine, useClock, useLiveSession, useRemaining, type LiveState } from "@/lib/session";
 import type { ChaosMetric, ChaosRun, Phase } from "@/types/contracts";
 import { LiveLoadChart } from "./LiveLoadChart";
 import { TopologyView } from "./TopologyView";
@@ -30,6 +30,7 @@ const STAGES: [Phase, string][] = [
 ];
 const ORDER = STAGES.map(([p]) => p);
 const GRILL_WINDOW_MS = 90_000;
+const VERIFY_TIMEOUT_MS = 180_000;
 
 type Editor = Parameters<NonNullable<Parameters<typeof CodeEditor>[0]["onEditor"]>>[0];
 
@@ -64,7 +65,7 @@ export function LiveDefense({ id }: { id: string }) {
   const [original, setOriginal] = useState<Record<string, string>>({});
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
-  const [verifying, setVerifying] = useState<{ runs: number; at: number } | null>(null);
+  const [verifying, setVerifying] = useState<{ runs: number; at: number; wall: number } | null>(null);
   const capture = useRef<EditorCapture | null>(null);
 
   const phase = state.phase;
@@ -146,35 +147,46 @@ export function LiveDefense({ id }: { id: string }) {
   // graded. A question loaded from the timeline after a reload falls back to the session's clock.
   const askedAt = asked ? (state.arrived[asked.id] ?? (startedAtMs !== null ? startedAtMs + asked.t : null)) : null;
   const deadline = phase === "grill" && !grilled && askedAt !== null ? askedAt + GRILL_WINDOW_MS : null;
-  const [now, setNow] = useState(0);
-  useEffect(() => {
-    if (deadline === null) return;
-    const tick = () => setNow(Date.now());
-    tick();
-    const id = window.setInterval(tick, 1000);
-    return () => window.clearInterval(id);
-  }, [deadline]);
+
+  // Long server-side waits get a running clock: the audit (about a minute with the real models, issue #35)
+  // counts from the session's start, writing the attack from when the audit arrived.
+  const auditWait = !audit && (phase === "setup" || phase === "audit");
+  const attackWait = phase === "chaos" && !baseline;
+  const verifyWaiting =
+    verifying !== null && state.chaosRuns.length === verifying.runs && !(state.error && state.error.at > verifying.at);
+  const now = useClock(deadline !== null || auditWait || attackWait || verifyWaiting);
   const answerLeft = deadline === null || now === 0 ? null : Math.max(0, Math.ceil((deadline - now) / 1000));
+  const waited = (from: number | null | undefined) => (from && now ? clock(Math.max(0, (now - from) / 1000)) : null);
+  const auditWaited = auditWait ? waited(startedAtMs) : null;
+  const attackWaited = attackWait ? waited(state.arrived.audit) : null;
 
   useEffect(() => {
     if (state.error) toast.error(state.error.message, { id: `err-${state.error.at}` });
   }, [state.error]);
+  // Attack results as toasts: only ones that finish while you're here, not ones a reload brings back.
   const lastDone = state.chaosRuns.at(-1);
+  const lastDoneIsLive = lastDone ? `chaos:${lastDone.id}` in state.arrived : false;
   useEffect(() => {
-    if (!lastDone) return;
+    if (!lastDone || !lastDoneIsLive) return;
     toast[lastDone.verdict === "held" ? "success" : lastDone.verdict === "broke" ? "error" : "warning"](
       `${lastDone.kind === "verify" ? "Verify" : "Attack"}: ${lastDone.verdict}`,
-      { description: lastDone.summary },
+      { id: `chaos-${lastDone.id}`, description: lastDone.summary },
     );
-  }, [lastDone]);
+  }, [lastDone, lastDoneIsLive]);
 
-  const running = verifying !== null && state.chaosRuns.length === verifying.runs && !(state.error && state.error.at > verifying.at);
+  // Verify is in flight until its attack finishes or an error arrives; if neither comes (a dropped
+  // connection), the button comes back after VERIFY_TIMEOUT_MS instead of staying disabled for good.
+  const verifyTimedOut = verifyWaiting && now > 0 && now - verifying.wall > VERIFY_TIMEOUT_MS;
+  const running = verifyWaiting && !verifyTimedOut;
+  useEffect(() => {
+    if (verifyTimedOut) toast.error("No result from Verify yet", { description: "Check your connection, then verify again." });
+  }, [verifyTimedOut]);
   const verify = () => {
     if (!targetId || !files || running) return;
     capture.current?.snapshot();
     const changed = Object.fromEntries(Object.entries(files).filter(([p, code]) => original[p] !== code));
     const sent = Object.keys(changed).length ? changed : findingFile && files[findingFile] ? { [findingFile]: files[findingFile] } : files;
-    setVerifying({ runs: state.chaosRuns.length, at: performance.now() });
+    setVerifying({ runs: state.chaosRuns.length, at: performance.now(), wall: Date.now() });
     send({ type: "defense.verify", finding_id: targetId, files: sent });
   };
 
@@ -331,6 +343,9 @@ export function LiveDefense({ id }: { id: string }) {
               ) : (
                 <div className="df-empty">
                   <p>Auditing the project: mapping its routes, services and stores, and looking for what could break.</p>
+                  <p className="df-muted" aria-live="off">
+                    {auditWaited ? `${auditWaited} so far. ` : ""}The first audit of a project takes about a minute.
+                  </p>
                 </div>
               ))}
 
@@ -343,7 +358,7 @@ export function LiveDefense({ id }: { id: string }) {
                       <div className="df-empty">
                         <p>
                           {view === "chaos"
-                            ? "Writing the attack and starting the app in the sandbox…"
+                            ? `Writing the attack and starting the app in the sandbox…${attackWaited ? ` ${attackWaited}` : ""}`
                             : "Nothing verified yet. Fix the code, then Verify re-runs the same attack on it."}
                         </p>
                       </div>

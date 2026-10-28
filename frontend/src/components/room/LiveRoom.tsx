@@ -11,7 +11,7 @@ import { api, errorText } from "@/lib/api";
 import { attachEditorCapture, type EditorCapture } from "@/lib/capture/editor";
 import { levelLabel } from "@/lib/fixtures";
 import { codeAt } from "@/lib/replay";
-import { feedMessages, liveCaption, statusLine, useLiveSession, useRemaining } from "@/lib/session";
+import { feedMessages, liveCaption, statusLine, useClock, useLiveSession, useRemaining } from "@/lib/session";
 import type { Phase, ProblemPublic } from "@/types/contracts";
 import { CodeEditor } from "./CodeEditor";
 import { InterviewerPanel } from "./InterviewerPanel";
@@ -30,6 +30,7 @@ const PHASES: [Phase, string][] = [
   ["wrap_up", "Wrap up"],
 ];
 const PHASE_INDEX: Partial<Record<Phase, number>> = { setup: 0, intro: 0, clarify: 0, coding: 1, wrap_up: 2, ended: 3 };
+const RUN_TIMEOUT_MS = 90_000;
 
 type Editor = Parameters<NonNullable<Parameters<typeof CodeEditor>[0]["onEditor"]>>[0];
 
@@ -54,7 +55,7 @@ export function LiveRoom({ id }: { id: string }) {
   const [problem, setProblem] = useState<ProblemPublic | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
-  const [pending, setPending] = useState<{ runs: number; at: number } | null>(null);
+  const [pending, setPending] = useState<{ runs: number; at: number; wall: number } | null>(null);
   const [showNotes, setShowNotes] = useState(false);
   const [ending, setEnding] = useState(false);
   const capture = useRef<EditorCapture | null>(null);
@@ -62,6 +63,8 @@ export function LiveRoom({ id }: { id: string }) {
   const slug = state.session?.problem_slug ?? null;
   const phase = state.phase;
   const ended = phase === "ended";
+  // code can only run from clarify on (the server rejects it during setup and the intro)
+  const beforeClarify = phase === null || phase === "setup" || phase === "intro";
 
   // The problem, then the code: the latest snapshot on the timeline (after a reload) or the starter code.
   useEffect(() => {
@@ -94,14 +97,18 @@ export function LiveRoom({ id }: { id: string }) {
     };
   }, [editor, startedAtMs, send]);
 
-  // Run results and errors as toasts.
+  // Run results and errors as toasts: only for results that arrive while you're here, not ones a reload
+  // brings back from the timeline.
   const lastRun = state.runs.at(-1) ?? null;
+  const lastRunIsLive = lastRun ? `run:${lastRun.run_id}` in state.arrived : false;
   useEffect(() => {
-    if (!lastRun) return;
-    if (lastRun.compile_error) toast.error("Your code didn't run", { description: lastRun.compile_error.split("\n")[0] });
-    else if (lastRun.passed === lastRun.total) toast.success(`${lastRun.kind === "submit" ? "Submitted" : "Ran"}: all ${lastRun.total} tests passed`);
-    else toast.error(`${lastRun.total - lastRun.passed} of ${lastRun.total} tests failed`);
-  }, [lastRun]);
+    if (!lastRun || !lastRunIsLive) return;
+    const id = `run-${lastRun.run_id}`;
+    if (lastRun.compile_error) toast.error("Your code didn't run", { id, description: lastRun.compile_error.split("\n")[0] });
+    else if (lastRun.passed === lastRun.total)
+      toast.success(`${lastRun.kind === "submit" ? "Submitted" : "Ran"}: all ${lastRun.total} tests passed`, { id });
+    else toast.error(`${lastRun.total - lastRun.passed} of ${lastRun.total} tests failed`, { id });
+  }, [lastRun, lastRunIsLive]);
   useEffect(() => {
     if (state.error) toast.error(state.error.message, { id: `err-${state.error.at}` });
   }, [state.error]);
@@ -113,12 +120,20 @@ export function LiveRoom({ id }: { id: string }) {
     return () => window.clearTimeout(t);
   }, [ended, id, router]);
 
-  const running = pending !== null && state.runs.length === pending.runs && !(state.error && state.error.at > pending.at);
+  // A run is in flight until its result or an error arrives. If neither comes (a dropped connection), the
+  // buttons come back after RUN_TIMEOUT_MS instead of staying disabled for good.
+  const waiting = pending !== null && state.runs.length === pending.runs && !(state.error && state.error.at > pending.at);
+  const now = useClock(waiting);
+  const runTimedOut = waiting && now > 0 && now - pending.wall > RUN_TIMEOUT_MS;
+  const running = waiting && !runTimedOut;
+  useEffect(() => {
+    if (runTimedOut) toast.error("No result from the runner yet", { description: "Check your connection, then run again." });
+  }, [runTimedOut]);
 
   const run = (kind: "run" | "submit") => {
-    if (running || !editor) return;
+    if (running || !editor || beforeClarify) return;
     capture.current?.snapshot(); // the backend must see the exact code being run
-    setPending({ runs: state.runs.length, at: performance.now() });
+    setPending({ runs: state.runs.length, at: performance.now(), wall: Date.now() });
     send({ type: kind === "run" ? "code.run" : "code.submit", file: FILE, code: editor.getValue() });
   };
 
@@ -177,8 +192,15 @@ export function LiveRoom({ id }: { id: string }) {
         <button type="button" className="ui-btn" aria-pressed={showNotes} onClick={() => setShowNotes((v) => !v)}>
           Notes
         </button>
-        {(phase === "clarify" || phase === "intro") && (
-          <button type="button" className="ui-btn ui-btn-primary" onClick={() => send({ type: "phase.advance", to: "coding" })}>
+        {(phase === "clarify" || beforeClarify) && (
+          // the server only takes clarify → coding, so the button waits out the intro
+          <button
+            type="button"
+            className="ui-btn ui-btn-primary"
+            onClick={() => send({ type: "phase.advance", to: "coding" })}
+            disabled={beforeClarify}
+            title={beforeClarify ? "Available once the interviewer has introduced the problem" : undefined}
+          >
             Start Coding
           </button>
         )}
@@ -227,14 +249,14 @@ export function LiveRoom({ id }: { id: string }) {
                     <button type="button" className="ui-btn" onClick={reset} disabled={!editor || ended}>
                       Reset Code
                     </button>
-                    <button type="button" className="ui-btn" onClick={() => run("run")} disabled={running || !editor || ended}>
+                    <button type="button" className="ui-btn" onClick={() => run("run")} disabled={running || !editor || ended || beforeClarify}>
                       {running ? "Running…" : "Run"}
                     </button>
                     <button
                       type="button"
                       className="ui-btn ui-btn-primary"
                       onClick={() => run("submit")}
-                      disabled={running || !editor || ended}
+                      disabled={running || !editor || ended || beforeClarify}
                     >
                       Submit
                     </button>

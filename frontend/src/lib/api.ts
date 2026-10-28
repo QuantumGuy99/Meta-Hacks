@@ -28,13 +28,20 @@ export class ApiError extends Error {
   }
 }
 
-async function send(path: string, init?: RequestInit): Promise<Response> {
+const TIMEOUT_MS = 20_000;
+const CREATE_TIMEOUT_MS = 45_000; // creating a session plans it (problem pick, project load)
+
+async function send(path: string, init?: RequestInit, timeoutMs = TIMEOUT_MS): Promise<Response> {
   try {
     return await fetch(`${API_URL}${path}`, {
       ...init,
+      signal: AbortSignal.timeout(timeoutMs),
       headers: { Accept: "application/json", ...(init?.body ? { "Content-Type": "application/json" } : {}), ...init?.headers },
     });
-  } catch {
+  } catch (err) {
+    if (err instanceof DOMException && (err.name === "TimeoutError" || err.name === "AbortError")) {
+      throw new ApiError(0, "timeout", "The Ares server took too long to answer. Try again in a moment.");
+    }
     throw new ApiError(0, "network", `Can't reach the Ares server at ${API_URL}. Is the backend running?`);
   }
 }
@@ -44,8 +51,8 @@ async function fail(res: Response): Promise<never> {
   throw new ApiError(res.status, body?.error?.code ?? `http_${res.status}`, body?.error?.message ?? res.statusText);
 }
 
-async function json<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await send(path, init);
+async function json<T>(path: string, init?: RequestInit, timeoutMs?: number): Promise<T> {
+  const res = await send(path, init, timeoutMs);
   if (!res.ok) return fail(res);
   return (await res.json()) as T;
 }
@@ -59,7 +66,7 @@ export const api = {
   samples: () => json<Project[]>("/api/defense/samples"),
   projectFiles: (id: string) => json<ProjectSource>(`/api/defense/projects/${encodeURIComponent(id)}/files`),
   createSession: (config: SessionConfig) =>
-    json<Session>("/api/sessions", { method: "POST", body: JSON.stringify(config) }),
+    json<Session>("/api/sessions", { method: "POST", body: JSON.stringify(config) }, CREATE_TIMEOUT_MS),
   session: (id: string) => json<Session>(`/api/sessions/${encodeURIComponent(id)}`),
   endSession: (id: string) => json<Session>(`/api/sessions/${encodeURIComponent(id)}/end`, { method: "POST" }),
   timeline: (id: string) => json<TimelineEvent[]>(`/api/sessions/${encodeURIComponent(id)}/timeline`),

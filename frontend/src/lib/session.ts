@@ -43,7 +43,9 @@ export type LiveState = {
   streamingId: string | null;
   pending: string[];
   shown: string[];
-  /** Date.now() when each intervention reached this browser (none for ones loaded from the timeline). */
+  /** Date.now() when something reached this browser over the socket: an intervention by its id, a run as
+   * `run:<id>`, an attack as `chaos:<id>`. Nothing loaded from the timeline is in here, so a reload doesn't
+   * replay toasts or timers for things that happened before it. */
   arrived: Record<string, number>;
   turns: TranscriptTurn[];
   runs: RunResult[];
@@ -115,6 +117,13 @@ function addHistory(state: LiveState, events: TimelineEvent[]): LiveState {
       case "chaos_run":
         next = { ...next, chaosRuns: upsert(next.chaosRuns, p as ChaosRun, (x) => x.id) };
         break;
+      case "chaos_metric":
+        next = { ...next, metrics: upsert(next.metrics, p as ChaosMetric, (x) => `${x.run_id}:${x.t_ms}`) };
+        break;
+      case "audit":
+        // public while the session is live (no explanations); the socket doesn't resend it after a reload
+        if (!next.audit) next = { ...next, audit: p as AuditPublic };
+        break;
       case "verdict":
         next = { ...next, verdict: p as Verdict };
         break;
@@ -140,6 +149,11 @@ function addIntervention(state: LiveState, iv: Intervention, wall: number): Live
     return { ...state, interventions, arrived, shown: [...state.shown, iv.id], streamingId: iv.id };
   }
   return { ...state, interventions, arrived, pending: [...state.pending, iv.id] };
+}
+
+/** Record when something first reached this browser over the socket (not when it came from history). */
+function stamp(arrived: Record<string, number>, key: string, wall: number): Record<string, number> {
+  return key in arrived ? arrived : { ...arrived, [key]: wall };
 }
 
 /** Replace the item with the same key, or append it. Reconnects can resend what we already have. */
@@ -175,17 +189,25 @@ export function reduceLive(state: LiveState, action: Action): LiveState {
     case "transcript.update":
       return { ...state, turns: upsert(state.turns, msg.turn, (x) => x.turn_id) };
     case "run.result":
-      return { ...state, runs: upsert(state.runs, msg.result, (x) => x.run_id) };
+      return {
+        ...state,
+        runs: upsert(state.runs, msg.result, (x) => x.run_id),
+        arrived: stamp(state.arrived, `run:${msg.result.run_id}`, action.wall),
+      };
     case "notes.update":
       return { ...state, notes: { steps: msg.steps, issues: msg.issues, stated_plan: msg.stated_plan } };
     case "integrity.flag":
       return { ...state, flags: upsert(state.flags, msg.flag, (x) => x.id) };
     case "defense.audit":
-      return { ...state, audit: msg.audit };
+      return { ...state, audit: msg.audit, arrived: stamp(state.arrived, "audit", action.wall) };
     case "defense.chaos.metric":
       return { ...state, metrics: upsert(state.metrics, msg.metric, (x) => `${x.run_id}:${x.t_ms}`) };
     case "defense.chaos.done":
-      return { ...state, chaosRuns: upsert(state.chaosRuns, msg.run, (x) => x.id) };
+      return {
+        ...state,
+        chaosRuns: upsert(state.chaosRuns, msg.run, (x) => x.id),
+        arrived: stamp(state.arrived, `chaos:${msg.run.id}`, action.wall),
+      };
     case "defense.grill.eval":
       return { ...state, grill: upsert(state.grill, { turn: msg.turn, finding: msg.finding }, (x) => x.turn.finding_id) };
     case "defense.sam.highlight":
@@ -207,20 +229,32 @@ export function useLiveSession(id: string) {
   const socket = useRef<SessionSocket | null>(null);
 
   useEffect(() => {
-    const s = connectSession(id, {
-      onMessage: (msg) => dispatch({ type: "msg", msg, at: performance.now(), wall: Date.now() }),
-      onStatus: (status) => dispatch({ type: "status", status }),
-    });
-    socket.current = s;
     let live = true;
-    api
-      .timeline(id)
-      .then((events) => live && dispatch({ type: "history", events }))
-      .catch(() => {}); // a brand-new session has no history; a missing one shows as not_found on the socket
+    let s: SessionSocket | null = null;
+    // The socket only resends session.state, so what happened before this socket attached (a reload, a
+    // drop) comes from the public timeline. It's loaded on every open, after the server has the socket, so
+    // nothing falls between the two; upserts drop the overlap. A brand-new session has no history.
+    const loadHistory = () =>
+      api
+        .timeline(id)
+        .then((events) => live && dispatch({ type: "history", events }))
+        .catch(() => {});
+    // Connect a tick later: a mount that's undone at once (React's dev double mount) then never opens a
+    // socket. The server starts the session on the first connect, and its opening lines would go to a
+    // socket that's about to close.
+    const start = window.setTimeout(() => {
+      s = connectSession(id, {
+        onMessage: (msg) => dispatch({ type: "msg", msg, at: performance.now(), wall: Date.now() }),
+        onStatus: (status) => dispatch({ type: "status", status }),
+        onOpen: () => void loadHistory(),
+      });
+      socket.current = s;
+    }, 0);
     return () => {
       live = false;
+      window.clearTimeout(start);
       socket.current = null;
-      s.close();
+      s?.close();
     };
   }, [id]);
 
@@ -269,6 +303,19 @@ export function useRemaining(state: LiveState): number | null {
   if (state.remainingS === null) return null;
   if (!live || now < state.syncedAt) return Math.max(0, Math.round(state.remainingS));
   return Math.max(0, Math.round(state.remainingS - (now - state.syncedAt) / 1000));
+}
+
+/** Date.now(), ticking once a second while `active` (wait timers, the grill countdown); 0 when inactive. */
+export function useClock(active: boolean): number {
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const tick = () => setNow(Date.now());
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [active]);
+  return active ? now : 0;
 }
 
 /** Socket status as one short line, or null while everything is fine. */
