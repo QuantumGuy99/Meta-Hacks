@@ -870,6 +870,16 @@ Server → client:
 | `report.ready` | `session_id` |
 | `error` | `code`, `message`, `retryable` |
 
+**Limits** (`engine/api.py`, `engine/limits.py`, the client models in `contracts/ws.py` and `events.py`):
+- **Message size:** at most 2 MiB per JSON message (the largest real one is a 1 MB circle image). Over that, the
+  server sends `error{code: "too_large"}` and drops the message without parsing it.
+- **Fields:** chat text ≤ 4,000 chars (the grill answer cap); a source file, code to run or a snapshot ≤ 200,000
+  chars; a path ≤ 256; an editor batch ≤ 500 events of ≤ 100 changes each; step and finding ids ≤ 64; a
+  `defense.verify` ≤ 60 files. Over a limit: `error{code: "bad_message"}`.
+- **Rate:** 20 messages a second per socket, with a burst of 60 (real use is an editor batch every 500 ms plus the
+  odd chat, run or snapshot). Messages over the rate are dropped with one `error{code: "rate_limited",
+  retryable: true}` when the dropping starts. 200 drops within 10 s closes the socket with **4429**.
+
 ### 8.3 WebSocket `/ws/sessions/{id}/audio` (binary)
 
 - The client sends **raw PCM, signed 16-bit little-endian, mono, 24 kHz**, in **80 ms frames (1,920 samples =
@@ -879,8 +889,11 @@ Server → client:
   pace (Meta closes streams that fall behind) and the audio clock stays aligned with session time.
 - The server forwards the frames to Meta's realtime ASR (§9.7) and publishes transcripts on the JSON socket.
 - Close codes: `4404` unknown session, `4403` the session has voice off, `4503` voice unavailable (no key, or
-  realtime and file transcription both failed), `4409` another tab took the microphone, `1000` the session
-  ended. The browser shows "use chat" for the 44xx/45xx codes.
+  realtime and file transcription both failed), `4409` another tab took the microphone, `4429` too many frames,
+  `1000` the session ended. The browser shows "use chat" for the 44xx/45xx codes.
+- **Limits:** frames over 7,680 bytes (two real frames) are dropped. 25 messages a second with a burst of 50 (twice
+  real time, for network jitter); faster frames are dropped rather than forwarded, so the stream never runs ahead
+  of real time. 200 drops within 10 s closes the socket with 4429.
 
 ---
 
@@ -1153,11 +1166,11 @@ One `VoiceBridge` per session (`rt.voice`), opened by the audio socket; `models/
    candidate asked, first passing run, each integrity flag, the longest silence (≥ 60 s), the final submit,
    wrap-up answers; defense: each chaos verdict, grill score and verify result, and the verdict. Over 14, the
    most important kinds are kept (submit, verdicts, broken findings, first edit first).
-3. **ReportDraft** from model role `report` (`muse-wonder-1.0`, `reasoning_effort="high"`, timeout 90 s →
+3. **ReportDraft** from model role `report` (`muse-wonder-1.0`, `reasoning_effort="high"`, timeout 45 s →
    Spark 1.3, same schema) via `complete_json_with_model`, which also returns the model that answered. Prompt:
    `engine/prompts/report_system.md`, with the problem and rubric (or findings, chaos runs, grill and verdict),
    final code, step history, runs, transcript, interventions, metrics and candidate moments. Overall deadline
-   150 s. No model, a failure or the deadline → a **template report** from metrics only (`model: "template"`,
+   100 s. No model, a failure or the deadline → a **template report** from metrics only (`model: "template"`,
    with a `system` note).
 4. **Merge, code decides:** scores code can measure replace the model's: coding `correctness` = hidden tests
    passed (of the last submit); defense `correctness` = broken findings that held after the fix, and
@@ -2015,7 +2028,7 @@ Record each segment separately on the deployed build, at real speed (speed-ups a
 | Problem text rights | Original statements only + review checklist (§13.1) |
 | Demo-day failure | Pre-recorded takes on the deployed build by Tue Nov 3; never present MOCK as live |
 
-**Timeouts:** analyzer 12 s · interviewer 6 s · classifier 3 s · grill eval 20 s (Spark medium measured 4–15 s) · audit 120 s · report 90 s ·
+**Timeouts:** analyzer 12 s · interviewer 6 s · classifier 3 s · grill eval 20 s (Spark medium measured 4–15 s) · audit 120 s · report 45 s per model (Wonder measured 15–21 s, once over 90 s; then Spark) ·
 attack writer 30 s · test run 10 s · chaos run 60 s · ASR handshake 10 s · SAM 5 s · image 20 s.
 
 ---
