@@ -606,3 +606,114 @@
     background-size: 100% 1px;
   }
 }
+
+/* ---------- hero scene: the model reads, finds, fixes and tests a read-only draft ---------- */
+.lp .room-file-note {
+  color: var(--muted-ink);
+}
+.lp .room-lines {
+  margin: 0;
+  padding: 10px 0;
+  min-height: calc(11 * 20px + 20px); /* the fixed code's 10 lines plus one, so nothing jumps */
+  overflow-x: auto;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink);
+}
+.lp .cl {
+  display: grid;
+  grid-template-columns: 3.2ch minmax(0, 1fr);
+  column-gap: 14px;
+  padding: 0 14px 0 10px;
+  white-space: pre;
+  transition: background-color 280ms var(--ease-out);
+}
+.lp .cl-n {
+  color: var(--muted-ink);
+  text-align: right;
+  user-select: none;
+}
+.lp .cl-kw {
+  color: #8fb3ff;
+}
+/* the lines the model is reading right now */
+.lp .cl.is-active {
+  background: rgb(47 107 255 / 0.12);
+}
+/* the bug: a wavy underline on the code itself, never a side stripe */
+.lp .cl.is-bug .cl-text {
+  text-decoration: underline wavy rgb(255 255 255 / 0.85);
+  text-underline-offset: 4px;
+}
+.lp .cl.is-bug {
+  background: rgb(255 255 255 / 0.07);
+}
+/* the line the model wrote */
+.lp .cl.is-added {
+  background: rgb(47 107 255 / 0.2);
+}
+.lp .cl.is-added .cl-n::before {
+  content: "+";
+  margin-right: 4px;
+  color: var(--cobalt);
+}
+.lp .cl-caret {
+  display: inline-block;
+  width: 0.6ch;
+  height: 1.1em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--cobalt);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lp .cl-caret {
+    animation: caret 0.9s steps(1, end) infinite;
+  }
+}
+/* stages already passed get a check */
+:root .lp .room-scene .room-phases li.is-done {
+  color: var(--ink);
+}
+:root .lp .room-scene .room-phases li.is-done::before {
+  content: "✓ ";
+  color: var(--cobalt);
+}
+/* keep the narration area one size, so swapping messages doesn't shift the panel */
+.lp .room-scene .room-msgs {
+  min-height: 11.5rem;
+}
+.lp .room-msgs code {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.92em;
+  color: #fff;
+}
+.lp .dot-idle {
+  background: var(--muted-ink);
+}
+/* the closing card: why reading and explaining code is the part that's left */
+.lp .room-why {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--cobalt);
+  border-radius: var(--r, 4px);
+  background: rgb(47 107 255 / 0.1);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.lp .room-why .msg-who {
+  color: #fff;
+  font-weight: 600;
+}
+.lp .room-why strong {
+  color: #fff;
+  font-weight: 600;
+}
+@media (max-width: 900px) {
+  /* stacked under the code, the narration needs less reserved height */
+  .lp .room-scene .room-msgs {
+    min-height: 8rem;
+  }
+}

@@ -51,7 +51,7 @@ export function DefenseRows() {
           {/* the audit summary only: why it breaks stays hidden until the candidate explains it */}
           <p className="fr-line">{audit.summary}</p>
           <div className="fr-foot">
-            <span>Audit · Muse Wonder 1.0</span>
+            <span>Audit · Ares</span>
             <span>
               Attack queued: {plan.concurrency} concurrent, {plan.duration_s} s
             </span>

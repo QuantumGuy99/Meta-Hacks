@@ -33,6 +33,7 @@ const TEAM: Member[] = [
     name: "Sharvil Talware",
     role: "Data and evals",
     owns: "Wrote the original problem bank and the sample apps the chaos lab attacks, plus the evals that keep the interviewer honest",
+    photo: "/team/sharvil-talware-portrait.jpg",
   },
 ];
 
