@@ -44,6 +44,7 @@ from crucible.contracts.report import (
     Report,
     ReportDraft,
 )
+from crucible.engine.analyzer import Analyzer
 from crucible.engine.prompts import PROMPTS
 
 if TYPE_CHECKING:
@@ -110,6 +111,8 @@ class Pick:
 
 async def build_report(rt: SessionRuntime, model: StructuredModel | None) -> Report:
     """Build the report from the stored timeline; any model failure falls back to the template report."""
+    if model is not None:
+        await final_analysis(rt, model)
     events = await rt.timeline.read()
     end_ms = ended_at_ms(events, default=rt.now_ms())
     extra = await rt.controller.report_extra(rt)
@@ -133,6 +136,23 @@ async def build_report(rt: SessionRuntime, model: StructuredModel | None) -> Rep
     if draft is None:
         draft = template_draft(metrics, picks, extra, events)
     return merge(rt.session.id, mode, draft, metrics, picks, extra, model_name, rt.wall_now())
+
+
+async def final_analysis(rt: SessionRuntime, model: StructuredModel) -> None:
+    """Analyze the final code once if it changed since the last analysis, so the step statuses in the report
+    match it. The live analyzer stops when the engine detaches, often right after the passing submit."""
+    context = rt.last_context
+    if context is None or not rt.code.changed_since_analysis():
+        return
+    analyzer = Analyzer(rt, context, model, _ignore_analysis)
+    earlier = rt.timeline.tail([TimelineKind.ANALYSIS])
+    if earlier:
+        analyzer.previous = Analysis.model_validate(earlier[-1].payload)
+    await analyzer.run("final")  # a failure leaves a note; the report uses the earlier statuses
+
+
+async def _ignore_analysis(analysis: Analysis) -> None:
+    return None  # the session is over: no notes panel or policy to update
 
 
 # --- metrics (§7.5: computed in code, never by the LLM) ----------------------------------------------------
@@ -232,11 +252,12 @@ def _coding_picks(events: Sequence[TimelineEvent]) -> list[Pick]:
     if plan is not None:
         picks.append(Pick(plan[0], "good", "Stated a plan", f"Plan stated: {plan[1].stated_plan}", 2))
     runs = payloads(events, TimelineKind.RUN, RunResult)
+    submits = [r for r in runs if r.kind == "submit"]
     passing = next((r for r in runs if r.total and r.passed == r.total), None)
-    if passing is not None:
+    # When the first passing run is the final submit, the "Submitted" moment already says so.
+    if passing is not None and not (submits and passing.run_id == submits[-1].run_id):
         facts = f"First {passing.kind} with every test passing ({passing.total} tests) at {clock(passing.t)}."
         picks.append(Pick(passing.t, "good", "First passing run", facts, 2))
-    submits = [r for r in runs if r.kind == "submit"]
     if submits:
         last = submits[-1]
         kind: MomentKind = "good" if last.total and last.passed == last.total else "issue"

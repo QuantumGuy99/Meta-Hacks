@@ -46,8 +46,12 @@ class CodeState:
         return applied
 
     def apply_snapshot(self, snapshot: CodeSnapshot) -> bool:
-        """Trust the snapshot. Returns True if it disagreed with the reconstruction (log a system note)."""
-        diverged = self.code_by_file.get(snapshot.file, "") != snapshot.code
+        """Trust the snapshot. Returns True if it disagreed with the reconstruction (log a system note).
+
+        A file's first snapshot (the editor loading the starter code) has nothing to disagree with.
+        """
+        known = snapshot.file in self.code_by_file
+        diverged = known and self.code_by_file[snapshot.file] != snapshot.code
         self.code_by_file[snapshot.file] = snapshot.code
         self.version_by_file[snapshot.file] = snapshot.version
         return diverged
