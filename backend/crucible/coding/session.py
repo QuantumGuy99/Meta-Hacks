@@ -1,6 +1,9 @@
 """Coding mode: how a coding session plugs into the hub (PLAN §10.1).
 
 `CodingMode` plans sessions from the problem bank; `CodingController` runs each live one:
+- **intro:** a short warm-up, like a real interview: the interviewer greets the candidate and asks about them, the
+  model reacts to the answer with one follow-up, then moves on (after 2 answers, 90 s, 25 s of no answer, or "Skip
+  intro"). The clock doesn't run yet;
 - **intro → clarify:** the interviewer presents the problem, then the rubric is attached so the analyzer runs;
 - **clarify → coding:** "Start coding", or the first 3 new non-blank lines;
 - **coding → wrap_up:** a submit that passes every test, "I'm done", or the time limit;
@@ -36,7 +39,7 @@ from crucible.contracts.report import CodingExtra
 from crucible.contracts.ws import ClientMessage, CodeRun, CodeSubmit, IntegrityMsg
 from crucible.engine.context import RubricContext
 from crucible.engine.hub import SessionPlan, SessionRuntime, SessionSetupError
-from crucible.engine.interviewer import say
+from crucible.engine.interviewer import reply, say
 from crucible.runner.base import Runner
 
 logger = logging.getLogger(__name__)
@@ -59,8 +62,13 @@ _WATCHED = {Phase.CLARIFY, Phase.CODING}
 _CAN_RUN = {Phase.CLARIFY, Phase.CODING, Phase.WRAP_UP}
 STARTED_CODING_LINES = 3  # new non-blank lines that count as "started coding" (§10.1)
 WRAP_UP_LIMIT_S = 180
+# The warm-up (§3.1): the greeting plus one follow-up, and never long enough to feel like a delay.
+WARM_UP_QUESTIONS = 2
+WARM_UP_LIMIT_S = 90
+WARM_UP_WAIT_S = 25  # no answer to a warm-up question by then: move on to the problem
 TIMER_TICK_S = 0.5
-# A spoken wrap-up answer is over after this long with no new candidate speech (the analyzer's PAUSE_MS, §9.4).
+# A spoken answer to a scripted question (warm-up or wrap-up) is over after this long with no new candidate
+# speech (the analyzer's PAUSE_MS, §9.4).
 ANSWER_GAP_MS = 2_500
 ANSWER_POLL_S = 0.1
 # Reasons recorded on the phase change into wrap_up; the opener line depends on which one it was.
@@ -79,11 +87,18 @@ class CodingMode:
         rng: random.Random | None = None,
         *,
         wrap_up_limit_s: float = WRAP_UP_LIMIT_S,
+        warm_up: bool = True,
+        warm_up_wait_s: float = WARM_UP_WAIT_S,
+        warm_up_limit_s: float = WARM_UP_LIMIT_S,
     ) -> None:
-        """`runner` (or a factory for it) runs Run/Submit; None means sessions can't run code."""
+        """`runner` (or a factory for it) runs Run/Submit; None means sessions can't run code. `warm_up=False`
+        goes straight to the problem (engine tests and evals, which start at clarify)."""
         self.problems = problems
         self.runner = runner
         self.wrap_up_limit_s = wrap_up_limit_s
+        self.warm_up = warm_up
+        self.warm_up_wait_s = warm_up_wait_s
+        self.warm_up_limit_s = warm_up_limit_s
         self._rng = rng
 
     async def plan_session(self, config: SessionConfig) -> SessionPlan:
@@ -106,7 +121,14 @@ class CodingMode:
 
     def __call__(self) -> "CodingController":
         runs = RunService(self.runner) if self.runner is not None else None
-        return CodingController(self.problems, runs, wrap_up_limit_s=self.wrap_up_limit_s)
+        return CodingController(
+            self.problems,
+            runs,
+            wrap_up_limit_s=self.wrap_up_limit_s,
+            warm_up=self.warm_up,
+            warm_up_wait_s=self.warm_up_wait_s,
+            warm_up_limit_s=self.warm_up_limit_s,
+        )
 
 
 class CodingController:
@@ -116,10 +138,16 @@ class CodingController:
         runs: RunService | None = None,
         *,
         wrap_up_limit_s: float = WRAP_UP_LIMIT_S,
+        warm_up: bool = True,
+        warm_up_wait_s: float = WARM_UP_WAIT_S,
+        warm_up_limit_s: float = WARM_UP_LIMIT_S,
     ) -> None:
         self._problems = problems
+        self._warm_up = warm_up
         self._runs = runs
         self._wrap_up_limit_s = wrap_up_limit_s
+        self._warm_up_wait_s = warm_up_wait_s
+        self._warm_up_limit_s = warm_up_limit_s
         self._integrity = IntegrityDetector()
         self._tasks: set[asyncio.Task[None]] = set()
         self._timer: asyncio.Task[None] | None = None
@@ -127,6 +155,14 @@ class CodingController:
         self._wrap_started_ms: int | None = None
         self._wrap_asked = 0  # wrap-up questions asked so far
         self._wrap_waiting = False  # a question is out and the next candidate turn answers it
+        self._warm_started_ms: int | None = None
+        self._warm_asked = 0  # warm-up questions asked so far
+        # The open warm-up question went out then: speech that began earlier isn't its answer, and turns recorded
+        # before its timeline seq belong to the previous answer (they can share its millisecond).
+        self._warm_asked_ms = 0
+        self._warm_asked_seq = 0
+        self._warm_waiting = False
+        self._problem_presented = False
         self._heard_ms: int | None = None  # the open question's spoken answer was last heard then
         self._quiet_wait: asyncio.Task[None] | None = None  # moves on once that answer has gone quiet
 
@@ -137,13 +173,18 @@ class CodingController:
 
     async def on_start(self, rt: SessionRuntime) -> None:
         await rt.set_phase(Phase.INTRO, "session started")
-        await say(rt, self._intro_line(rt), InterventionTrigger.PHASE, InterventionLevel.INFO)
-        await rt.set_phase(Phase.CLARIFY, "intro done")
-        await self._attach(rt)
         self._start_timer(rt)
+        if not self._warm_up:
+            await self._start_problem(rt, "intro done")
+            return
+        self._warm_started_ms = rt.now_ms()
+        async with self._wrap_lock:
+            await self._ask_warm_up(rt, PHASE_LINES["warmup_greeting"])
 
     async def on_resume(self, rt: SessionRuntime) -> None:
-        if rt.session.phase in _WATCHED:
+        if rt.session.phase == Phase.INTRO:
+            await self._start_problem(rt, "resumed")  # a reopened warm-up goes straight to the problem
+        elif rt.session.phase in _WATCHED:
             await self._attach(rt)
         elif rt.session.phase == Phase.WRAP_UP:
             await self._restore_wrap_up(rt)
@@ -190,15 +231,39 @@ class CodingController:
         return True
 
     async def on_timeline(self, rt: SessionRuntime, event: TimelineEvent) -> None:
+        p = event.payload
         if event.kind == TimelineKind.EDITOR:
-            await self._on_edit(rt, EditorEvent.model_validate(event.payload))
-        elif event.kind == TimelineKind.PHASE and event.payload["to_phase"] == Phase.WRAP_UP:
+            await self._on_edit(rt, EditorEvent.model_validate(p))
+        elif event.kind == TimelineKind.PHASE and p["to_phase"] == Phase.WRAP_UP:
             # In a task, so the hub broadcasts the new phase before the interviewer starts the wrap-up.
-            self._spawn(rt, self._begin_wrap_up(rt, event.payload["reason"]))
-        elif event.kind == TimelineKind.TRANSCRIPT and rt.session.phase == Phase.WRAP_UP:
-            p = event.payload
-            if p["speaker"] == "candidate" and p["final"] and p["text"].strip() and self._wrap_waiting:
-                self._answered(rt, p["source"])
+            self._spawn(rt, self._begin_wrap_up(rt, p["reason"]))
+        elif event.kind == TimelineKind.PHASE and (p["from_phase"], p["to_phase"]) == (
+            Phase.INTRO,
+            Phase.CLARIFY,
+        ):
+            # The warm-up is over. "Skip intro" moved the phase from the browser, so the problem comes now.
+            self._warm_waiting, self._heard_ms = False, None
+            if not self._problem_presented:
+                self._problem_presented = True
+                self._spawn(rt, self._present_problem(rt))
+        elif (
+            event.kind == TimelineKind.TRANSCRIPT
+            and p["speaker"] == "candidate"
+            and p["final"]
+            and p["text"].strip()
+        ):
+            if rt.session.phase == Phase.WRAP_UP and self._wrap_waiting:
+                self._answered(
+                    rt, p["source"], Phase.WRAP_UP, lambda: self._next_wrap_up_question(rt, self._wrap_asked)
+                )
+            elif (
+                rt.session.phase == Phase.INTRO
+                and self._warm_waiting
+                and p["start_ms"] >= self._warm_asked_ms
+            ):
+                self._answered(
+                    rt, p["source"], Phase.INTRO, lambda: self._warm_up_answered(rt, self._warm_asked)
+                )
 
     async def report_extra(self, rt: SessionRuntime) -> CodingExtra:
         """The latest analysis's step statuses; the approach: the one the analyzer named, else the plan the
@@ -245,6 +310,66 @@ class CodingController:
             if new_lines(starter, rt.code.code(edit.file)) >= STARTED_CODING_LINES:
                 await rt.set_phase(Phase.CODING, "started coding")
 
+    # --- warm-up and the problem ------------------------------------------------------------------------
+
+    async def _ask_warm_up(self, rt: SessionRuntime, text: str) -> None:
+        """Ask a warm-up question and wait for the answer (call with `_wrap_lock` held)."""
+        line = await say(rt, text, InterventionTrigger.WARMUP, InterventionLevel.QUESTION)
+        self._warm_asked += 1
+        self._warm_asked_ms = line.t
+        asked = rt.timeline.tail([TimelineKind.INTERVENTION], since_t=line.t)
+        self._warm_asked_seq = next(e.seq for e in reversed(asked) if e.payload["id"] == line.id)
+        self._warm_waiting = True
+
+    async def _warm_up_answered(self, rt: SessionRuntime, answering: int) -> None:
+        """React to the answer to warm-up question number `answering` with the model: a follow-up question after
+        the first, then a closing reaction and on to the problem. Canned lines when there's no model."""
+        async with self._wrap_lock:
+            if not self._warm_waiting or self._warm_asked != answering or rt.session.phase != Phase.INTRO:
+                return  # two answers raced, or the warm-up already ended
+            self._warm_waiting, self._heard_ms = False, None
+            said = " ".join(
+                e.payload["text"].strip()
+                for e in rt.timeline.tail([TimelineKind.TRANSCRIPT], since_t=self._warm_asked_ms)
+                if e.seq > self._warm_asked_seq and e.payload["speaker"] == "candidate" and e.payload["final"]
+            )
+            # No follow-up the candidate wouldn't have time to answer.
+            last = answering >= WARM_UP_QUESTIONS or self._warm_up_over(rt, margin_s=self._warm_up_wait_s)
+            kind = "warmup_close" if last else "warmup"
+            line = await reply(rt, rt.model, kind, said) if rt.model is not None and said else None
+            if not last:
+                await self._ask_warm_up(rt, line or PHASE_LINES["warmup_follow_up"])
+                return
+            await say(
+                rt, line or PHASE_LINES["warmup_thanks"], InterventionTrigger.WARMUP, InterventionLevel.INFO
+            )
+            await self._start_problem(rt, "warm-up done")
+
+    async def _end_warm_up(self, rt: SessionRuntime, reason: str) -> None:
+        """The warm-up ran out of time, or a question went unanswered: move on to the problem."""
+        async with self._wrap_lock:
+            if rt.session.phase != Phase.INTRO:
+                return
+            self._warm_waiting = False
+            await say(rt, PHASE_LINES["warmup_move_on"], InterventionTrigger.WARMUP, InterventionLevel.INFO)
+            await self._start_problem(rt, reason)
+
+    def _warm_up_over(self, rt: SessionRuntime, *, margin_s: float = 0) -> bool:
+        started = self._warm_started_ms if self._warm_started_ms is not None else 0
+        return rt.now_ms() - started >= (self._warm_up_limit_s - margin_s) * 1000
+
+    async def _start_problem(self, rt: SessionRuntime, reason: str) -> None:
+        """Present the problem, start clarify (the clock starts now) and attach the analyzer."""
+        self._problem_presented = True
+        await say(rt, self._intro_line(rt), InterventionTrigger.PHASE, InterventionLevel.INFO)
+        await rt.set_phase(Phase.CLARIFY, reason)
+        await self._attach(rt)
+
+    async def _present_problem(self, rt: SessionRuntime) -> None:
+        """After "Skip intro": clarify has already started."""
+        await say(rt, self._intro_line(rt), InterventionTrigger.PHASE, InterventionLevel.INFO)
+        await self._attach(rt)
+
     # --- wrap-up ------------------------------------------------------------------------------------------
 
     async def _begin_wrap_up(self, rt: SessionRuntime, reason: str) -> None:
@@ -260,25 +385,33 @@ class CodingController:
             )
             await self._ask_or_close(rt)
 
-    def _answered(self, rt: SessionRuntime, source: str) -> None:
-        """A final candidate turn while a question is out (§10.1). A typed answer moves on at once; a spoken one
-        once it has gone quiet, since Muse Voice ends a turn at every pause: "O of n time" [pause] "and O of one
-        space" comes as two turns, and each new one restarts the wait."""
+    def _answered(
+        self,
+        rt: SessionRuntime,
+        source: str,
+        phase: Phase,
+        move_on: Callable[[], Coroutine[Any, Any, None]],
+    ) -> None:
+        """A final candidate turn while a scripted question (warm-up or wrap-up) is out (§10.1). A typed answer
+        moves on at once; a spoken one once it has gone quiet, since Muse Voice ends a turn at every pause: "O of n
+        time" [pause] "and O of one space" comes as two turns, and each new one restarts the wait."""
         if source != "voice":
-            self._spawn(rt, self._next_wrap_up_question(rt, self._wrap_asked))
+            self._spawn(rt, move_on())
             return
         self._heard_ms = rt.now_ms()
         if self._quiet_wait is None or self._quiet_wait.done():
-            self._quiet_wait = self._spawn(rt, self._move_on_when_quiet(rt))
+            self._quiet_wait = self._spawn(rt, self._move_on_when_quiet(rt, phase, move_on))
 
-    async def _move_on_when_quiet(self, rt: SessionRuntime) -> None:
-        """Ask the next question (or close) after ANSWER_GAP_MS with no new candidate speech.
+    async def _move_on_when_quiet(
+        self, rt: SessionRuntime, phase: Phase, move_on: Callable[[], Coroutine[Any, Any, None]]
+    ) -> None:
+        """Move on from the open question after ANSWER_GAP_MS with no new candidate speech.
 
         A turn still being spoken (the voice bridge's speechStart set "listening" and it isn't final yet) holds the
-        wait. Stops once nothing is pending: something else moved on (a typed answer, the wrap-up limit). It
-        exits only at the loop check, so an answer to the next question that lands meanwhile is never dropped.
+        wait. Stops once nothing is pending: something else moved on (a typed answer, a time limit). It exits
+        only at the loop check, so an answer to the next question that lands meanwhile is never dropped.
         """
-        while self._heard_ms is not None and rt.session.phase == Phase.WRAP_UP:
+        while self._heard_ms is not None and rt.session.phase == phase:
             if rt.interviewer_state == "listening":
                 self._heard_ms = rt.now_ms()
             wait_ms = self._heard_ms + ANSWER_GAP_MS - rt.now_ms()
@@ -286,7 +419,7 @@ class CodingController:
                 await asyncio.sleep(min(wait_ms / 1000, ANSWER_POLL_S))
             else:
                 self._heard_ms = None
-                await self._next_wrap_up_question(rt, self._wrap_asked)
+                await move_on()
 
     async def _next_wrap_up_question(self, rt: SessionRuntime, answering: int) -> None:
         """Move on from question number `answering`, unless another answer to it already did."""
@@ -338,7 +471,13 @@ class CodingController:
             await asyncio.sleep(TIMER_TICK_S)
             try:
                 phase = rt.session.phase
-                if phase in (Phase.CLARIFY, Phase.CODING) and rt.remaining_s() == 0:
+                speaking = self._heard_ms is not None or rt.interviewer_state == "listening"
+                if phase == Phase.INTRO and not speaking:  # never cut off an answer being spoken
+                    waited_ms = rt.now_ms() - self._warm_asked_ms
+                    unanswered = self._warm_waiting and waited_ms >= self._warm_up_wait_s * 1000
+                    if unanswered or self._warm_up_over(rt):
+                        await self._end_warm_up(rt, "warm-up time")
+                elif phase in (Phase.CLARIFY, Phase.CODING) and rt.remaining_s() == 0:
                     await rt.set_phase(Phase.WRAP_UP, REASON_TIME)
                 elif (
                     phase == Phase.WRAP_UP
@@ -359,7 +498,7 @@ class CodingController:
     def _intro_line(self, rt: SessionRuntime) -> str:
         spec = self._spec(rt)
         title = spec.title if spec else "on the left"
-        minutes = max(1, math.ceil(rt.session.time_limit_s / 60))
+        minutes = max(1, math.ceil((rt.remaining_s() or rt.session.time_limit_s) / 60))
         return PHASE_LINES["intro"].format(title=title, minutes=minutes)
 
     def _wrap_up_questions(self, rt: SessionRuntime) -> list[str]:

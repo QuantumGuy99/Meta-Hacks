@@ -39,6 +39,7 @@ class Wrap:
 
     async def open(self) -> None:
         await self.rt.controller.on_start(self.rt)
+        await self.rt.set_phase(Phase.CLARIFY, "candidate")  # "Skip intro": the warm-up has its own tests
         await self.rt.set_phase(Phase.CODING, "started coding")
         await self.rt.set_phase(Phase.WRAP_UP, "candidate is done")
         await until(lambda: len(self.questions()) == 1)
@@ -65,8 +66,13 @@ class Wrap:
         await asyncio.sleep(3 * ANSWER_POLL_S)
 
     def questions(self) -> list[TimelineEvent]:
+        """The wrap-up questions asked so far (the warm-up's are WARMUP, not PHASE)."""
         events = self.rt.timeline.tail([TimelineKind.INTERVENTION])
-        return [e for e in events if e.payload["level"] == InterventionLevel.QUESTION]
+        return [
+            e
+            for e in events
+            if e.payload["level"] == InterventionLevel.QUESTION and e.payload["trigger"] == "phase"
+        ]
 
     def said(self, text_part: str) -> bool:
         events = self.rt.timeline.tail([TimelineKind.INTERVENTION])

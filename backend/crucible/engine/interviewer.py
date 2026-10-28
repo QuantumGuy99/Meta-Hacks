@@ -1,18 +1,20 @@
 """Turns a policy decision into what the candidate sees and hears (PLAN §9.6).
 
 The leak guard (code shape plus overlap with the reference), the analyzer's draft or a rubric hint or canned line,
-delivery, `answer()` for the candidate's questions, and `say()` for lines a mode chooses.
+delivery, `answer()` for the candidate's questions, `reply()` for the conversational lines (the warm-up), and
+`say()` for lines a mode chooses.
 """
 
 from __future__ import annotations
 
 import ast
 import asyncio
+import json
 import logging
 import math
 import re
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from crucible.contracts.common import FeedbackLevel
 from crucible.contracts.events import (
@@ -168,26 +170,66 @@ async def answer(
         {"role": "user", "content": f"# Problem: {context.title}\n\n{context.brief_md}"},
         {"role": "user", "content": _answer_state(rt, context, question)},
     ]
+    return await _spoken_line(
+        rt, model, messages, "answer", "one short Socratic question", reference=context.reference_text
+    )
+
+
+ReplyKind = Literal["warmup", "warmup_close"]
+# What the warm-up reply ends with: a light follow-up, or nothing because the problem comes next (§3.1).
+_WARMUP_ENDINGS: dict[ReplyKind, str] = {
+    "warmup": "one light, friendly follow-up question about what they shared",
+    "warmup_close": "no question: you're about to move on to the problem",
+}
+
+
+async def reply(rt: SessionRuntime, model: StructuredModel, kind: ReplyKind, said: str) -> str | None:
+    """A short conversational line from the model (§9.6), or None so the caller uses its canned line.
+
+    The warm-up reacts to what the candidate shared about themselves; the model never sees the problem then.
+    Same leak guard and single retry as `answer()`.
+    """
+    user = json.dumps({"candidate_said": said, "end_with": _WARMUP_ENDINGS[kind]})
+    messages = [
+        {"role": "system", "content": PROMPTS["interviewer_warmup"]},
+        {"role": "user", "content": user},
+    ]
+    return await _spoken_line(rt, model, messages, "warm-up reply", "one short, friendly sentence")
+
+
+async def _spoken_line(
+    rt: SessionRuntime,
+    model: StructuredModel,
+    messages: list[dict[str, str]],
+    what: str,
+    instead: str,
+    *,
+    reference: str | None = None,
+) -> str | None:
+    """One interviewer line from the model, through the leak guard. A rejected line gets one retry asking for
+    `instead`; a failure or a second rejection is None, and the caller sends its canned line, never silence."""
     for _attempt in range(2):
         try:
             async with asyncio.timeout(ANSWER_DEADLINE_S):
-                reply = await model.complete_json(
+                result = await model.complete_json(
                     "interviewer", messages, InterventionText, session_id=rt.session.id
                 )
-        except Exception:  # task boundary: no answer from the model means the canned line, never silence
-            logger.exception("interviewer answer failed in %s", rt.session.id)
-            await rt.note("warning", "the interviewer model didn't answer; sent the canned reply")
+        except Exception:  # task boundary: no line from the model means the canned one
+            logger.exception("interviewer %s failed in %s", what, rt.session.id)
+            await rt.note(
+                "warning", f"the interviewer model didn't answer for the {what}; sent the canned line"
+            )
             return None
-        text = reply.text.strip()
-        reason = leak_reason(text, context.reference_text) if text else "it was empty"
+        text = result.text.strip()
+        reason = leak_reason(text, reference) if text else "it was empty"
         if reason is None:
             return text
-        logger.warning("leak guard rejected an answer in %s: %s", rt.session.id, reason)
-        await rt.note("info", f"leak guard rejected the interviewer's answer: {reason}")
-        retry = f"That reply was rejected because {reason}. Reply with one short Socratic question instead."
+        logger.warning("leak guard rejected the %s in %s: %s", what, rt.session.id, reason)
+        await rt.note("info", f"leak guard rejected the interviewer's {what}: {reason}")
+        retry = f"That reply was rejected because {reason}. Reply with {instead} instead."
         messages = [
             *messages,
-            {"role": "assistant", "content": reply.text},
+            {"role": "assistant", "content": result.text},
             {"role": "user", "content": retry},
         ]
     return None

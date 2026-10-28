@@ -92,7 +92,10 @@ export type InterventionTrigger =
   | "time_warning"
   | "phase"
   | "praise"
-  | "grill";
+  | "grill"
+  | "warmup"
+  | "reply"
+  | "probe";
 /**
  * This interface was referenced by `CrucibleContracts`'s JSON-Schema
  * via the `definition` "InterventionLevel".

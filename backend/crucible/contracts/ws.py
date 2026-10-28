@@ -83,7 +83,7 @@ class HintRequest(Strict):
 
 class PhaseAdvance(Strict):
     type: Literal["phase.advance"]
-    to: Phase  # the server accepts only clarify → coding and coding → wrap_up
+    to: Phase  # the server accepts only intro → clarify, clarify → coding and coding → wrap_up
 
 
 class DefenseRunChaos(Strict):
