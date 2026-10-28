@@ -1,0 +1,11 @@
+{"meta": {"problem_slug": "thermostat-swings", "feedback": "active", "voice": true, "about": "loop stops one pair early, so the last pair of readings is never compared"}}
+{"t": 3000, "do": "say", "text": "If the list has fewer than two readings there are no swings, so that's zero. A change of exactly k doesn't count, and drops count too, so I'll use the absolute difference."}
+{"t": 18000, "do": "say", "text": "I'll compare each reading with the one before it and count the big changes."}
+{"t": 30000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n"}
+{"t": 48000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps) - 1):\n        if abs(temps[i] - temps[i - 1]) > k:\n            swings += 1\n"}
+{"t": 60000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps) - 1):\n        if abs(temps[i] - temps[i - 1]) > k:\n            swings += 1\n    return swings\n"}
+{"t": 66000, "do": "run"}
+{"t": 75000, "do": "say", "text": "Hmm, two of them fail. Let me run it again."}
+{"t": 80000, "do": "run"}
+{"t": 150000, "do": "submit"}
+{"expect": {"fires": [{"trigger": "run_failed", "by_t": 140000}], "never": ["paste", "plan_mismatch"], "max_shown": 3, "no_leak": true, "flags": []}}
