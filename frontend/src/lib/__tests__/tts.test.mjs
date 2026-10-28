@@ -11,9 +11,11 @@ import {
   pickVoice,
   rankVoices,
   saveVoiceChoice,
+  SETTLE_MS,
   speakable,
   splitSpeech,
   STALL_CHECK_MS,
+  START_TIMEOUT_MS,
   VOICE_KEY,
   voiceLabel,
   VOICES_WAIT_MS,
@@ -336,17 +338,33 @@ test("speaks at a slightly brisk rate and natural pitch, the first sentence on i
   assert.equal(u.volume, 1);
 });
 
-test("warm() speaks one silent, empty utterance when idle, and nothing while speaking or muted", () => {
+test("warm() speaks one silent, empty utterance in the default voice when idle, and not while busy or muted", () => {
   const { synth, tts } = setup();
   tts.warm();
   assert.deepEqual(synth.texts(), [""]);
   assert.equal(synth.spoken[0].volume, 0);
-  assert.equal(synth.spoken[0].voice.name, "Google US English");
+  assert.equal(synth.spoken[0].voice, null); // a network voice like Google's doesn't warm up
   tts.speak("Hello.");
   tts.warm();
   tts.setMuted(true);
   tts.warm();
   assert.deepEqual(synth.texts(), ["", "Hello."]);
+});
+
+test("warm() right after a cancel does nothing, even from a new Tts (the room's remount)", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const synth = new FakeSynth();
+  synth.voices = VOICES;
+  const deps = { synth, makeUtterance };
+  const first = createTts({}, deps);
+  first.speak("Hello.");
+  first.dispose(); // cancels
+  const second = createTts({}, deps);
+  second.warm();
+  assert.deepEqual(synth.texts(), ["Hello."]);
+  t.mock.timers.tick(SETTLE_MS);
+  second.warm();
+  assert.deepEqual(synth.texts(), ["Hello.", ""]);
 });
 
 // --- the queue -----------------------------------------------------------------------------------------------
@@ -387,7 +405,8 @@ test("speaks in the default voice if voiceschanged never comes", (t) => {
   assert.equal(synth.spoken[0].lang, "en-US");
 });
 
-test("cancel stops at once, drops the queue and ignores the late interrupted error", () => {
+test("cancel stops at once, drops the queue and ignores the late interrupted error", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
   const { synth, tts, events } = setup();
   tts.speak("One. ".repeat(50));
   synth.start();
@@ -397,6 +416,8 @@ test("cancel stops at once, drops the queue and ignores the late interrupted err
   assert.deepEqual(events, ["start", "end"]);
   assert.equal(synth.spoken.length, 1); // the rest of the queue is gone
   tts.speak("Next.");
+  assert.equal(synth.current, null); // Chrome can wedge on speak() right after cancel(): wait a moment
+  t.mock.timers.tick(SETTLE_MS);
   synth.finishAll();
   assert.deepEqual(events, ["start", "end", "start", "end"]);
 });
@@ -409,7 +430,8 @@ test("cancel before anything started doesn't report an end", () => {
   assert.equal(synth.cancels, 1);
 });
 
-test("muted: stops the speech and ignores speak until unmuted", () => {
+test("muted: stops the speech and ignores speak until unmuted", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
   const { synth, tts, events } = setup();
   tts.speak("Hello.");
   synth.start();
@@ -419,6 +441,7 @@ test("muted: stops the speech and ignores speak until unmuted", () => {
   assert.equal(synth.spoken.length, 1);
   tts.setMuted(false);
   tts.speak("Heard.");
+  t.mock.timers.tick(SETTLE_MS);
   assert.deepEqual(synth.texts(), ["Hello.", "Heard."]);
 });
 
@@ -482,6 +505,25 @@ test("a lost end event: once the engine is idle, the next chunk plays and onEnd 
   assert.equal(synth.spoken.length, 2);
   synth.finishAll();
   assert.deepEqual(events, ["start", "end"]);
+});
+
+test("a sentence stuck behind a wedged queue is cleared and retried once, then skipped", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const { synth, tts, events } = setup();
+  tts.speak("Hi, I'm your interviewer. Second.");
+  synth.speaking = true; // the engine says it's busy, but our sentence never starts
+  t.mock.timers.tick(START_TIMEOUT_MS + STALL_CHECK_MS);
+  assert.equal(synth.cancels, 1);
+  t.mock.timers.tick(SETTLE_MS);
+  assert.deepEqual(synth.texts(), ["Hi, I'm your interviewer.", "Hi, I'm your interviewer."]);
+  synth.speaking = true; // stuck again: skip it and go on
+  t.mock.timers.tick(START_TIMEOUT_MS + STALL_CHECK_MS);
+  assert.equal(synth.cancels, 2);
+  t.mock.timers.tick(SETTLE_MS);
+  assert.equal(synth.current.text, "Second.");
+  synth.finishAll();
+  assert.deepEqual(events, ["start", "end"]);
+  assert.equal(tts.blocked, false);
 });
 
 test("a chunk stuck far past its length is cut, so the mic isn't held silent", (t) => {
