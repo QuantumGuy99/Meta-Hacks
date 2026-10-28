@@ -384,7 +384,8 @@ analyzer for yourself.
 - **IC1 (Wed):** the coding room on LocalRunner. Typing triggers the analyzer, a nudge appears, and Run returns
   results.
 - **IC2 (Fri):** Run on a warm Modal sandbox in under 2 s; voice transcripts appear in the room; the latency
-  budget (PLAN §18) measured and written down.
+  budget (PLAN §18) measured and written down. **Latency budget measured Oct 28** (PLAN §18): pause → nudge
+  p50 5.0 s; voice transcripts appear in Likhil's room in a real browser. Modal waits on RUN-2.
 - **IC3 (Sun):** a full coding session on the deployed build, including the report and replay; the defense fix
   stage runs on your engine.
 
