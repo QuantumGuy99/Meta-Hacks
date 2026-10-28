@@ -78,7 +78,7 @@ export function LiveRoom({ id }: { id: string }) {
   const [problem, setProblem] = useState<ProblemPublic | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
-  const [pending, setPending] = useState<{ runs: number; at: number; wall: number } | null>(null);
+  const [pending, setPending] = useState<{ kind: "run" | "submit"; runs: number; at: number; wall: number } | null>(null);
   const [showNotes, setShowNotes] = useState(false);
   const [ending, setEnding] = useState(false);
   const capture = useRef<EditorCapture | null>(null);
@@ -153,18 +153,21 @@ export function LiveRoom({ id }: { id: string }) {
   const now = useClock(waiting);
   const runTimedOut = waiting && now > 0 && now - pending.wall > RUN_TIMEOUT_MS;
   const running = waiting && !runTimedOut;
+  const busy = running ? pending.kind : null;
   useEffect(() => {
     if (runTimedOut) toast.error("No result from the runner yet", { description: "Check your connection, then run again." });
   }, [runTimedOut]);
+  // A submit that passes every test moves on to the wrap-up, so Submit locks; after a failing one it stays (#47).
+  const submitted = state.runs.some((r) => r.kind === "submit" && r.total > 0 && r.passed === r.total && !r.compile_error);
 
   const run = (kind: "run" | "submit") => {
-    if (running || !editor || beforeClarify) return;
+    if (running || !editor || beforeClarify || (kind === "submit" && submitted)) return;
     if (editor.getValue().length > CODE_MAX) {
       toast.error("Your code is too long to run", { description: `Keep it under ${CODE_MAX.toLocaleString()} characters.` });
       return;
     }
     capture.current?.snapshot(); // the backend must see the exact code being run
-    setPending({ runs: state.runs.length, at: performance.now(), wall: Date.now() });
+    setPending({ kind, runs: state.runs.length, at: performance.now(), wall: Date.now() });
     send({ type: kind === "run" ? "code.run" : "code.submit", file: FILE, code: editor.getValue() });
   };
 
@@ -281,15 +284,15 @@ export function LiveRoom({ id }: { id: string }) {
                       Reset Code
                     </button>
                     <button type="button" className="ui-btn" onClick={() => run("run")} disabled={running || !editor || ended || beforeClarify}>
-                      {running ? "Running…" : "Run"}
+                      {busy === "run" ? "Running…" : "Run"}
                     </button>
                     <button
                       type="button"
                       className="ui-btn ui-btn-primary"
                       onClick={() => run("submit")}
-                      disabled={running || !editor || ended || beforeClarify}
+                      disabled={running || submitted || !editor || ended || beforeClarify}
                     >
-                      Submit
+                      {submitted ? "Submitted" : busy === "submit" ? "Submitting…" : "Submit"}
                     </button>
                   </span>
                 </header>

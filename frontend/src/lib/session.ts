@@ -11,6 +11,7 @@ import type {
   GrillTurn,
   IntegrityFlag,
   Intervention,
+  ModelActivity,
   Phase,
   RunResult,
   SamHighlight,
@@ -22,14 +23,11 @@ import type {
   TranscriptTurn,
   Verdict,
 } from "@/types/contracts";
-import {
-  MODEL_ACTIVITY_KIND,
-  type ActivityEvent,
-  type ModelActivity,
-  type ModelActivityMsg,
-} from "@/types/model-activity.draft";
 import { api } from "./api";
 import { connectSession, type SessionSocket, type SocketStatus } from "./ws";
+
+/** A model.activity event as the room keeps it: `wall` is Date.now() when it arrived live (absent from history). */
+export type ActivityEvent = ModelActivity & { wall?: number };
 
 // One live session's state, fed only by ServerMessages (PLAN §6 `store.ts`). A reducer, not a global store:
 // each room owns exactly one session, so there's nothing to share across the tree.
@@ -126,7 +124,7 @@ function addHistory(state: LiveState, events: TimelineEvent[]): LiveState {
       case "chaos_run":
         next = { ...next, chaosRuns: upsert(next.chaosRuns, p as ChaosRun, (x) => x.id) };
         break;
-      case MODEL_ACTIVITY_KIND as TimelineEvent["kind"]:
+      case "model_activity":
         next = { ...next, activity: addActivity(next.activity, p as ModelActivity) };
         break;
       case "chaos_metric":
@@ -192,11 +190,9 @@ export function reduceLive(state: LiveState, action: Action): LiveState {
     return { ...state, streamingId: next ?? null, pending: rest, shown: next ? [...state.shown, next] : state.shown };
   }
   const msg = action.msg;
-  if ((msg as { type: string }).type === "model.activity") {
-    const activity = (msg as unknown as ModelActivityMsg).activity;
-    return { ...state, activity: addActivity(state.activity, { ...activity, wall: action.wall }) };
-  }
   switch (msg.type) {
+    case "model.activity":
+      return { ...state, activity: addActivity(state.activity, { ...msg.activity, wall: action.wall }) };
     case "session.state":
       return {
         ...state,
