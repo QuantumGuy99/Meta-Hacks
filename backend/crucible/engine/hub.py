@@ -19,6 +19,7 @@ from crucible.contracts.common import Mode, Phase, Session, SessionConfig
 from crucible.contracts.events import (
     CodeSnapshot,
     EditorEvent,
+    ModelActivity,
     SystemNote,
     TimelineEvent,
     TimelineKind,
@@ -33,12 +34,14 @@ from crucible.contracts.ws import (
     ErrorMsg,
     Hello,
     HintRequest,
+    ModelActivityMsg,
     PhaseAdvance,
     ReportReady,
     SessionEnd,
     SessionState,
     TranscriptUpdate,
 )
+from crucible.engine.activity import to_activity
 from crucible.engine.analyzer import StructuredModel
 from crucible.engine.codestate import CodeState
 from crucible.engine.context import RubricContext
@@ -48,6 +51,7 @@ from crucible.engine.report import build_report
 from crucible.engine.store import Store
 from crucible.engine.timeline import Timeline
 from crucible.engine.voice import Transcriber, VoiceBridge
+from crucible.models.llm import CallActivity
 
 logger = logging.getLogger(__name__)
 
@@ -311,6 +315,11 @@ class SessionRuntime:
         await self.controller.on_timeline(self, event)
         return event
 
+    async def show_activity(self, activity: ModelActivity) -> None:
+        """A model starting or finishing work: on the "Under the hood" strip now, and in the replay later."""
+        await self.record(TimelineKind.MODEL_ACTIVITY, activity, t=activity.t)
+        await self.broadcast(ModelActivityMsg(type="model.activity", activity=activity))
+
     async def note(self, level: Literal["info", "warning", "error"], message: str) -> None:
         logger.log(logging.WARNING if level != "info" else logging.INFO, "%s: %s", self.session.id, message)
         await self.record(TimelineKind.SYSTEM, SystemNote(level=level, message=message))
@@ -467,6 +476,10 @@ class SessionHub:
     ) -> None:
         self.store = store
         self._asr = asr
+        # The model wrapper tells the hub when each call starts and ends (the "Under the hood" strip).
+        watch = getattr(model, "watch", None)
+        if callable(watch):
+            watch(self.model_activity)
         self.runtimes: dict[str, SessionRuntime] = {}
         self._controllers = controllers
         self._model = model
@@ -524,6 +537,12 @@ class SessionHub:
         if not runtime.connected:
             self._schedule_expiry(session_id)
         return runtime.session.model_copy(deep=True)
+
+    async def model_activity(self, call: CallActivity) -> None:
+        """A model call for a session that's open here goes on its strip; calls without a session don't."""
+        runtime = self.runtimes.get(call.session_id) if call.session_id else None
+        if runtime is not None:
+            await runtime.show_activity(to_activity(call, runtime.now_ms()))
 
     def voice(self, runtime: SessionRuntime) -> VoiceBridge | None:
         """The session's voice bridge, or None when transcription isn't configured (no API key)."""
