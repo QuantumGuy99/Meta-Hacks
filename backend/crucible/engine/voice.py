@@ -17,8 +17,9 @@ from typing import TYPE_CHECKING, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-from crucible.contracts.events import TimelineKind, TranscriptTurn
+from crucible.contracts.events import ModelActivity, TimelineKind, TranscriptTurn
 from crucible.contracts.ws import ErrorMsg, TranscriptUpdate
+from crucible.engine.activity import LISTENING, TRANSCRIBING, VOICE
 from crucible.engine.ids import new_id
 from crucible.models.asr import (
     BYTES_PER_MS,
@@ -237,10 +238,11 @@ class VoiceBridge:
         t0 = self._stream_t0 or 0
         match event:
             case SpeechStart():
-                self._turns[event.turn_id] = _Turn(new_id(), t0 + event.audio_ms)
+                turn = self._turns[event.turn_id] = _Turn(new_id(), t0 + event.audio_ms)
                 self._current = event.turn_id
                 self._rt.heard_speech()
                 await self._rt.set_interviewer_state("listening")
+                await self._activity(turn.id, LISTENING, "started")
             case Partial():
                 turn = self._open_turn(t0 + event.audio_ms)
                 self._rt.heard_speech()
@@ -253,7 +255,9 @@ class VoiceBridge:
                 turn = self._turns.pop(event.turn_id, None) or _Turn(new_id(), t0 + event.audio_ms)
                 if self._current == event.turn_id:
                     self._current = None
-                await self._final(turn.id, event.text, turn.start_ms, turn.end_ms or t0 + event.audio_ms)
+                end_ms = turn.end_ms or t0 + event.audio_ms
+                await self._final(turn.id, event.text, turn.start_ms, end_ms)
+                await self._activity(turn.id, LISTENING, "done", latency_ms=max(0, end_ms - turn.start_ms))
                 if not self._turns:
                     await self._rt.set_interviewer_state("idle")
             case ErrorEvent():
@@ -277,9 +281,12 @@ class VoiceBridge:
         task.add_done_callback(self._uploads.discard)
 
     async def _transcribe(self, pcm: bytes, t0: int) -> None:
+        call_id, sent_ms = new_id(), self._rt.now_ms()
+        await self._activity(call_id, TRANSCRIBING, "started")
         try:
             result = await self._asr.transcribe(pcm)
         except ASRError as exc:
+            await self._activity(call_id, TRANSCRIBING, "failed", latency_ms=self._rt.now_ms() - sent_ms)
             self._chunk_failures += 1
             logger.warning("voice chunk in %s: %s", self._rt.session.id, exc)
             if self._chunk_failures >= MAX_CHUNK_FAILURES and self.state != "unavailable":
@@ -289,6 +296,7 @@ class VoiceBridge:
             logger.exception("voice chunk in %s failed", self._rt.session.id)
             return
         self._chunk_failures = 0
+        await self._activity(call_id, TRANSCRIBING, "done", latency_ms=self._rt.now_ms() - sent_ms)
         # A zero-length turn is the service repeating the end of the previous one (seen live, PLAN §23 V1).
         turns = [(t.text, t.start_ms, t.end_ms) for t in result.turns if t.end_ms > t.start_ms]
         if not turns and result.text.strip():
@@ -307,15 +315,34 @@ class VoiceBridge:
     # --- turns ------------------------------------------------------------------------------------------------------
 
     async def _final(self, turn_id: str, text: str, start_ms: int, end_ms: int) -> None:
-        """A completed turn: on the timeline first (the analyzer and the mode react), then to every tab."""
+        """A completed turn: on the timeline, on every tab, then the analyzer and the mode react."""
         text = text.strip()
         if not text:
             return
         turn = _turn(turn_id, text, start_ms, end_ms, final=True)
-        await self._rt.record(TimelineKind.TRANSCRIPT, turn)
-        await self._rt.broadcast(TranscriptUpdate(type="transcript.update", turn=turn))
+        await self._rt.record(
+            TimelineKind.TRANSCRIPT, turn, show=TranscriptUpdate(type="transcript.update", turn=turn)
+        )
         if self._asked(turn.start_ms, turn.end_ms):
-            self._rt.asked(text)
+            self._rt.asked(text, turn.turn_id)
+
+    async def _activity(
+        self,
+        call_id: str,
+        task: str,
+        status: Literal["started", "done", "failed"],
+        latency_ms: int | None = None,
+    ) -> None:
+        """Muse Voice on the "Under the hood" strip: listening while the candidate talks, or a chunk's request."""
+        activity = ModelActivity(
+            call_id=call_id,
+            t=self._rt.now_ms(),
+            model_name=VOICE,
+            task=task,
+            status=status,
+            latency_ms=latency_ms,
+        )
+        await self._rt.show_activity(activity)
 
     def _asked(self, start_ms: int, end_ms: int) -> bool:
         """Was Ask held for most of this turn? Any overlap isn't enough: the candidate may let go of Ask and keep

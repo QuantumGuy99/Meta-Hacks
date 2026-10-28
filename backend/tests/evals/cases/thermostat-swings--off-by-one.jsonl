@@ -1,0 +1,11 @@
+{"meta": {"problem_slug": "thermostat-swings", "feedback": "active", "voice": true, "about": "clarifies the input, then stops the loop one pair early"}}
+{"t": 4000, "do": "chat", "text": "Can the list be empty or have one reading? And does a change of exactly k count?"}
+{"t": 15000, "do": "say", "text": "Okay, so with fewer than two readings there's nothing to compare, and exactly k isn't a swing. I'll compare each reading with the previous one using abs and a strict greater than."}
+{"t": 30000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n"}
+{"t": 38000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps) - 1):\n"}
+{"t": 46000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps) - 1):\n        if abs(temps[i] - temps[i - 1]) > k:\n            swings += 1\n"}
+{"t": 54000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps) - 1):\n        if abs(temps[i] - temps[i - 1]) > k:\n            swings += 1\n    return swings\n"}
+{"t": 72000, "do": "say", "text": "Let me trace the first example by hand."}
+{"t": 92000, "do": "say", "text": "Seventy to seventy-five is five, that's a swing."}
+{"t": 112000, "do": "say", "text": "Okay, I think this works."}
+{"expect": {"fires": [{"trigger": ["bug_suspected", "run_failed"], "by_t": 152000}], "saw": [{"issue": "bug", "by_t": 122000}], "max_shown": 3, "no_leak": true}}
