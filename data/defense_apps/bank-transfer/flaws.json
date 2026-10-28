@@ -1,0 +1,24 @@
+[
+  {
+    "id": "f1",
+    "title": "Balance transfers under load",
+    "category": "race_condition",
+    "severity": "critical",
+    "file": "app/ledger.py",
+    "line_start": 17,
+    "line_end": 24,
+    "explanation": "ledger.transfer() reads both balances, awaits the fraud check, then writes balances computed from those stale reads. Concurrent transfers touching the same account interleave across the await, so one write overwrites another: updates are lost and money is created or destroyed.",
+    "expected_fix": "Make the read, the funds check and the write one atomic step: hold a lock (or use a database transaction) around them, and re-read the balances inside it.",
+    "grill_expected_points": [
+      "The balances are read before the await and written after it, so the write uses stale values (a lost update).",
+      "Other requests change the same accounts during the fraud-check await, and their updates get overwritten.",
+      "Make the read, the check and the write atomic, with a lock or a database transaction."
+    ],
+    "chaos_invariant": "the sum of all balances stays 1,000,000",
+    "chaos": {
+      "endpoint": "/transfer",
+      "method": "POST",
+      "body_example": "{\"src\": \"acct-1\", \"dst\": \"acct-0\", \"amount\": 7}"
+    }
+  }
+]
