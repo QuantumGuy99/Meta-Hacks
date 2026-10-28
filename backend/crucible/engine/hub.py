@@ -306,10 +306,21 @@ class SessionRuntime:
     # --- events -------------------------------------------------------------------------------------------
 
     async def record(
-        self, kind: TimelineKind, payload: BaseModel | dict[str, Any], t: int | None = None
+        self,
+        kind: TimelineKind,
+        payload: BaseModel | dict[str, Any],
+        t: int | None = None,
+        *,
+        show: BaseModel | None = None,
     ) -> TimelineEvent:
-        """Append to the timeline first, then let the engine and the mode react (§9.1)."""
+        """Append to the timeline first, then let the engine and the mode react (§9.1).
+
+        `show` goes to every tab between the two, so what the candidate just said is on screen before anything
+        it triggers (in wrap-up, their last answer used to appear after the interviewer's closing line).
+        """
         event = self.timeline.append(kind, payload, t)
+        if show is not None:
+            await self.broadcast(show)
         if self._engine is not None:
             self._engine.on_event(event)
         await self.controller.on_timeline(self, event)
@@ -444,8 +455,9 @@ class SessionRuntime:
             final=True,
             source="text",
         )
-        await self.record(TimelineKind.TRANSCRIPT, turn)
-        await self.broadcast(TranscriptUpdate(type="transcript.update", turn=turn))
+        await self.record(
+            TimelineKind.TRANSCRIPT, turn, show=TranscriptUpdate(type="transcript.update", turn=turn)
+        )
 
     async def _flush_loop(self) -> None:
         while True:
