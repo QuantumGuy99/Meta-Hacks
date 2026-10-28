@@ -14,7 +14,16 @@ from crucible.contracts.common import ApiError, ApiErrorBody, Phase, ReportPendi
 from crucible.contracts.events import TimelineEvent
 from crucible.contracts.report import Report
 from crucible.contracts.ws import ClientMessage
-from crucible.engine.hub import FINISHED, ModeUnavailable, PhaseError, SessionHub, SessionSetupError
+from crucible.engine.hub import (
+    FINISHED,
+    Connection,
+    ModeUnavailable,
+    PhaseError,
+    SessionHub,
+    SessionRuntime,
+    SessionSetupError,
+)
+from crucible.engine.limits import Verdict, audio_gate, session_gate
 from crucible.engine.timeline import public_view
 from crucible.engine.voice import AudioControl, VoiceBridge
 
@@ -28,6 +37,9 @@ SESSION_NOT_FOUND_CLOSE = 4404  # WebSocket close code for an unknown session id
 VOICE_OFF_CLOSE = 4403  # the session was created with voice off
 VOICE_UNAVAILABLE_CLOSE = 4503  # no transcription configured, or it failed for good (§9.7)
 MIC_TAKEN_CLOSE = 4409  # another tab opened the audio socket
+FLOOD_CLOSE = 4429  # a client kept sending past the rate limit (§8.2)
+MAX_MESSAGE_CHARS = 2 * 1024 * 1024  # one JSON message; the largest real one is a 1 MB circle image (§8.2)
+MAX_AUDIO_FRAME_BYTES = 2 * 3_840  # two 80 ms frames; real frames are exactly one (§8.3)
 
 
 @router.post("/api/sessions", status_code=201, response_model=Session, responses={400: {"model": ApiError}})
@@ -98,9 +110,24 @@ async def session_socket(websocket: WebSocket, session_id: str) -> None:
         return
     await websocket.accept()
     runtime, connection = await hub.connect(session_id, websocket)
+    gate, throttled = session_gate(), False
     try:
         while True:
             raw = await websocket.receive_text()
+            verdict = gate.check()
+            if verdict != "ok":
+                if await _over_rate(
+                    websocket, verdict, warn=not throttled, runtime=runtime, connection=connection
+                ):
+                    break
+                throttled = True
+                continue
+            throttled = False
+            if len(raw) > MAX_MESSAGE_CHARS:
+                await runtime.error(
+                    connection, "too_large", f"messages are limited to {MAX_MESSAGE_CHARS:,} characters"
+                )
+                continue
             try:
                 msg = CLIENT_MESSAGE.validate_json(raw)
             except ValidationError as exc:
@@ -142,13 +169,21 @@ async def audio_socket(websocket: WebSocket, session_id: str) -> None:
     if isinstance(previous, WebSocket):
         with contextlib.suppress(RuntimeError):  # it may have closed already
             await previous.close(code=MIC_TAKEN_CLOSE, reason="another tab took the microphone")
+    gate = audio_gate()
     try:
         while True:
             message = await websocket.receive()
             if message["type"] == "websocket.disconnect":
                 break
-            if message.get("bytes") is not None:
-                await bridge.audio(message["bytes"])
+            verdict = gate.check()
+            if verdict == "close":
+                await websocket.close(code=FLOOD_CLOSE, reason="too many audio frames")
+                break
+            frame = message.get("bytes")
+            if verdict == "drop" or (frame is not None and len(frame) > MAX_AUDIO_FRAME_BYTES):
+                continue  # never forward audio faster than real time (Meta closes the stream, §9.7)
+            if frame is not None:
+                await bridge.audio(frame)
             elif message.get("text") is not None:
                 await _audio_control(bridge, message["text"])
             if not runtime.live:
@@ -178,6 +213,19 @@ async def _audio_control(bridge: VoiceBridge, raw: str) -> None:
             await bridge.stop()
         case "ask":
             bridge.ask(control.holding)
+
+
+async def _over_rate(
+    websocket: WebSocket, verdict: Verdict, *, warn: bool, runtime: SessionRuntime, connection: Connection
+) -> bool:
+    """A message over the rate limit is dropped; True when the socket was closed for flooding."""
+    if verdict == "close":
+        logger.warning("closing a flooding socket in %s", runtime.session.id)
+        await websocket.close(code=FLOOD_CLOSE, reason="too many messages")
+        return True
+    if warn:  # once when dropping starts, not once per dropped message
+        await runtime.error(connection, "rate_limited", "Too many messages; slow down.", retryable=True)
+    return False
 
 
 def _hub(request: Request) -> SessionHub:
