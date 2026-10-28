@@ -1,29 +1,43 @@
 """Turns a policy decision into what the candidate sees and hears (PLAN §9.6).
 
-ENG-4's thin version: the code check of the leak guard and delivery. ENG-6 adds phrasing, answers to
-questions, phase lines, the reference-overlap check and `say()`.
+The leak guard (code shape plus overlap with the reference), the analyzer's draft or a rubric hint or canned line,
+delivery, `answer()` for the candidate's questions, and `say()` for lines a mode chooses.
 """
 
 from __future__ import annotations
 
 import ast
+import asyncio
 import logging
+import math
+import re
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from crucible.contracts.common import FeedbackLevel
-from crucible.contracts.events import Intervention, InterventionLevel, TimelineKind, TranscriptTurn
+from crucible.contracts.events import (
+    Intervention,
+    InterventionLevel,
+    InterventionText,
+    InterventionTrigger,
+    TimelineKind,
+    TranscriptTurn,
+)
 from crucible.contracts.ws import InterviewerMessage
 from crucible.engine.context import RubricContext
 from crucible.engine.ids import new_id
-from crucible.engine.policy import Decision
+from crucible.engine.policy import LADDER_TRIGGERS, PASSIVE_DELIVERED, Decision
+from crucible.engine.prompts import CANNED, PROMPTS
 
 if TYPE_CHECKING:
+    from crucible.engine.analyzer import StructuredModel
     from crucible.engine.hub import SessionRuntime
 
 logger = logging.getLogger(__name__)
 
 _LADDER = [InterventionLevel.NUDGE, InterventionLevel.QUESTION, InterventionLevel.HINT]
 _GENERIC = "Take a step back and walk me through what you're doing."
+TEXT_ONLY = frozenset({InterventionTrigger.PASTE, InterventionTrigger.TIME_WARNING})  # notes, not speech
 
 
 def looks_like_code(text: str) -> bool:
@@ -31,6 +45,45 @@ def looks_like_code(text: str) -> bool:
     if "```" in text:
         return True
     return sum(_is_statement(line.strip()) for line in text.splitlines() if line.strip()) >= 2
+
+
+def leak_reason(text: str, reference: str | None = None) -> str | None:
+    """Why `text` would hand over the answer, or None if it's safe to send (the full §9.6 leak guard).
+
+    Code-shaped text is always rejected. With a `reference` (the reference solution, or a sample's fix), any
+    line of `text` sharing ≥ 60% of the tokens of a non-trivial reference line is rejected too: that's the
+    solution re-typed, whatever the wording around it.
+    """
+    if looks_like_code(text):
+        return "it contains code"
+    if reference:
+        candidates = [_tokens(line) for line in text.splitlines() if line.strip()] + [_tokens(text)]
+        for ref in _reference_lines(reference):
+            if any(len(ref & c) / len(ref) >= OVERLAP_LIMIT for c in candidates):
+                return "it repeats a line of the solution"
+    return None
+
+
+OVERLAP_LIMIT = 0.6
+MIN_REFERENCE_TOKENS = 5  # shorter lines ("return best", "best = 0") are too generic to count as the solution
+_TOKEN = re.compile(r"[a-z_][a-z0-9_]*|\d+|[^\sa-z0-9_]")
+
+
+def _tokens(text: str) -> frozenset[str]:
+    return frozenset(_TOKEN.findall(text.lower()))
+
+
+@lru_cache(maxsize=64)
+def _reference_lines(reference: str) -> tuple[frozenset[str], ...]:
+    """Token sets of the reference's non-trivial lines: no signatures, comments, docstrings or short lines."""
+    out = []
+    for raw in reference.splitlines():
+        line = raw.strip()
+        if not line or line.startswith(("#", "def ", "class ", '"""', "'''", "import ", "from ")):
+            continue
+        if len(_TOKEN.findall(line.lower())) >= MIN_REFERENCE_TOKENS:
+            out.append(_tokens(line))
+    return tuple(out)
 
 
 def _is_statement(line: str) -> bool:
@@ -55,15 +108,33 @@ def rubric_hint(context: RubricContext, step_id: str | None, level: Intervention
     return step.hints[_LADDER.index(level)]
 
 
+def fallback_text(context: RubricContext, decision: Decision, *, remaining_s: int | None) -> str:
+    """The text without a usable draft: the rubric hint for a ladder rule, else the trigger's canned line."""
+    if decision.level == InterventionLevel.CONCEPT:
+        return CANNED["concept"]
+    if decision.trigger in LADDER_TRIGGERS and decision.step_id is not None:
+        return rubric_hint(context, decision.step_id, decision.level)
+    # ASKED lands here only when `answer()` had nothing usable: the canned Socratic line.
+    line = CANNED.get(decision.trigger.value, _GENERIC)
+    return line.format(minutes=max(1, math.ceil((remaining_s or 0) / 60)), line=decision.line)
+
+
 async def deliver(rt: SessionRuntime, decision: Decision, context: RubricContext) -> Intervention:
-    """Record the intervention; show and speak it unless the session is in passive mode."""
-    text = decision.draft
-    if text is None or looks_like_code(text):
-        if text is not None:
-            logger.warning("leak guard replaced a draft in %s", rt.session.id)
-            await rt.note("info", f"leak guard replaced the analyzer's wording for step {decision.step_id}")
-        text = rubric_hint(context, decision.step_id, decision.level)
+    """Record the intervention; show it (and speak it, unless it's a note) when the policy didn't suppress it."""
+    fallback = fallback_text(context, decision, remaining_s=rt.remaining_s())
+    text = decision.draft if decision.draft is not None else fallback
+    reason = leak_reason(text, context.reference_text)
+    if reason is not None:
+        logger.warning("leak guard replaced a %s message in %s: %s", decision.trigger, rt.session.id, reason)
+        await rt.note(
+            "info",
+            f"leak guard replaced a {decision.trigger} message for step {decision.step_id}: {reason}",
+        )
+        safe = text != fallback and leak_reason(fallback, context.reference_text) is None
+        text = fallback if safe else _GENERIC
     config = rt.session.config
+    # The policy suppresses in passive mode; this keeps any other caller from showing unsolicited text there.
+    passive = config.feedback == FeedbackLevel.PASSIVE and decision.trigger not in PASSIVE_DELIVERED
     intervention = Intervention(
         id=new_id(),
         t=rt.now_ms(),
@@ -71,9 +142,110 @@ async def deliver(rt: SessionRuntime, decision: Decision, context: RubricContext
         level=decision.level,
         text=text,
         step_id=decision.step_id,
-        speak=config.speak_replies,
-        suppressed=config.feedback == FeedbackLevel.PASSIVE,
+        speak=config.speak_replies and decision.trigger not in TEXT_ONLY,
+        suppressed=decision.suppressed or passive,
     )
+    await _record_and_show(rt, intervention)
+    return intervention
+
+
+ANSWER_DEADLINE_S = 15  # the wrapper's 6 s interviewer timeout (§21) plus its single retry
+ANSWER_CONTEXT_MS = 180_000  # recent conversation shown with a question
+ANSWER_CONTEXT_TURNS = 8
+
+
+async def answer(
+    rt: SessionRuntime, model: StructuredModel, context: RubricContext, question: str
+) -> str | None:
+    """Reply to a candidate's question (ASKED, §9.6) with the model, or None to use the canned line.
+
+    The model sees only what the candidate can see (the problem statement, examples and constraints, their
+    code and the recent conversation), never the rubric or the reference. Its reply goes through the leak guard;
+    a rejected reply gets one retry asking for a Socratic question instead.
+    """
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": PROMPTS["interviewer_answer"]},
+        {"role": "user", "content": f"# Problem: {context.title}\n\n{context.brief_md}"},
+        {"role": "user", "content": _answer_state(rt, context, question)},
+    ]
+    for _attempt in range(2):
+        try:
+            async with asyncio.timeout(ANSWER_DEADLINE_S):
+                reply = await model.complete_json(
+                    "interviewer", messages, InterventionText, session_id=rt.session.id
+                )
+        except Exception:  # task boundary: no answer from the model means the canned line, never silence
+            logger.exception("interviewer answer failed in %s", rt.session.id)
+            await rt.note("warning", "the interviewer model didn't answer; sent the canned reply")
+            return None
+        text = reply.text.strip()
+        reason = leak_reason(text, context.reference_text) if text else "it was empty"
+        if reason is None:
+            return text
+        logger.warning("leak guard rejected an answer in %s: %s", rt.session.id, reason)
+        await rt.note("info", f"leak guard rejected the interviewer's answer: {reason}")
+        retry = f"That reply was rejected because {reason}. Reply with one short Socratic question instead."
+        messages = [
+            *messages,
+            {"role": "assistant", "content": reply.text},
+            {"role": "user", "content": retry},
+        ]
+    return None
+
+
+def _answer_state(rt: SessionRuntime, context: RubricContext, question: str) -> str:
+    main = context.files[0] if context.files else "solution.py"
+    code = rt.code.code(main)
+    numbered = "\n".join(f"{i:>3} | {line}" for i, line in enumerate(code.splitlines(), start=1)) or "(empty)"
+    since = rt.now_ms() - ANSWER_CONTEXT_MS
+    turns = [
+        e.payload for e in rt.timeline.tail([TimelineKind.TRANSCRIPT], since_t=since) if e.payload["final"]
+    ][-ANSWER_CONTEXT_TURNS:]
+    conversation = "\n".join(f"- {t['speaker']}: {t['text']}" for t in turns) or "(nothing yet)"
+    return (
+        f"# Now\nPhase: {rt.session.phase}.\n\n## Their code ({main})\n```python\n{numbered}\n```\n\n"
+        f"## Recent conversation\n{conversation}\n\n## Their question\n{question}"
+    )
+
+
+async def say(
+    rt: SessionRuntime,
+    text: str,
+    trigger: InterventionTrigger,
+    level: InterventionLevel,
+    *,
+    speak: bool | None = None,
+    step_id: str | None = None,
+    fallback: str | None = None,
+    reference: str | None = None,
+) -> Intervention:
+    """Say a line the caller chose (phase lines, grill questions) through the same leak guard (PLAN §9.6).
+
+    `reference` is what the line must not repeat (a solution or fix). On a rejection it sends `fallback`, or
+    the trigger's canned line. Shown in passive mode too: these lines run the interview, they aren't feedback.
+    `speak` defaults to the session's "speak replies" setting.
+    """
+    reason = leak_reason(text, reference)
+    if reason is not None:
+        logger.warning("leak guard replaced a %s line in %s: %s", trigger, rt.session.id, reason)
+        await rt.note("info", f"leak guard replaced a {trigger} line: {reason}")
+        usable = fallback and leak_reason(fallback, reference) is None
+        text = fallback if usable else CANNED.get(trigger.value, _GENERIC)
+    intervention = Intervention(
+        id=new_id(),
+        t=rt.now_ms(),
+        trigger=trigger,
+        level=level,
+        text=text,
+        step_id=step_id,
+        speak=rt.session.config.speak_replies if speak is None else speak,
+        suppressed=False,
+    )
+    await _record_and_show(rt, intervention)
+    return intervention
+
+
+async def _record_and_show(rt: SessionRuntime, intervention: Intervention) -> None:
     await rt.record(TimelineKind.INTERVENTION, intervention)
     if not intervention.suppressed:
         await rt.broadcast(InterviewerMessage(type="interviewer.message", intervention=intervention))
@@ -81,11 +253,10 @@ async def deliver(rt: SessionRuntime, decision: Decision, context: RubricContext
         turn = TranscriptTurn(
             turn_id=new_id(),
             speaker="interviewer",
-            text=text,
+            text=intervention.text,
             start_ms=intervention.t,
             end_ms=intervention.t,
             final=True,
             source="text",
         )
         await rt.record(TimelineKind.TRANSCRIPT, turn)
-    return intervention

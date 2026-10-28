@@ -2,7 +2,7 @@
 
 import json
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -70,6 +70,9 @@ def analysis(
     }
 
 
+FAKE_MODEL_ID = "fake-model"
+
+
 class FakeModel:
     """Answers `complete_json` from a script; the last reply repeats. An Exception reply is raised."""
 
@@ -90,6 +93,16 @@ class FakeModel:
         if isinstance(reply, Exception):
             raise reply
         return schema.model_validate(reply)
+
+    async def complete_json_with_model[T: BaseModel](
+        self,
+        role: str,
+        messages: Sequence[Mapping[str, Any]],
+        schema: type[T],
+        *,
+        session_id: str | None = None,
+    ) -> tuple[T, str]:
+        return await self.complete_json(role, messages, schema, session_id=session_id), FAKE_MODEL_ID
 
 
 class StubController:
@@ -112,8 +125,13 @@ class StubController:
         return None
 
 
-def runtime(model: FakeModel | None = None, *, feedback: str = "active") -> SessionRuntime:
-    """A started coding runtime in `clarify`, with no sockets."""
+def runtime(
+    model: FakeModel | None = None,
+    *,
+    feedback: str = "active",
+    monotonic: Callable[[], float] = time.monotonic,
+) -> SessionRuntime:
+    """A started coding runtime in `clarify`, with no sockets. Pass `monotonic` to drive its clock."""
     now = datetime.now(UTC)
     session = Session(
         id="s1",
@@ -130,7 +148,7 @@ def runtime(model: FakeModel | None = None, *, feedback: str = "active") -> Sess
         session,
         StubController(),
         MemoryStore(),
-        monotonic=time.monotonic,
+        monotonic=monotonic,
         wall=lambda: datetime.now(UTC),
         model=model,
     )

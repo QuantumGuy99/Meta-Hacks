@@ -129,10 +129,19 @@ def test_edits_come_back_from_the_timeline_in_order(client: TestClient) -> None:
         sync(ws)
         assert hub(client).runtimes[sid].code.code() == "def f():\n    pass\n"
     events = client.get(f"/api/sessions/{sid}/timeline").json()
-    assert [e["kind"] for e in events] == ["phase", "phase", "editor", "editor", "snapshot"]
-    assert [e["seq"] for e in events] == [1, 2, 3, 4, 5]
-    assert [e["t"] for e in events[2:]] == [1000, 1500, 1600]
-    assert events[3]["payload"]["changes"][0]["text"] == "    pass\n"
+    # phase → intro, the intro line (intervention + transcript), phase → clarify, then the edits
+    assert [e["kind"] for e in events] == [
+        "phase",
+        "intervention",
+        "transcript",
+        "phase",
+        "editor",
+        "editor",
+        "snapshot",
+    ]
+    assert [e["seq"] for e in events] == list(range(1, 8))
+    assert [e["t"] for e in events[4:]] == [1000, 1500, 1600]
+    assert events[5]["payload"]["changes"][0]["text"] == "    pass\n"
 
 
 def test_a_bad_message_gets_an_error_and_the_socket_stays_open(client: TestClient) -> None:
@@ -170,8 +179,9 @@ def test_chat_is_recorded_and_broadcast_to_every_tab(client: TestClient) -> None
             update = receive_until(ws, lambda m: m["type"] == "transcript.update")
             assert update["turn"]["text"] == "Can the list be empty?"
             assert update["turn"]["speaker"] == "candidate" and update["turn"]["source"] == "text"
-    kinds = [e["kind"] for e in client.get(f"/api/sessions/{session['id']}/timeline").json()]
-    assert kinds.count("transcript") == 1
+    events = client.get(f"/api/sessions/{session['id']}/timeline").json()
+    said = [e for e in events if e["kind"] == "transcript" and e["payload"]["speaker"] == "candidate"]
+    assert len(said) == 1
 
 
 def test_unsupported_messages_get_an_error(client: TestClient) -> None:

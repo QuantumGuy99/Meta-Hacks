@@ -31,6 +31,7 @@ TOP_LEVEL: dict[str, Any] = {
     "ProblemSummary": coding.ProblemSummary,
     "ProblemPublic": coding.ProblemPublic,
     "Project": defense.Project,
+    "ProjectSource": defense.ProjectSource,
     "Report": report.Report,
     # timeline payloads the replay reads (GET /api/sessions/{id}/timeline)
     "TimelineEvent": events.TimelineEvent,

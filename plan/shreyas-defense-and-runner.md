@@ -22,7 +22,6 @@ a second interviewer. Your job is to feed it a `RubricContext` and drive the sta
 | `backend/crucible/main.py`, `config.py` | App factory, routers, CORS, lifespan, settings |
 | `backend/crucible/store/` | SQLite: sessions, events, reports, projects, audits |
 | `backend/crucible/contracts/` | Co-owned with Srinithin; you both approve every change |
-| `backend/crucible/models/glimmer.py` | The Glimmer client (attack writer) |
 | `backend/crucible/defense/` | `controller` (`DefenseController`), `projects`, `audit`, `chaos`, `attack_writer`, `validator`, `grill`, `verify`, `verdict`, `card` (P2), `prompts/` |
 | `backend/crucible/runner/` | `base.py`, `local.py`, `modal_runner.py`, `harness/` |
 | `backend/crucible/mock/` | Replay engine + defense fixtures (`defense-bank-transfer`, `report-defense`) |
@@ -40,13 +39,23 @@ handoff). Team-wide: root `CLAUDE.md`, `backend/CLAUDE.md` (code style), `.claud
 
 ## Setup (Day 0, Mon Oct 26)
 
-- [ ] Claim your Meta credits (individually), add a card, set a spend-limit notification (PLAN §15.3).
-- [ ] Request Modal, Baseten and Fireworks credits (S-2). `modal token new`.
-- [ ] Python 3.12 + uv, Node ≥ 22 + pnpm (`corepack enable`), Docker.
-- [ ] Review Likhil's `frontend` branch. S-0 builds on it.
-- [ ] Read PLAN §4, §6, §11, §12, §14.6, §19, §21 and §22.
+- [x] Claim your Meta credits (key works, 2026-10-27). **Still to do: set the $125 spend limit** (PLAN §15.3).
+- [x] Modal: token connected (workspace `shreyas-sahoo-15`), credits form sent. Baseten/Fireworks: not needed (Glimmer dropped).
+- [x] Python 3.12 + uv, Node ≥ 22 (pnpm runs through `npx`; Node 25+ has no corepack). Docker isn't needed locally: CI builds the image.
+- [x] Review Likhil's `frontend` branch. S-0 builds on it.
+- [x] Read PLAN §4, §6, §11, §12, §14.6, §19, §21 and §22.
 
 ---
+
+## Status (end of Tue Oct 27)
+- **On `main`, first pass (review fixes in #29 and the #22 plan):** S-0 (#10), store, RUN-1, RUN-3 (verified on real Modal), DEF-1..6, OPS-2 (MOCK replay
+  plus a recorder), OPS-1 prep (Dockerfile, Railway config, CI Docker job, `docs/DEPLOY.md`), attack containment
+  (validator + loopback-only clients + `block_network`; V7 done).
+- **Open:** #17 (DEF-11 Muse fix assistant spec) and #18 (attacker prompt), both waiting on Srinithin.
+- **Next:** IC1 Wed (needs Sharvil's `bank-transfer`, #11; build it from `bank-transfer-min` Wed morning if it's
+  missing). Thu: `lib/defense.ts`, RUN-2. Fri: IC2 live. Sat: deploy (Railway signup was down on Oct 27; Render
+  or Fly.io take the same Dockerfile).
+- Working memory with the details: [docs/defense/MEMORY.md](../docs/defense/MEMORY.md).
 
 ## Handoffs
 
@@ -230,14 +239,13 @@ down), and the sandbox is cleaned up when the session ends.
 5. Until DATA-4 lands, test against a minimal racy app in `backend/tests/fixtures/`.
 
 ### DEF-3 — AttackWriter, template, validator
-**P0 · Thu · needs DEF-2** · Read: PLAN §11.4; V5 for the Glimmer host
-**Files:** `models/glimmer.py`, `defense/attack_writer.py`, `defense/validator.py`,
+**P0 · Thu · needs DEF-2** · Read: PLAN §11.4
+**Files:** `defense/attack_writer.py`, `defense/validator.py`,
 `runner/harness/chaos_template.py`
-1. `glimmer.py`: an OpenAI-compatible client on `GLIMMER_BASE_URL`, called through the `attacker` role in
-   Srinithin's registry, with fallback to Spark 1.3.
-2. `attack_writer.py`: finding + chaos plan + the relevant files + template → `AttackFunctions` (30 s).
-3. Fill the template by indenting the three bodies into it. Only the three bodies come from the model.
-4. `validator.py`: the AST rules in §11.4 (import allowlist, forbidden names, URL literals that start with `/`
+1. `attack_writer.py`: the `attacker` role (Spark 1.3) through Srinithin's wrapper. Finding + chaos plan +
+   the relevant files + template → `AttackFunctions` (30 s); the sample's reference attack is the last fallback.
+2. Fill the template by indenting the three bodies into it. Only the three bodies come from the model.
+3. `validator.py`: the AST rules in §11.4 (import allowlist, forbidden names, URL literals that start with `/`
    or `BASE`, `CONCURRENCY ≤ 200`, `DURATION_S ≤ 30`). On rejection, regenerate once with the error message,
    then fail the finding.
 
@@ -296,7 +304,7 @@ proves `defense.audit` never carries an explanation.
 ### P1 and P2 (only after the P0 path is solid)
 - **DEF-7 — Defense report extras** (P1 · Sun): `report_extra()` returns `DefenseExtra` (findings, chaos runs,
   grill turns, verdict); Likhil renders the before/after charts.
-- **DEF-8 — Glimmer refine loop** (P1 · Sun): if the baseline held but the finding claims it should break, give
+- **DEF-8 — Attack refine loop** (P1 · Sun): if the baseline held but the finding claims it should break, give
   the metrics back and ask for a revised attack (max 2 refinements).
 - **DEF-9 — "Circle the flaw" with SAM 3.1** (P1 · Mon, **after IC3 and only with Likhil's OK** · needs DEF-5,
   Likhil's canvas pen): PLAN §11.7.
@@ -306,6 +314,12 @@ proves `defense.audit` never carries an explanation.
 - **DEF-10 — Merge-gate card** (P2, only after both P0 paths pass the demo script twice): PLAN §11.8. Muse Image background with no text, real numbers composed
   on top, generated after the verdict in the background.
 - **Refactor suggestion handoff** (P2): only if V8 confirms Muse Code has a headless mode.
+- **DEF-11 — Muse fix assistant** (P1 · after IC2, Sun): PLAN §11.9. `defense/assistant.py`: `assistant.ask` →
+  Spark (`assistant` role, 20 s) with the full finding, current files, chaos summary and the last verify →
+  `AssistantTurn` (answer + proposed whole-file edits) → `assistant.reply`. `assistant.apply` logs accept or
+  reject; the report and verdict reasons show the AI share. Only in fix/verify, max 20 asks per session.
+  Needs the contract additions (SG + SS), the `assistant` role and `chars_ai` (Srinithin), and the side panel
+  (Likhil).
 
 ---
 
@@ -315,11 +329,11 @@ proves `defense.audit` never carries an explanation.
 |---|---|---|---|
 | 0 | Mon Oct 26 | Setup, merge `frontend`, S-0, S-1 with Srinithin | Scaffold PR open |
 | 1 | Tue Oct 27 | S-0 merged, store, RUN-1, OPS-2 skeleton | CI green on `main`; LocalRunner runs a gold problem |
-| 2 | Wed Oct 28 | LocalRunner projects, DEF-1, DEF-2; agree on the engine hooks; pick the Glimmer host | **IC1**: `bank-transfer` audit renders |
+| 2 | Wed Oct 28 | LocalRunner projects, DEF-1, DEF-2; agree on the engine hooks | **IC1**: `bank-transfer` audit renders |
 | 3 | Thu Oct 29 | RUN-2, RUN-3, DEF-3, OPS-2 working, `lib/defense.ts` | Likhil runs on MOCK |
 | 4 | Fri Oct 30 | DEF-4, DEF-5 (text) | **IC2**: `bank-transfer` breaks live |
 | 5 | Sat Oct 31 | DEF-6, OPS-1 | Deployed |
-| 6 | Sun Nov 1 | DEF-7, DEF-8 (P1); integration fixes | **IC3** + cut-line review |
+| 6 | Sun Nov 1 | DEF-7, DEF-8, DEF-11 backend (P1); integration fixes | **IC3** + cut-line review |
 | 7 | Mon Nov 2 | Reliability (cold starts, retries, timeouts); DEF-9 if IC3 is green and Likhil agrees; DEF-10 (P2) only after the demo script passes twice | Demo script passes twice |
 | 8 | Tue Nov 3 | **Feature freeze 12 PM.** Bug fixes only; record demo takes | Takes recorded |
 | 9 | Wed Nov 4 | Final video edit; **submit by 6 PM** | Submitted |
@@ -342,7 +356,6 @@ real number from the run) → the grill by voice → the candidate fixes it in t
 - **Modal cold starts:** pre-build the sample images at startup; keep one warm sandbox per coding session.
 - **Chaos doesn't break a sample:** Sharvil's `validate_apps` must prove break and hold for each app before it
   counts. The demo uses `bank-transfer` only.
-- **Glimmer host not ready:** the `attacker` role falls back to Spark 1.3; the refine loop is P1.
 - **Wonder slow or down:** audits are cached per project, so the demo's audit should be cached before recording.
 
 ## PR checklist

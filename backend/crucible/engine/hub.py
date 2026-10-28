@@ -24,7 +24,7 @@ from crucible.contracts.events import (
     TimelineKind,
     TranscriptTurn,
 )
-from crucible.contracts.report import CodingExtra, DefenseExtra
+from crucible.contracts.report import CodingExtra, DefenseExtra, Report
 from crucible.contracts.ws import (
     ChatSend,
     ClientMessage,
@@ -34,6 +34,7 @@ from crucible.contracts.ws import (
     Hello,
     HintRequest,
     PhaseAdvance,
+    ReportReady,
     SessionEnd,
     SessionState,
     TranscriptUpdate,
@@ -43,17 +44,19 @@ from crucible.engine.codestate import CodeState
 from crucible.engine.context import RubricContext
 from crucible.engine.ids import new_id
 from crucible.engine.live import LiveEngine
+from crucible.engine.report import build_report
 from crucible.engine.store import Store
 from crucible.engine.timeline import Timeline
+from crucible.engine.voice import Transcriber, VoiceBridge
 
 logger = logging.getLogger(__name__)
 
-IDLE_TTL_S = 600  # a runtime lives 10 min after its last socket closes (§9.1)
+IDLE_TTL_S = 600  # a runtime lives 10 min after its last socket closes (§9.1); longer than a report takes
 FLUSH_INTERVAL_S = 0.25  # timeline writes are batched (§9.2)
 FINISHED = frozenset({Phase.ENDED, Phase.REPORTING, Phase.REPORTED, Phase.FAILED})
 # Only these moves may come from the browser (§8.2 phase.advance): "Start coding" and "I'm done".
 CANDIDATE_ADVANCES = frozenset({(Phase.CLARIFY, Phase.CODING), (Phase.CODING, Phase.WRAP_UP)})
-# After a session ends, the report builder (ENG-8) moves it on; any live phase can end or fail.
+# After a session ends, the report builder (§9.8) moves it on; any live phase can end or fail.
 _AFTER_END: dict[Phase, set[Phase]] = {
     Phase.ENDED: {Phase.REPORTING, Phase.FAILED},
     Phase.REPORTING: {Phase.REPORTED, Phase.FAILED},
@@ -153,7 +156,10 @@ class SessionRuntime:
         self.controller = controller
         self.code = CodeState()
         self.context: RubricContext | None = None
+        self.last_context: RubricContext | None = None  # kept after detach, for the report
         self.interviewer_state: InterviewerState = "idle"
+        self.voice: VoiceBridge | None = None  # opened by the first audio socket (§9.7)
+        self.audio_socket: object | None = None  # the tab whose microphone feeds `voice`
         self.timeline = Timeline(session.id, store, self.now_ms, last_seq)
         self._model = model
         self._engine: LiveEngine | None = None
@@ -162,8 +168,11 @@ class SessionRuntime:
         self._wall = wall
         self._anchor: float | None = None  # monotonic time of session.started_at
         self._connections: dict[int, Connection] = {}
+        self.sender: Connection | None = None  # the tab whose message the mode is handling right now
+        self.resume_pending = False  # reopened after expiry; the mode resumes on the next connect
         self._phase_lock = asyncio.Lock()
         self._flusher: asyncio.Task[None] | None = None
+        self._report_task: asyncio.Task[None] | None = None
         if session.started_at is not None:
             self._anchor_to(session.started_at)
 
@@ -172,6 +181,14 @@ class SessionRuntime:
     def now_ms(self) -> int:
         """Ms since the session started (0 before it starts)."""
         return 0 if self._anchor is None else round((self._monotonic() - self._anchor) * 1000)
+
+    def wall_now(self) -> datetime:
+        return self._wall()
+
+    async def set_interviewer_state(self, state: InterviewerState) -> None:
+        if state != self.interviewer_state:
+            self.interviewer_state = state
+            await self.broadcast(self.state_message())
 
     def remaining_s(self) -> int | None:
         if self._anchor is None or self.session.phase in FINISHED or self.session.phase == Phase.SETUP:
@@ -205,12 +222,21 @@ class SessionRuntime:
             self._flusher = asyncio.create_task(self._flush_loop(), name=f"timeline-flush-{self.session.id}")
 
     async def close(self) -> None:
+        # Optional mode hook: cancel the mode's own background tasks (timers, long stages).
+        on_close = getattr(self.controller, "on_close", None)
+        if on_close is not None:
+            await on_close(self)
         await self.detach()
-        if self._flusher is not None:
-            self._flusher.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._flusher
-            self._flusher = None
+        if self.voice is not None:
+            await self.voice.close()
+        # A report cut short here restarts when someone next asks for it (SessionHub.report).
+        for task in (self._report_task, self._flusher):
+            if task is not None:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+        self._report_task = None
+        self._flusher = None
         await self.timeline.flush()
 
     def restore(self, events: list[TimelineEvent]) -> None:
@@ -249,7 +275,29 @@ class SessionRuntime:
         if self.live:
             await self.set_phase(Phase.ENDED, reason)
         await self.detach()
-        # TODO(ENG-8): start report generation here.
+        self.start_report()
+
+    # --- the report (§9.8) --------------------------------------------------------------------------------
+
+    def start_report(self) -> None:
+        """Build the report in the background, once per ended session (a failed session gets none)."""
+        running = self._report_task is not None and not self._report_task.done()
+        if running or self.session.phase not in (Phase.ENDED, Phase.REPORTING):
+            return
+        self._report_task = asyncio.create_task(self._report(), name=f"report-{self.session.id}")
+
+    async def _report(self) -> None:
+        try:
+            if self.session.phase == Phase.ENDED:
+                await self.set_phase(Phase.REPORTING, "building the report")
+            report = await build_report(self, self._model)
+            await self._store.save_report(report)
+            await self.set_phase(Phase.REPORTED, f"report ready ({report.model})")
+            await self.broadcast(ReportReady(type="report.ready", session_id=self.session.id))
+        except Exception:  # task boundary: say so on the timeline and stop, rather than hang in `reporting`
+            logger.exception("report failed for %s", self.session.id)
+            await self.note("error", "the report couldn't be built")
+            await self.set_phase(Phase.FAILED, "report failed")
 
     # --- events -------------------------------------------------------------------------------------------
 
@@ -273,10 +321,20 @@ class SessionRuntime:
         Without a model (tests, or no API key) the context is kept but nothing analyzes it.
         """
         await self.detach()
-        self.context = context
+        self.context = self.last_context = context
         if self._model is not None:
             self._engine = LiveEngine(self, context, self._model)
             self._engine.start()
+
+    def heard_speech(self) -> None:
+        """Candidate speech in progress (a partial transcript): the policy holds unsolicited messages."""
+        if self._engine is not None:
+            self._engine.heard_speech()
+
+    def asked(self, question: str) -> None:
+        """A spoken question (Ask was held): the interviewer answers it like a typed one."""
+        if self._engine is not None:
+            self._engine.ask(question)
 
     async def detach(self) -> None:
         if self._engine is not None:
@@ -333,8 +391,11 @@ class SessionRuntime:
                     )
             case ChatSend(text=text):
                 await self._chat(text)
-            case HintRequest():
-                logger.info("hint requested in %s", self.session.id)  # TODO(ENG-5): HINT_REQUESTED rule
+            case HintRequest(step_id=step_id):
+                if self._engine is None:
+                    await self.error(connection, "unsupported", "hints aren't available right now")
+                    return
+                self._engine.request_hint(step_id)
             case PhaseAdvance(to=to):
                 if (self.session.phase, to) not in CANDIDATE_ADVANCES:
                     await self.error(
@@ -345,7 +406,13 @@ class SessionRuntime:
             case SessionEnd():
                 await self.end("ended by the candidate")
             case _:
-                if not await self.controller.on_client_message(self, msg):
+                # The mode's handler can answer the tab that asked (`rt.sender`) instead of every tab.
+                self.sender = connection
+                try:
+                    handled = await self.controller.on_client_message(self, msg)
+                finally:
+                    self.sender = None
+                if not handled:
                     await self.error(connection, "unsupported", f"{msg.type} isn't available in this session")
 
     async def _editor_event(self, event: EditorEvent) -> None:
@@ -393,11 +460,13 @@ class SessionHub:
         controllers: Mapping[Mode, ModeFactory],
         *,
         model: StructuredModel | None = None,
+        asr: Transcriber | None = None,
         monotonic: Callable[[], float] = time.monotonic,
         wall: Callable[[], datetime] = lambda: datetime.now(UTC),
         idle_ttl_s: float = IDLE_TTL_S,
     ) -> None:
         self.store = store
+        self._asr = asr
         self.runtimes: dict[str, SessionRuntime] = {}
         self._controllers = controllers
         self._model = model
@@ -436,6 +505,9 @@ class SessionHub:
         connection = runtime.add(socket)
         if runtime.session.phase == Phase.SETUP:
             await runtime.start()
+        elif runtime.resume_pending:
+            runtime.resume_pending = False
+            await runtime.controller.on_resume(runtime)
         return runtime, connection
 
     async def disconnect(self, session_id: str, connection: Connection) -> None:
@@ -452,6 +524,28 @@ class SessionHub:
         if not runtime.connected:
             self._schedule_expiry(session_id)
         return runtime.session.model_copy(deep=True)
+
+    def voice(self, runtime: SessionRuntime) -> VoiceBridge | None:
+        """The session's voice bridge, or None when transcription isn't configured (no API key)."""
+        if runtime.voice is None and self._asr is not None:
+            runtime.voice = VoiceBridge(runtime, self._asr)
+        return runtime.voice
+
+    async def report(self, session_id: str) -> Report | None:
+        """The stored report, or None while there isn't one yet.
+
+        A session left in `ended` or `reporting` with no report running (a restart cut it short) starts again.
+        """
+        report = await self.store.get_report(session_id)
+        if report is not None:
+            return report
+        session = await self.get_session(session_id)
+        if session is not None and session.phase in (Phase.ENDED, Phase.REPORTING):
+            runtime = await self.runtime(session_id)
+            runtime.start_report()
+            if not runtime.connected:
+                self._schedule_expiry(session_id)
+        return None
 
     async def read_timeline(self, session_id: str) -> list[TimelineEvent]:
         runtime = self.runtimes.get(session_id)
@@ -484,9 +578,9 @@ class SessionHub:
             )
             runtime.restore(events)
             runtime.start_flusher()
+            # Resume once a socket is attached (in connect), so whatever the mode says reaches someone.
+            runtime.resume_pending = runtime.live and session.phase != Phase.SETUP
             self.runtimes[session_id] = runtime
-            if runtime.live and session.phase != Phase.SETUP:
-                await runtime.controller.on_resume(runtime)
             return runtime
 
     async def close(self) -> None:

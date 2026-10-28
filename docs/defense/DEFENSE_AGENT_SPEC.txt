@@ -21,7 +21,6 @@ WRITE (SS-owned, PLAN §6):
 - `backend/crucible/defense/`   controller.py projects.py audit.py chaos.py attack_writer.py validator.py
                                 grill.py verify.py verdict.py card.py prompts/*.md
 - `backend/crucible/runner/`    base.py local.py modal_runner.py harness/ (run_tests.py, chaos_template.py)
-- `backend/crucible/models/glimmer.py`
 - `backend/crucible/mock/`      replay.py + fixtures/*.jsonl (defense fixtures; coding ones with SG)
 - `frontend/src/lib/defense.ts` (selectors only, no components)
 - Scaffold: Makefile, .env.example, CI, backend/pyproject.toml, Dockerfile, main.py, config.py, store/
@@ -82,7 +81,7 @@ Defense-specific points added from this spec:
 4. META MODEL ROUTING (PLAN §15)
 -------------------------------
 All calls go through the shared wrapper (`models/llm.py` complete_json / complete_text, or asr.py,
-sam.py, image.py, glimmer.py). Model ids live only in `models/registry.py` / env. Never call
+sam.py, image.py). Model ids live only in `models/registry.py` / env. Never call
 api.openai.com or api.anthropic.com at runtime; no third-party TTS.
 
 | Role / use              | Model                                | Where                    | Fallback                          |
@@ -91,14 +90,13 @@ api.openai.com or api.anthropic.com at runtime; no third-party TTS.
 | report                  | muse-wonder-1.0                      | engine/report.py (SG)    | muse-spark-1.3 → metrics template |
 | grill_eval              | muse-spark-1.3 (10 s)                | defense/grill.py         | Spark Open (Baseten)              |
 | fix-stage analyzer      | muse-spark-1.3                       | engine/analyzer.py (SG)  | skip tick                         |
-| attacker                | Muse Glimmer (GLIMMER_BASE_URL / GLIMMER_MODEL; id ⚠️ V5) | defense/attack_writer.py | muse-spark-1.3 |
+| attacker                | muse-spark-1.3                       | defense/attack_writer.py | reference attack (samples) |
 | voice                   | muse-voice-transcribe-1.0, wss://api.meta.ai/v1/asr/realtime | engine/voice.py (SG) | chunked file ASR → chat |
 | circle the flaw (P1)    | sam-3.1, POST /v1/responses (5 s)    | models/sam.py + grill.py | no highlight, no bonus            |
 | merge-gate card (P2)    | muse-image-1.0, /v1/images/generations (20 s) | defense/card.py | no card                           |
 | interviewer voice out   | browser speechSynthesis              | frontend lib/tts.ts (LG) | text only                         |
 
 Meta API base URL https://api.meta.ai/v1, key MODEL_API_KEY, passed explicitly to the OpenAI SDK.
-Glimmer is open weights on a partner host, so it uses GLIMMER_BASE_URL, not api.meta.ai.
 
 5. DETERMINISTIC GRILL POLICY ("LLM SUGGESTS, CODE DECIDES") — PLAN §11.5
 ------------------------------------------------------------------------
@@ -131,6 +129,13 @@ Attack scripts — template, not free-form:
 - validator.py (AST) before execution: template imports only; bans open/exec/eval/compile/__import__/
   globals/locals/getattr/setattr/os/sys/subprocess/socket/pathlib/shutil; URLs must start with "/" or
   BASE; CONCURRENCY ≤ 200, DURATION_S ≤ 30. One regeneration on rejection, then verdict "error".
+- Also rejected: asyncio/loop escape hatches by attribute (create_subprocess_*, open_connection,
+  start_server, to_thread, run_in_executor, get_*event_loop, ...), any attribute starting with "_", and
+  direct use of httpx (bodies must use the `client` they're given).
+- Containment in three layers: the validator checks the code; the template's clients refuse any host but
+  loopback (catches URLs built at runtime); Modal sandboxes run with block_network=True (V7 done).
+- The template spreads CONCURRENCY workers over httpx pools of 10 with a 0.4 s ramp (one big pool collapses
+  past ~50 concurrent), checks the invariant on its own client every 0.5 s, and ends with a final metric line.
 - Output: one JSON line every 500 ms
   {"t_ms","in_flight","rps","p50_ms","p95_ms","p99_ms","errors","violations"}, then
   {"done": true, "invariant_ok": bool, "violations": int, "detail": str, ...}. check_invariant returns
@@ -151,6 +156,9 @@ Defense execution:
 MOCK: only when MOCK=1 is set explicitly. mock/replay.py streams fixtures/defense-bank-transfer.jsonl
 (recorded ServerMessages with relative timestamps). A real failure NEVER silently falls back to recorded
 data; it uses the §21 fallback or shows an "error" verdict with a retry button.
+Fixtures are recorded from a real local session, not hand-written:
+`python -m crucible.mock.record defense-bank-transfer --apps-dir tests/fixtures/apps --project bank-transfer-min`
+(no API key; every model stage takes its fallback). Re-record after contract or flow changes.
 
 7. SEEDED DEMO APPS (PLAN §13.2) — ST builds, SS reviews; needed by Thu Oct 29
 ------------------------------------------------------------------------------
@@ -228,8 +236,8 @@ Format: topic — kept — why.
     segment-the-drawn-circle + code maps box → node — gives SAM a demo-visible role without faking it.
 20. Muse Image architecture card at audit time — P2 DEF-10 merge-gate card after the verdict, no text
     in the image (numbers composed in HTML) — image models garble text; never on the critical path.
-21. Glimmer through api.meta.ai — PLAN (GLIMMER_BASE_URL partner host) — open-weights Glimmer isn't
-    served on api.meta.ai; model id still ⚠️ V5.
+21. Glimmer (open weights on a partner host) — DROPPED 2026-10-27 (Shreyas) — the attacker uses Spark;
+    no partner host to set up or pay for.
 22. Direct AsyncOpenAI calls — PLAN (shared wrapper, ids in registry) — one place for timeouts,
     fallbacks and cost logging.
 23. Theme (#07090E / #FF3366 / #FFB020 / #00F59B) — Likhil's UI_TEMPLATE tokens — LG owns the UI; his

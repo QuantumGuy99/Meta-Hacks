@@ -52,6 +52,7 @@ placeholders for `/coding` and `/defense`.
 | Hand-written `coding-active.jsonl`, `report-coding.jsonl` | Srinithin | Wed Oct 28 | Write a 10-line script yourself |
 | MOCK mode on the backend (OPS-2), defense fixtures | Shreyas | Thu Oct 29 | Your FixtureTransport, reading the same files |
 | `lib/defense.ts` selectors | Shreyas | Thu Oct 29 | Inline the logic in the view, then swap |
+| `GET /api/defense/projects/{id}/files` → `ProjectSource` (the project's source for the fix-stage editor and audit file preview) | Shreyas | Wed Oct 28 | — |
 | `startAudioCapture(opts)` | Srinithin | Fri Oct 30 | Voice UI disabled; chat works end to end |
 | `codeAt(timeline, file, t)` | Srinithin | Fri Oct 30 | — (FE-7 is Sat) |
 | `GET /api/sessions/{id}/report` (ENG-8) | Srinithin | Sat Oct 31 | `report-coding.jsonl` |
@@ -134,6 +135,10 @@ The project needs Node ≥ 22 (Next 16, and shadcn's `cn` package). Your Node 24
 - **`ChaosMetric` adds `in_flight` and `p99_ms`** next to rps, p50, p95, errors and violations. `violations`
   is the live count to chart (dollars missing, seats double-booked); the verdict banner text is
   `ChaosRun.summary`.
+- **P1 after IC2: the Muse fix assistant panel (DEF-11, PLAN §11.9).** A side panel in the fix stage: a chat
+  box (`assistant.ask`, optionally with the selected code), replies with a diff of proposed edits
+  (`assistant.reply`), and Accept/Reject (`assistant.apply`). Apply accepted edits through
+  `programmatic()`, so they count as AI-written, not typed or pasted. Only visible in fix/verify.
 - **P1, only if you agree, after IC3 (Mon Nov 2):** a "Circle it" pen on the topology diagram for DEF-9.
   It sends `defense.circle` with a PNG of the canvas and each node's box in canvas pixels, and pulses the
   node named in `defense.sam.highlight`. Skip it if FE-8 or the demo path needs the time.

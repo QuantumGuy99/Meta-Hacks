@@ -16,6 +16,11 @@ class ProjectFile(Strict):
     size: int
 
 
+class ProjectSource(Strict):  # GET /api/defense/projects/{id}/files: the editor and audit file preview
+    project_id: str
+    files: dict[str, str]  # path → content; the app only (never flaws.json, fixed/ or fix.patch)
+
+
 class Project(Strict):
     id: str
     name: str
@@ -97,7 +102,7 @@ class AuditPublic(Strict):  # payload of WS defense.audit
     findings: list[FindingPublic]
 
 
-class AttackFunctions(Strict):  # LLM output (Glimmer/Spark): bodies for the template (§11.4)
+class AttackFunctions(Strict):  # LLM output (Spark): bodies for the template (§11.4)
     setup_body: str
     request_body: str
     invariant_body: str
