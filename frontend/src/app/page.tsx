@@ -42,6 +42,7 @@ export default async function Home() {
         <a href="#start" className="ui-btn ui-btn-primary nav-cta">
           Start Interview
         </a>
+        <span className="lp-progress" aria-hidden />
       </header>
 
       <main id="main" tabIndex={-1}>

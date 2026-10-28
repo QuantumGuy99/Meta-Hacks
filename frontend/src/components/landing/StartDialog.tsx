@@ -1,7 +1,8 @@
 "use client";
 
+import { AnimatePresence, m } from "motion/react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { levelLabel, problem, project } from "@/lib/fixtures";
 import type { FeedbackLevel, Mode } from "@/types/contracts";
 
@@ -13,6 +14,14 @@ const MODES: [Mode, string][] = [
 // Sample projects a defense can start from until upload lands (the fixture's bank-transfer).
 const SAMPLES = [project];
 
+// The field under the mode switch swaps with a short cross-fade.
+const fieldMotion = {
+  initial: { opacity: 0, y: 6 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -4 },
+  transition: { duration: 0.2, ease: [0.23, 1, 0.32, 1] as const },
+};
+
 // One dialog for both modes, so neither reads as the secondary option.
 export function StartDialog() {
   const router = useRouter();
@@ -20,7 +29,7 @@ export function StartDialog() {
   const [topic, setTopic] = useState(levelLabel(problem.topics[0] ?? ""));
   const [projectId, setProjectId] = useState(SAMPLES[0].id);
   const [feedback, setFeedback] = useState<FeedbackLevel>("active");
-  const label = MODES.find(([m]) => m === mode)![1];
+  const label = MODES.find(([v]) => v === mode)![1];
 
   return (
     <form
@@ -37,15 +46,20 @@ export function StartDialog() {
       <h3 id="dlg-title">New {label}</h3>
       <fieldset className="dlg-seg">
         <legend>Interview</legend>
-        {MODES.map(([m, name]) => (
-          <label key={m} className={mode === m ? "is-on" : undefined}>
-            <input type="radio" name="mode" value={m} checked={mode === m} onChange={() => setMode(m)} />
-            {name}
-          </label>
-        ))}
+        {/* the cobalt pill slides to the chosen option (--i is its index) */}
+        <div className="dlg-track" style={{ "--i": MODES.findIndex(([v]) => v === mode) } as CSSProperties}>
+          <span className="dlg-pill" aria-hidden />
+          {MODES.map(([v, name]) => (
+            <label key={v} className={mode === v ? "is-on" : undefined}>
+              <input type="radio" name="mode" value={v} checked={mode === v} onChange={() => setMode(v)} />
+              {name}
+            </label>
+          ))}
+        </div>
       </fieldset>
+      <AnimatePresence mode="wait" initial={false}>
       {mode === "coding" ? (
-        <label className="dlg-field">
+        <m.label key="topic" className="dlg-field" {...fieldMotion}>
           <span>Topic</span>
           <input
             name="topic"
@@ -55,9 +69,9 @@ export function StartDialog() {
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
           />
-        </label>
+        </m.label>
       ) : (
-        <label className="dlg-field">
+        <m.label key="project" className="dlg-field" {...fieldMotion}>
           <span>Project</span>
           <select name="project" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
             {SAMPLES.map((p) => (
@@ -66,22 +80,26 @@ export function StartDialog() {
               </option>
             ))}
           </select>
-        </label>
+        </m.label>
       )}
+      </AnimatePresence>
       <fieldset className="dlg-seg">
         <legend>Feedback</legend>
-        {(["active", "passive"] as const).map((f) => (
-          <label key={f} className={feedback === f ? "is-on" : undefined}>
-            <input
-              type="radio"
-              name="feedback"
-              value={f}
-              checked={feedback === f}
-              onChange={() => setFeedback(f)}
-            />
-            {f === "active" ? "Active: steps in" : "Passive: only watches"}
-          </label>
-        ))}
+        <div className="dlg-track" style={{ "--i": feedback === "active" ? 0 : 1 } as CSSProperties}>
+          <span className="dlg-pill" aria-hidden />
+          {(["active", "passive"] as const).map((f) => (
+            <label key={f} className={feedback === f ? "is-on" : undefined}>
+              <input
+                type="radio"
+                name="feedback"
+                value={f}
+                checked={feedback === f}
+                onChange={() => setFeedback(f)}
+              />
+              {f === "active" ? "Active: steps in" : "Passive: only watches"}
+            </label>
+          ))}
+        </div>
       </fieldset>
       <button type="submit" className="ui-btn ui-btn-primary dlg-go">
         Start {label}

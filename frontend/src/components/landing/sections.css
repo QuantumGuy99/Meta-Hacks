@@ -496,3 +496,113 @@
     font-size: 13px;
   }
 }
+
+/* ---------- motion: nav, progress line, team hover, dialog toggles, link underlines ---------- */
+/* nav: no hairline at the very top; a frosted black backing and hairline once the page moves;
+   slides away while reading down (LandingMotion sets data-hidden), never under reduced motion */
+:root .lp header.lp-nav {
+  border-bottom-color: transparent;
+  transition:
+    transform 360ms var(--ease-out),
+    background-color 240ms ease,
+    border-color 240ms ease;
+}
+:root .lp header.lp-nav[data-scrolled] {
+  background: rgb(0 0 0 / 0.82);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  backdrop-filter: blur(12px) saturate(140%);
+  border-bottom-color: var(--line);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root .lp header.lp-nav[data-hidden] {
+    transform: translateY(-100%);
+  }
+}
+/* reading progress, scrubbed by LandingMotion */
+.lp-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--cobalt);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-progress {
+    display: none;
+  }
+}
+
+/* team: the ring turns cobalt and the portrait leans in a touch on hover */
+.team-photo {
+  transition: border-color 240ms var(--ease-out);
+}
+.team-img,
+.team-initials {
+  transition: transform 700ms var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .team-member:hover .team-photo {
+    border-color: var(--cobalt);
+  }
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .team-member:hover :is(.team-img, .team-initials) {
+    transform: scale(1.05);
+  }
+}
+
+/* start dialog: one cobalt pill slides between the two options (--i is the chosen index) */
+.lp .dlg-track {
+  grid-column: 1 / -1;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.lp .dlg-pill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(50% - 2px);
+  border-radius: 2px;
+  background: var(--cobalt);
+  transform: translateX(calc(var(--i, 0) * (100% + 4px)));
+  transition: transform 280ms var(--ease-out);
+}
+.lp .dlg-track label {
+  position: relative;
+  z-index: 1;
+  transition: color 200ms ease;
+}
+:root .lp .dlg-seg .dlg-track label.is-on {
+  background: transparent;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp .dlg-pill {
+    transition: none;
+  }
+}
+
+/* links: a cobalt underline draws in from the left on hover */
+.lp :is(.foot-links a, .lp-link) {
+  text-decoration: none;
+  background-image: linear-gradient(var(--cobalt), var(--cobalt));
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  background-size: 0% 1px;
+  padding-bottom: 2px;
+  transition:
+    background-size 320ms var(--ease-out),
+    color 160ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .lp :is(.foot-links a, .lp-link):hover {
+    text-decoration: none;
+    background-size: 100% 1px;
+  }
+}
