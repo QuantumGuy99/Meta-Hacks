@@ -28,7 +28,7 @@ from crucible.engine.analyzer import TICK_S, Analyzer, StructuredModel
 from crucible.engine.classifier import CONTEXT_TURNS, is_question_for_interviewer
 from crucible.engine.codestate import TEXT_KINDS
 from crucible.engine.context import RubricContext
-from crucible.engine.interviewer import answer, deliver
+from crucible.engine.interviewer import answer, deliver, reply
 from crucible.engine.policy import Facts, PolicyState, decide, is_question, written_lines
 
 if TYPE_CHECKING:
@@ -37,13 +37,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 MAX_DECISIONS_PER_TICK = 3  # e.g. an answer, a hint and a time warning that came due together
+# Lines the model writes when they go out (REPLY, PROBE), or when the analyzer had no draft (check-ins, §9.5).
+_TALKED = {
+    InterventionTrigger.REPLY: "reply",
+    InterventionTrigger.PROBE: "probe",
+    InterventionTrigger.SILENT: "checkin",
+    InterventionTrigger.IDLE: "checkin",
+}
 
 
 class LiveEngine:
     """The analyzer, policy and interviewer for one attached rubric. Started by `rt.attach()`."""
 
     def __init__(self, rt: SessionRuntime, context: RubricContext, model: StructuredModel) -> None:
-        self.policy = PolicyState()
+        self.policy = PolicyState(attached_ms=rt.now_ms())  # the problem was just presented
         self.analyzer = Analyzer(rt, context, model, self._on_analysis)
         self._model = model
         self._last_question: str | None = None  # what the candidate asked, not yet answered (ASKED)
@@ -124,9 +131,14 @@ class LiveEngine:
                 and self._last_question
             ):
                 question, self._last_question = self._last_question, None
-                reply = await answer(self._rt, self._model, self._context, question)
-                if reply is not None:  # otherwise deliver() sends the canned line
-                    decision = replace(decision, draft=reply)
+                text = await answer(self._rt, self._model, self._context, question)
+                if text is not None:  # otherwise deliver() sends the canned line
+                    decision = replace(decision, draft=text)
+            elif not decision.suppressed and decision.draft is None and decision.trigger in _TALKED:
+                kind = _TALKED[decision.trigger]
+                text = await reply(self._rt, self._model, kind, decision.said or "", self._context)
+                if text is not None:
+                    decision = replace(decision, draft=text)
             await deliver(self._rt, decision, self._context)
 
     async def _on_analysis(self, analysis: Analysis) -> None:
@@ -157,10 +169,13 @@ class LiveEngine:
             ):
                 turn = TranscriptTurn.model_validate(event.payload)
                 self._last_speech_ms = now
-                if turn.source == "text" and is_question(turn.text):
-                    self.ask(turn.text)
-                elif turn.source == "voice":
+                if turn.source == "voice":
                     self._classify(turn)
+                elif is_question(turn.text):
+                    self.ask(turn.text)
+                else:
+                    self.policy.observe_statement(turn.text, now)
+                    self._wake.set()
             case TimelineKind.RUN:
                 self.policy.observe_run(RunResult.model_validate(event.payload))
                 self._wake.set()
@@ -179,12 +194,15 @@ class LiveEngine:
         verdict = await is_question_for_interviewer(
             self._model, turn.text, earlier, session_id=self._rt.session.id
         )
+        if verdict:
+            self.ask(turn.text, turn.turn_id)
+            return
         if verdict is None:
             await self._rt.note(
                 "warning", "the voice classifier didn't answer; treated the turn as thinking aloud"
             )
-        elif verdict:
-            self.ask(turn.text, turn.turn_id)
+        self.policy.observe_statement(turn.text, self._rt.now_ms())  # thinking aloud: REPLY may answer it
+        self._wake.set()
 
     def _facts(self) -> Facts:
         rt = self._rt
