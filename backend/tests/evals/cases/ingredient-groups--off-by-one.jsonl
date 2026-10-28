@@ -1,0 +1,11 @@
+{"meta": {"problem_slug": "ingredient-groups", "feedback": "active", "voice": true, "about": "clarifies the input, then skips the last code in the loop"}}
+{"t": 4000, "do": "chat", "text": "Do letter counts matter, so 'ab' and 'abb' are different? And what about an empty list or an empty code?"}
+{"t": 15000, "do": "say", "text": "Okay, counts matter, an empty list gives zero, and an empty code is its own group. I'll use the sorted letters as a key in a set."}
+{"t": 30000, "do": "snapshot", "code": "def count_ingredient_groups(codes: list[str]) -> int:\n    signatures = set()\n"}
+{"t": 38000, "do": "snapshot", "code": "def count_ingredient_groups(codes: list[str]) -> int:\n    signatures = set()\n    for i in range(len(codes) - 1):\n"}
+{"t": 46000, "do": "snapshot", "code": "def count_ingredient_groups(codes: list[str]) -> int:\n    signatures = set()\n    for i in range(len(codes) - 1):\n        signatures.add(\"\".join(sorted(codes[i])))\n"}
+{"t": 54000, "do": "snapshot", "code": "def count_ingredient_groups(codes: list[str]) -> int:\n    signatures = set()\n    for i in range(len(codes) - 1):\n        signatures.add(\"\".join(sorted(codes[i])))\n    return len(signatures)\n"}
+{"t": 72000, "do": "say", "text": "Let me trace the first example."}
+{"t": 92000, "do": "say", "text": "abc and bca both become abc, so they share a key."}
+{"t": 112000, "do": "say", "text": "Looks right to me."}
+{"expect": {"fires": [{"trigger": ["bug_suspected", "run_failed"], "by_t": 152000}], "saw": [{"issue": "bug", "by_t": 122000}], "max_shown": 3, "no_leak": true}}
