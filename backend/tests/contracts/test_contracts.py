@@ -41,6 +41,7 @@ LLM_OUTPUT_MODELS: list[type[BaseModel]] = [
     defense.AttackFunctions,
     defense.GrillEval,
     report.ReportDraft,
+    events.TurnLabel,
 ]
 
 # TODO(ENG-1): replace with engine.timeline.PAYLOAD_MODELS once it exists.

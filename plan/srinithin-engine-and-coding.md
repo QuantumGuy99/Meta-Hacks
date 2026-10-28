@@ -355,7 +355,10 @@ with Wonder disabled, Spark 1.3 in 14.9 s.
 - **COD-5 — Coding report extras** (P1 · Sun): final step statuses, approach, whether the complexity answer
   matched an acceptable approach. Step statuses and approach came with ENG-8 (from the latest analyses);
   grading the complexity answer is left.
-- **COD-6 — Classifier, `PLAN_MISMATCH`, `CODED_BEFORE_PLAN`** (P1 · Sun · needs ENG-7).
+- **COD-6 — Classifier, `PLAN_MISMATCH`, `CODED_BEFORE_PLAN`** (P1 · Sun · needs ENG-7). **Built Oct 28**: the voice
+  classifier (spoken questions without Ask are answered), and plan memory (the policy and the analyzer keep the
+  stated plan past the 90 s window, which fixed a false "what's your approach?"). Evals: coded-before-plan,
+  states-plan-early, plan-mismatch, spoken-question, all 3/3.
 - **VIS-1 — SAM sketch + proctor** (P2): only after both P0 paths pass the demo script twice in a row on the
   deployed build. Check V9 first.
 

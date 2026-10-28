@@ -324,7 +324,7 @@ class VoiceBridge:
             TimelineKind.TRANSCRIPT, turn, show=TranscriptUpdate(type="transcript.update", turn=turn)
         )
         if self._asked(turn.start_ms, turn.end_ms):
-            self._rt.asked(text)
+            self._rt.asked(text, turn.turn_id)
 
     async def _activity(
         self,

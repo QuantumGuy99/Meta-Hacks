@@ -121,6 +121,8 @@ class PolicyState:
     time_marks: int = 0
     paste_said: bool = False
     coded_before_plan_said: bool = False
+    # The latest plan the candidate stated, kept after it leaves the analyzer's transcript window.
+    plan: str | None = None
     last_silent_ms: int | None = None
     last_idle_ms: int | None = None
     issue_watch: dict[str, tuple[str | None, int]] = field(default_factory=dict)  # issue → (line, since)
@@ -129,6 +131,8 @@ class PolicyState:
     def observe_analysis(self, analysis: Analysis) -> None:
         self.previous, self.latest = self.latest, analysis
         self.analyses += 1
+        if analysis.stated_plan:
+            self.plan = analysis.stated_plan
 
     def observe_run(self, run: RunResult) -> None:
         self.runs.append(run)
@@ -350,6 +354,7 @@ def _coded_before_plan(state: PolicyState, facts: Facts) -> _Candidate | None:
         or facts.phase not in _PLAN_PHASES
         or latest is None
         or latest.stated_plan is not None
+        or state.plan is not None  # a plan stated earlier counts, even once the analyzer no longer sees it
         or facts.lines_written < PLAN_MIN_LINES
     ):
         return None
@@ -427,12 +432,13 @@ def _bug_suspected(state: PolicyState, facts: Facts) -> _Candidate | None:
 
 def _plan_mismatch(state: PolicyState, facts: Facts) -> _Candidate | None:
     latest, previous = state.latest, state.previous
-    if latest is None or previous is None or latest.stated_plan is None:
+    stated = (latest.stated_plan if latest else None) or state.plan
+    if latest is None or previous is None or stated is None:
         return None
     if latest.plan_matches_code is not False or previous.plan_matches_code is not False:
         return None
     trigger, level = InterventionTrigger.PLAN_MISMATCH, InterventionLevel.QUESTION
-    plan = " ".join(latest.stated_plan.lower().split())  # once per plan
+    plan = " ".join(stated.lower().split())  # once per plan
     if not _fresh(state, (trigger, None), state.analyses, 2) or not _new(state, (trigger, plan, level)):
         return None
     decision = Decision(trigger, level, None, _draft(latest, trigger, level))

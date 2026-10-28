@@ -110,6 +110,10 @@ class InterventionText(Strict):  # LLM output of Interviewer.phrase()
     text: str
 
 
+class TurnLabel(Strict):  # LLM output of the voice classifier (COD-6, §9.7)
+    label: Literal["question_to_interviewer", "thinking_aloud"]
+
+
 class IntegrityFlag(Strict):
     id: str
     t: int

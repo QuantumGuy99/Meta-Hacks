@@ -426,6 +426,9 @@ class Intervention(Strict):
 class InterventionText(Strict):  # LLM output of Interviewer.phrase()
     text: str
 
+class TurnLabel(Strict):         # LLM output of the voice classifier (COD-6, §9.7)
+    label: Literal["question_to_interviewer", "thinking_aloud"]
+
 class IntegrityFlag(Strict):
     id: str
     t: int
@@ -1028,8 +1031,9 @@ steps that `low` catches.
    session.
 3. Dynamic state: phase, elapsed/remaining time, **code with line numbers**, diff since the last analysis,
    the last 3 run results (summaries, visible-test failures with inputs, hidden failures as counts only), the
-   transcript of the last 90 s, previous step statuses, interventions already given (text + step) to avoid
-   repeats, hint levels used per step, and the feedback mode.
+   transcript of the last 90 s, **the plan they stated earlier** (kept once it leaves that window, so
+   `stated_plan` and `plan_matches_code` stay meaningful), previous step statuses, interventions already given
+   (text + step) to avoid repeats, hint levels used per step, and the feedback mode.
 
 In defense **fix** stage the "problem" block is the finding (explanation, file/lines, chaos summary) and its
 `fix_steps` rubric.
@@ -1076,11 +1080,11 @@ request, a run or an analysis.
 | `HINT_REQUESTED` | `hint.request` | next ladder level for the step (the requested step, else the analyzer's proposal step, else the first not-done required step) | — |
 | `TIME_WARNING` | 50% and 80% of the time limit elapsed | INFO, text only | each once (both at once give one) |
 | `PASTE` | paste ≥ 40 chars or ≥ 2 non-blank lines, or a bulk insert (≥ 80 chars in one change) | INFO, text only, neutral ("I noticed a pasted block. I'll focus my feedback on the parts you wrote.") | said once; COD-4 logs every flag |
-| `CODED_BEFORE_PLAN` (P1) | ≥ 3 non-blank lines written beyond the starter code (the editor's first snapshot) while the latest analysis has `stated_plan` null, voice on, in `clarify`/`coding` | QUESTION ("Before you go further, what's your approach?") | once |
+| `CODED_BEFORE_PLAN` (P1) | ≥ 3 non-blank lines written beyond the starter code (the editor's first snapshot) while no plan has been stated this session (the policy keeps the latest `stated_plan`, so a plan older than the analyzer's 90 s window still counts), voice on, in `clarify`/`coding` | QUESTION ("Before you go further, what's your approach?") | once |
 | `RUN_FAILED` | the same visible test failed on 2 runs in a row, or 1 failure then 30 s with no edit or speech (hidden tests never count) | ladder for the step: the analyzer's `RUN_FAILED` step, else the first `incorrect` step, else the first required step not done | — |
 | `MISSED_STEP` | a required step is `skipped`/`not_started` while a step with higher `order` is `in_progress`/`done`/`incorrect`, seen in **2 consecutive analyses**; waits while the analyzer's own proposal for it is below 0.7 | ladder | — |
 | `BUG_SUSPECTED` | a `bug` or `edge_case` issue with a line and confidence ≥ 0.75, seen in 2 consecutive analyses, its line's text unchanged for 20 s | NUDGE, canned "Take another look around line N" (never the analyzer's draft, which may hint at the fix) | per issue |
-| `PLAN_MISMATCH` (P1) | `plan_matches_code == false` in 2 consecutive analyses, with a stated plan | QUESTION | per plan |
+| `PLAN_MISMATCH` (P1) | `plan_matches_code == false` in 2 consecutive analyses, with a stated plan (the latest, or the one the policy remembers) | QUESTION | per plan |
 | `SILENT` (P1, voice on) | in `coding`, ≥ 120 s without a final candidate turn (voice or chat) | NUDGE ("Talk me through what you're doing.") | every 5 min max |
 | `IDLE` | in `coding` (or defense `fix`), no edit and no speech ≥ 75 s | QUESTION ("Where are you at?") | every 3 min max |
 | `PRAISE` | a step marked tricky in the rubric becomes `done` | INFO | max 1 per 10 min |
@@ -1163,9 +1167,13 @@ One `VoiceBridge` per session (`rt.voice`), opened by the audio socket; `models/
 - **Is the candidate talking to the interviewer?** P0: a `chat.send` that reads as a question
   (`policy.is_question`), or a voice turn spoken while **Ask** was held for at least half of it (any overlap
   isn't enough: candidates let go and keep talking, and turn times can be a few hundred ms off). Questions asked
-  before the reply are answered together (a spoken question often arrives as two turns). P1 (COD-6): a cheap
-  classifier (Spark, `reasoning_effort="minimal"`, timeout 3 s) labels other final turns
-  `question_to_interviewer | thinking_aloud`.
+  before the reply are answered together (a spoken question often arrives as two turns). **Built (COD-6):**
+  every other final spoken turn goes to a cheap classifier (`engine/classifier.py`, `prompts/classifier.md`,
+  Spark `minimal`, 3 s, output `TurnLabel`) in a background task, with the candidate's 3 earlier spoken turns as
+  context. `question_to_interviewer` → ASKED. A turn is asked at most once (Ask and the classifier can both flag
+  it). A failure counts as thinking aloud, with a `system` note, because interrupting someone who is thinking is
+  worse than a missed question. Typed chat still uses `policy.is_question`. Wrap-up and grill answers are never
+  classified (the engine is detached then).
 - **Close codes:** `1000` done (after our `endStream`; otherwise reconnect). `1011` → reconnect with backoff
   (0.5 s, doubling); at "Max session duration reached" (the 60-min cap) reconnect without counting a failure.
   `1013` → wait 5 s, then reconnect. `1008` (bad request or streaming policy) → straight to the chunked fallback,
@@ -1611,6 +1619,12 @@ the original, and `fix.patch` applied → the same script **holds**.
   `passive-mode` (nothing delivered except asks), `stuck-idle` (IDLE), `wrong-approach-brute-force`.
 - **Defense** (`evals/defense/*.json`): per sample app, expected findings (for audit recall) and expected
   verdicts (baseline broke, verify with `fix.patch` held).
+- **Built so far** (`backend/tests/evals/cases/`, run by `make evals`; the runner also reads `data/evals/coding/`):
+  `skips-empty-input` and `off-by-one` on all three gold problems, plus `coded-before-plan`, `states-plan-early`
+  (no false "what's your approach?" once the plan is older than 90 s), `plan-mismatch` and `spoken-question` (a
+  question asked out loud without Ask is answered; a rhetorical one isn't). An eval passes in ≥ 2 of 3 runs.
+  Expectation keys: `fires`, `never`, `limits` (at most N of a trigger), `max_shown`, `no_leak`, `flags`, `saw`
+  (what the analyzer reported).
 
 ---
 
