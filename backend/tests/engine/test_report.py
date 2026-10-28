@@ -415,6 +415,19 @@ def test_the_prompt_carries_metrics_moments_and_the_conversation() -> None:
     assert "Walk the list once" in prompt  # step history from the analyses
 
 
+@pytest.mark.parametrize(
+    ("ok", "verdict"),
+    [(True, "matched an acceptable"), (False, "did not match"), (None, "not graded")],
+)
+def test_the_prompt_carries_the_complexity_verdict_code_decided(ok: bool | None, verdict: str) -> None:
+    extra = CODING.model_copy(update={"approach": "single pass", "complexity_answer_ok": ok})
+    messages = draft_messages(
+        runtime(), SESSION, 700_000, compute_metrics(SESSION, 700_000), [], extra, QUIET_STREAK
+    )
+    prompt = messages[1]["content"]
+    assert "Approach: single pass" in prompt and f"Complexity answer: {verdict}" in prompt
+
+
 # --- the final analysis -----------------------------------------------------------------------------------------
 
 

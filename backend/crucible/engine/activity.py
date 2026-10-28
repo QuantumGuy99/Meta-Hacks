@@ -10,6 +10,7 @@ TASKS: dict[str, str] = {
     "analyzer": "watching your code",
     "interviewer": "answering your question",
     "classifier": "listening for questions",
+    "complexity": "checking your complexity answer",
     "grill_eval": "grading your answer",
     "audit": "reading your project",
     "report": "writing your report",

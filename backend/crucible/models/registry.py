@@ -9,7 +9,16 @@ from dataclasses import dataclass
 from typing import Literal
 
 ModelRole = Literal[
-    "analyzer", "interviewer", "classifier", "grill_eval", "audit", "report", "attacker", "drafter", "vision"
+    "analyzer",
+    "interviewer",
+    "classifier",
+    "complexity",
+    "grill_eval",
+    "audit",
+    "report",
+    "attacker",
+    "drafter",
+    "vision",
 ]
 # "none" returns 400 on Spark and Wonder (PLAN §15.2).
 Effort = Literal["minimal", "low", "medium", "high", "xhigh", "max"]
@@ -74,6 +83,7 @@ ROLES: dict[ModelRole, RoleSpec] = {
     "analyzer": RoleSpec(_spark("minimal"), timeout_s=12),
     "interviewer": RoleSpec(_spark("low"), timeout_s=6),
     "classifier": RoleSpec(_spark("minimal"), timeout_s=3),
+    "complexity": RoleSpec(_spark("low"), timeout_s=8),
     "grill_eval": RoleSpec(_spark("medium"), timeout_s=10, fallbacks=(_spark("low"), _SPARK_OPEN)),
     "audit": RoleSpec(_wonder("xhigh"), timeout_s=120, fallbacks=(_spark("high"),)),
     "report": RoleSpec(_wonder("high"), timeout_s=45, fallbacks=(_spark("high"),)),

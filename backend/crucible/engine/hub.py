@@ -351,6 +351,11 @@ class SessionRuntime:
         if self._engine is not None:
             self._engine.heard_speech()
 
+    @property
+    def model(self) -> StructuredModel | None:
+        """The model the engine and report use; None in tests or without an API key."""
+        return self._model
+
     def asked(self, question: str, turn_id: str | None = None) -> None:
         """A spoken question (Ask was held): the interviewer answers it like a typed one."""
         if self._engine is not None:
