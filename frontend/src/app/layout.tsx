@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Inter, Space_Grotesk } from "next/font/google";
 import Script from "next/script";
-import { ViewTransition } from "react";
+import { Suspense, ViewTransition } from "react";
+import { AskAres } from "@/components/guide/AskAres";
 import { MotionProvider } from "@/components/motion/MotionProvider";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
@@ -61,8 +62,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           {/* Route changes crossfade (React 19.3 view transitions; reduced motion in globals.css). */}
           <ViewTransition>{children}</ViewTransition>
         </MotionProvider>
-        {/* Top right, below the bars, so toasts never cover the room's Ask box. */}
-        <Toaster position="top-right" offset={64} />
+        {/* Bottom centre, above the Under the hood strip: top right covered the editor's Run and Submit (#47),
+            and bottom right would cover the interviewer's Ask box. In the room this sits over the test results. */}
+        <Toaster position="bottom-center" offset={48} />
+        {/* The app guide on every page but a live interview (#25, #51). */}
+        <Suspense fallback={null}>
+          <AskAres />
+        </Suspense>
       </body>
     </html>
   );

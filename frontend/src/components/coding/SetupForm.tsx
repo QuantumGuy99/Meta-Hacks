@@ -17,7 +17,11 @@ export function SetupForm() {
   const [problems, setProblems] = useState<ProblemSummary[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [slug, setSlug] = useState("");
-  const [difficulty, setDifficulty] = useState<Difficulty | "any">("any");
+  // ?difficulty= comes from the guide's "start a coding interview" suggestion (#51)
+  const [difficulty, setDifficulty] = useState<Difficulty | "any">(() => {
+    const d = params.get("difficulty");
+    return d === "easy" || d === "medium" || d === "hard" ? d : "any";
+  });
   const [topic, setTopic] = useState("");
   const [feedback, setFeedback] = useState<FeedbackLevel>(params.get("feedback") === "passive" ? "passive" : "active");
   const [voice, setVoice] = useState(true);

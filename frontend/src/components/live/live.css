@@ -387,6 +387,66 @@
   color: var(--muted-ink);
   line-height: 1.55;
 }
+/* report: the coding section (approach, the complexity answer, final step statuses) */
+.rp-coding {
+  display: grid;
+  gap: 14px;
+  margin: 32px 0 0;
+  padding: 20px;
+  border: 1px solid var(--ui-line);
+  border-radius: 6px;
+  background: var(--ui-bg);
+}
+.rp-coding h2 {
+  margin: 0;
+  font-family: var(--display), var(--font-sans), system-ui, sans-serif;
+  font-size: 22px;
+  letter-spacing: -0.01em;
+}
+.rp-coding-facts {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 16px;
+  margin: 0;
+}
+.rp-coding-facts dt {
+  color: var(--muted-ink);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.rp-coding-facts dd {
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+.rp-steps {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rp-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.45;
+}
+.rp-steps .rp-chip {
+  flex: none;
+  min-width: 72px;
+  text-align: center;
+}
+.rp-chip.is-mid {
+  background: var(--surface, rgb(255 255 255 / 0.06));
+  color: var(--muted-ink);
+}
+@media (max-width: 700px) {
+  .rp-coding-facts {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* report: the defense section (merge gate, then per finding the attack before/after and the grill) */
 .rp-defense {
   display: grid;

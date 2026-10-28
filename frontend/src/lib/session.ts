@@ -311,10 +311,15 @@ export function liveCaption(state: LiveState): string | null {
   return null;
 }
 
+/** The session is over: ended, its report being written, written, or failed (#47). */
+export function isFinished(phase: Phase | null): boolean {
+  return phase === "ended" || phase === "reporting" || phase === "reported" || phase === "failed";
+}
+
 /** Seconds left, counting down locally between the server's session.state updates. */
 export function useRemaining(state: LiveState): number | null {
   const [now, setNow] = useState(0);
-  const live = state.remainingS !== null && state.phase !== "ended";
+  const live = state.remainingS !== null && !isFinished(state.phase);
   useEffect(() => {
     if (!live) return;
     const tick = () => setNow(performance.now());

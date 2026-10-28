@@ -18,6 +18,7 @@ import {
   CODE_MAX,
   socketErrorText,
   feedMessages,
+  isFinished,
   liveCaption,
   statusLine,
   useClock,
@@ -85,7 +86,8 @@ export function LiveDefense({ id }: { id: string }) {
   const phase = state.phase;
   const audit = state.audit;
   // Follow the server's stage unless the candidate went back to look at an earlier one.
-  const current: Phase = phase === "ended" ? "verdict" : phase && ORDER.includes(phase) ? phase : "audit";
+  const finished = isFinished(phase); // ended, reporting, reported or failed (#47)
+  const current: Phase = finished ? "verdict" : phase && ORDER.includes(phase) ? phase : "audit";
   const view = picked && picked.at === phase ? picked.stage : current;
   const reached = ORDER.indexOf(current);
 
@@ -265,12 +267,12 @@ export function LiveDefense({ id }: { id: string }) {
         <span className="room-badge" translate="no">
           {projectId ?? "Project"} · {levelLabel(state.session?.config.feedback ?? "active")} feedback
         </span>
-        {remaining !== null && (
+        {remaining !== null && !finished && (
           <span className="rm-timer" aria-label={`${Math.floor(remaining / 60)} minutes left`}>
             {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}
           </span>
         )}
-        {phase === "ended" ? (
+        {finished ? (
           <Link href={`/report/${id}`} className="ui-btn ui-btn-primary">
             See Report
           </Link>
@@ -554,7 +556,7 @@ export function LiveDefense({ id }: { id: string }) {
                         value={files[openFile]}
                         onChange={(v) => setFiles((f) => (f ? { ...f, [openFile]: v } : f))}
                         onEditor={onEditor}
-                        readOnly={phase === "verdict" || phase === "ended"}
+                        readOnly={phase === "verdict" || finished}
                       />
                     ) : (
                       <p className="live-empty">Loading the project&apos;s files…</p>
@@ -632,7 +634,7 @@ export function LiveDefense({ id }: { id: string }) {
           caption={caption}
           extra={
             state.session?.config.voice ? (
-              <MicControls mic={mic} onToggle={toggleMic} onAsking={setAsking} disabled={phase === "ended"} />
+              <MicControls mic={mic} onToggle={toggleMic} onAsking={setAsking} disabled={finished} />
             ) : null
           }
         />

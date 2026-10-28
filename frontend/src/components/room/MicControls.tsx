@@ -6,7 +6,8 @@ import { MIC_LABEL, type MicState } from "./useMic";
 const NOTE: Record<MicState, string> = {
   off: "Speech to text: talk through your approach instead of typing.",
   starting: "Asking for your microphone…",
-  live: "Listening. What you say is transcribed for the interviewer.",
+  // the interviewer answers spoken questions on its own (#44); Hold to Ask makes sure one counts as a question
+  live: "Listening. Ask out loud and the interviewer answers; hold Ask to be sure it counts as a question.",
   stopped: "Speech to text: talk through your approach instead of typing.",
   error: "Voice isn't available right now. Use the chat box.",
 };

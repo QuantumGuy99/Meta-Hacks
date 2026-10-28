@@ -10,6 +10,7 @@ import type {
   SessionConfig,
   TimelineEvent,
 } from "@/types/contracts";
+import type { GuideAsk, GuideReply } from "@/types/guide.draft";
 
 // REST client for the backend (PLAN §8.1). Every error comes back as {error: {code, message}}; this turns it
 // into an ApiError the pages can show. The base URL is NEXT_PUBLIC_API_URL (default: the local backend).
@@ -70,6 +71,8 @@ export const api = {
   session: (id: string) => json<Session>(`/api/sessions/${encodeURIComponent(id)}`),
   endSession: (id: string) => json<Session>(`/api/sessions/${encodeURIComponent(id)}/end`, { method: "POST" }),
   timeline: (id: string) => json<TimelineEvent[]>(`/api/sessions/${encodeURIComponent(id)}/timeline`),
+  /** The app guide (PR #51): an answer about using Ares, and at most one suggested action. */
+  guide: (ask: GuideAsk) => json<GuideReply>("/api/guide", { method: "POST", body: JSON.stringify(ask) }),
   /** The report once it's built; `generating` (202) while it isn't yet. */
   report: async (id: string): Promise<ReportResult> => {
     const res = await send(`/api/sessions/${encodeURIComponent(id)}/report`);

@@ -3,16 +3,18 @@
 import NumberFlow from "@number-flow/react";
 import { useEffect, useRef, useState } from "react";
 
+// README "Meta models we use": the models the product calls at runtime (Muse Glimmer was dropped in #43).
+const MODELS = ["Muse Spark 1.3", "Muse Wonder 1.0", "Muse Voice Transcribe", "Muse Spark Open", "Muse Image", "SAM 3.1"];
+
 // Verifiable facts only (README and PLAN.md), no invented user counts or ratings.
 const FACTS = [
   { value: 2, label: "interview modes, one live interviewer" },
-  { value: 7, label: "Meta models in the loop" },
+  { value: MODELS.length, label: "Meta models in the loop" },
   { value: 200, label: "concurrent requests in a chaos attack, at most" },
   { value: 0, label: "problems copied from LeetCode" },
 ];
 
-// README "Meta models we use" (SAM 3.1 joined for the defense grill's "circle the flaw").
-const MODELS = ["Muse Spark 1.3", "Muse Wonder 1.0", "Muse Voice Transcribe", "Muse Glimmer", "Muse Spark Open", "Muse Image", "SAM 3.1"];
+
 
 // Numbers roll up once when the strip scrolls into view.
 export function Facts() {

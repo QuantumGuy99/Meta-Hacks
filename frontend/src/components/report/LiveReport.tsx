@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ApiError, api, errorText } from "@/lib/api";
 import type { ChaosRun, IntegrityFlag, Intervention, Report, RunResult, TimelineEvent, TranscriptTurn } from "@/types/contracts";
 import { MODEL_ACTIVITY_KIND, type ModelActivity } from "@/types/model-activity.draft";
+import { CodingExtras } from "./CodingExtras";
 import { DefenseExtras } from "./DefenseExtras";
 import { ReportView, type ReportLine, type ReportMark } from "./ReportView";
 
@@ -159,6 +160,7 @@ export function LiveReport({ id }: { id: string }) {
       marks={marksOf(report, timeline)}
       activity={timeline.filter((e) => (e.kind as string) === MODEL_ACTIVITY_KIND).map((e) => e.payload as unknown as ModelActivity)}
     >
+      {report.coding && <CodingExtras coding={report.coding} />}
       {defense && <DefenseExtras defense={defense} />}
     </ReportView>
   );

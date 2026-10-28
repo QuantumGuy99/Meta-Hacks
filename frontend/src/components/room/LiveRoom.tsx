@@ -14,6 +14,7 @@ import { codeAt } from "@/lib/replay";
 import {
   CODE_MAX,
   feedMessages,
+  isFinished,
   liveCaption,
   socketErrorText,
   statusLine,
@@ -39,7 +40,19 @@ const PHASES: [Phase, string][] = [
   ["coding", "Coding"],
   ["wrap_up", "Wrap up"],
 ];
-const PHASE_INDEX: Partial<Record<Phase, number>> = { setup: 0, intro: 0, clarify: 0, coding: 1, wrap_up: 2, ended: 3 };
+const PHASE_INDEX: Partial<Record<Phase, number>> = {
+  setup: 0,
+  intro: 0,
+  clarify: 0,
+  coding: 1,
+  wrap_up: 2,
+  ended: 3,
+  reporting: 3,
+  reported: 3,
+  failed: 3,
+};
+// Edit kinds that change the code; focus and visibility events don't (#47).
+const CODE_EVENTS = new Set(["change", "paste", "undo", "redo"]);
 const RUN_TIMEOUT_MS = 90_000;
 
 type Editor = Parameters<NonNullable<Parameters<typeof CodeEditor>[0]["onEditor"]>>[0];
@@ -72,7 +85,8 @@ export function LiveRoom({ id }: { id: string }) {
 
   const slug = state.session?.problem_slug ?? null;
   const phase = state.phase;
-  const ended = phase === "ended";
+  // ended, reporting, reported or failed: the backend moves through all of them in a moment (#47)
+  const ended = isFinished(phase);
   // code can only run from clarify on (the server rejects it during setup and the intro)
   const beforeClarify = phase === null || phase === "setup" || phase === "intro";
 
@@ -85,7 +99,12 @@ export function LiveRoom({ id }: { id: string }) {
       .then(async (p) => {
         const timeline = await api.timeline(id).catch(() => []);
         if (!live) return;
-        const touched = timeline.some((e) => (e.kind === "snapshot" || e.kind === "editor") && e.payload.file === FILE);
+        // Only snapshots and real edits count: a focus or tab switch before any snapshot would rebuild "" (#47).
+        const touched = timeline.some(
+          (e) =>
+            e.payload.file === FILE &&
+            (e.kind === "snapshot" || (e.kind === "editor" && CODE_EVENTS.has(String(e.payload.kind)))),
+        );
         setProblem(p);
         setCode(touched ? codeAt(timeline, FILE, Number.MAX_SAFE_INTEGER) : p.starter_code);
       })
@@ -107,17 +126,15 @@ export function LiveRoom({ id }: { id: string }) {
     };
   }, [editor, startedAtMs, send]);
 
-  // Run results and errors as toasts: only for results that arrive while you're here, not ones a reload
-  // brings back from the timeline.
+  // Problems with a run as toasts (the Tests panel shows every result, so a pass needs none, #47): only for
+  // results that arrive while you're here, not ones a reload brings back from the timeline.
   const lastRun = state.runs.at(-1) ?? null;
   const lastRunIsLive = lastRun ? `run:${lastRun.run_id}` in state.arrived : false;
   useEffect(() => {
     if (!lastRun || !lastRunIsLive) return;
     const id = `run-${lastRun.run_id}`;
     if (lastRun.compile_error) toast.error("Your code didn't run", { id, description: lastRun.compile_error.split("\n")[0] });
-    else if (lastRun.passed === lastRun.total)
-      toast.success(`${lastRun.kind === "submit" ? "Submitted" : "Ran"}: all ${lastRun.total} tests passed`, { id });
-    else toast.error(`${lastRun.total - lastRun.passed} of ${lastRun.total} tests failed`, { id });
+    else if (lastRun.passed < lastRun.total) toast.error(`${lastRun.total - lastRun.passed} of ${lastRun.total} tests failed`, { id });
   }, [lastRun, lastRunIsLive]);
   useEffect(() => {
     if (state.error) toast.error(socketErrorText(state.error), { id: `err-${state.error.at}` });
@@ -195,7 +212,7 @@ export function LiveRoom({ id }: { id: string }) {
             {status}
           </span>
         )}
-        {mins !== null && secs !== null && (
+        {mins !== null && secs !== null && !ended && (
           <span className="rm-timer" aria-label={`${mins} minutes ${secs} seconds left`}>
             <NumberFlowGroup>
               <NumberFlow value={mins} format={{ minimumIntegerDigits: 2 }} />
