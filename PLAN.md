@@ -434,11 +434,19 @@ class IntegrityFlag(Strict):
     chars: int | None
     duration_ms: int | None
 
+class ModelActivity(Strict):  # the "Under the hood" strip (docs/STORY.md): labels only, never content
+    call_id: str                 # pairs a call's "started" with how it ended
+    t: int
+    model_name: Literal["Muse Spark", "Muse Wonder", "Muse Spark Open", "Muse Voice", "SAM 3.1", "Muse Image"]
+    task: str                    # a plain verb phrase: "watching your code", "reading your project"
+    status: Literal["started", "done", "fallback", "cached", "failed", "stopped"]
+    latency_ms: int | None       # None while started
+
 class TimelineKind(StrEnum):
     PHASE = "phase"; EDITOR = "editor"; SNAPSHOT = "snapshot"; TRANSCRIPT = "transcript"; RUN = "run"
     ANALYSIS = "analysis"; INTERVENTION = "intervention"; INTEGRITY = "integrity"
     AUDIT = "audit"; CHAOS_METRIC = "chaos_metric"; CHAOS_RUN = "chaos_run"; GRILL = "grill"
-    SAM_HIGHLIGHT = "sam_highlight"; VERDICT = "verdict"; SYSTEM = "system"
+    SAM_HIGHLIGHT = "sam_highlight"; VERDICT = "verdict"; SYSTEM = "system"; MODEL_ACTIVITY = "model_activity"
 
 class TimelineEvent(Strict):
     seq: int
@@ -867,8 +875,22 @@ Server → client:
 | `defense.sam.highlight` | `SamHighlight` (P1) |
 | `assistant.reply` | `AssistantTurn {id, t, question, answer, edits: AssistantEdit[], model}` (P1, §11.9) |
 | `defense.verdict` | `Verdict` |
+| `model.activity` | `ModelActivity`: a model starting or finishing work for this session, for the "Under the hood" strip (below) |
 | `report.ready` | `session_id` |
 | `error` | `code`, `message`, `retryable` |
+
+**`model.activity` (the "Under the hood" strip, docs/STORY.md):**
+- **Where it comes from:** the model wrapper reports each role call once when it starts and once when it ends,
+  not each retry: `done` (the main model answered), `fallback` (a backup did), `failed` (every model failed),
+  or `stopped` (cancelled mid-call, e.g. the engine detached at wrap-up). The hub watches the wrapper
+  (`LLM.watch`) and sends calls for a session open in this process to that session's tabs. Calls without a
+  session id (offline drafting) aren't shown.
+- **Labels** (`engine/activity.py`): a display name per chip (never a model id) and a plain task per role:
+  watching your code (analyzer), answering your question (interviewer), grading your answer (grill), reading
+  your project (audit), writing an attack (attacker), writing your report (report), finding what you circled
+  (vision). Muse Voice shows "listening" from speech start to the final turn, or "transcribing" per fallback
+  chunk.
+- **Also on the timeline** (`model_activity`), so the replay shows when each model stepped in. Never content.
 
 ### 8.3 WebSocket `/ws/sessions/{id}/audio` (binary)
 

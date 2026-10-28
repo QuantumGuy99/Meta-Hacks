@@ -53,6 +53,7 @@ PAYLOAD_MODELS: dict[str, type[BaseModel]] = {
     "intervention": events.Intervention,
     "integrity": events.IntegrityFlag,
     "system": events.SystemNote,
+    "model_activity": events.ModelActivity,
 }
 
 CLIENT = TypeAdapter(ws.ClientMessage)

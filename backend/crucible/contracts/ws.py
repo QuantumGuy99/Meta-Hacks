@@ -24,6 +24,7 @@ from crucible.contracts.events import (
     EditorEvent,
     IntegrityFlag,
     Intervention,
+    ModelActivity,
     RunResult,
     TranscriptTurn,
 )
@@ -183,6 +184,11 @@ class DefenseVerdict(Strict):
     verdict: Verdict
 
 
+class ModelActivityMsg(Strict):
+    type: Literal["model.activity"]
+    activity: ModelActivity
+
+
 class ReportReady(Strict):
     type: Literal["report.ready"]
     session_id: str
@@ -208,6 +214,7 @@ ServerMessage = Annotated[
     | DefenseGrillEval
     | DefenseSamHighlight
     | DefenseVerdict
+    | ModelActivityMsg
     | ReportReady
     | ErrorMsg,
     Field(discriminator="type"),
