@@ -1,1 +1,580 @@
-
+{
+  "slug": "genre-sampler",
+  "title": "Genre Sampler",
+  "difficulty": "hard",
+  "topics": [
+    "sliding window",
+    "hashing"
+  ],
+  "function": {
+    "name": "shortest_sampler",
+    "params": [
+      {
+        "name": "songs",
+        "type": "list[str]"
+      },
+      {
+        "name": "required",
+        "type": "list[str]"
+      }
+    ],
+    "returns": "int"
+  },
+  "starter_code": "def shortest_sampler(songs: list[str], required: list[str]) -> int:\n    pass\n",
+  "examples": [
+    {
+      "input": "songs = [\"pop\", \"rock\", \"jazz\", \"pop\", \"rap\", \"jazz\", \"rock\"], required = [\"rock\", \"rap\"]",
+      "output": "3",
+      "explanation": "The last three songs (rap, jazz, rock) include both required genres. No shorter stretch does."
+    },
+    {
+      "input": "songs = [\"pop\", \"pop\"], required = [\"rap\"]",
+      "output": "-1",
+      "explanation": "No song is rap, so no stretch works."
+    }
+  ],
+  "constraints": [
+    "0 <= len(songs) <= 10^5",
+    "0 <= len(required) <= 50",
+    "every genre is 1 to 20 lowercase letters",
+    "required may contain repeats; each genre only needs to appear once"
+  ],
+  "tests_visible": [
+    {
+      "id": "v1",
+      "args": [
+        [
+          "pop",
+          "rock",
+          "jazz",
+          "pop",
+          "rap",
+          "jazz",
+          "rock"
+        ],
+        [
+          "rock",
+          "rap"
+        ]
+      ],
+      "expected": 3,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v2",
+      "args": [
+        [
+          "folk",
+          "folk",
+          "blues"
+        ],
+        [
+          "blues",
+          "folk"
+        ]
+      ],
+      "expected": 2,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v3",
+      "args": [
+        [
+          "pop",
+          "pop"
+        ],
+        [
+          "rap"
+        ]
+      ],
+      "expected": -1,
+      "comparator": "exact",
+      "edge_case_id": null
+    }
+  ],
+  "tests_hidden": [
+    {
+      "id": "h1",
+      "args": [
+        [],
+        [
+          "pop"
+        ]
+      ],
+      "expected": -1,
+      "comparator": "exact",
+      "edge_case_id": "e1"
+    },
+    {
+      "id": "h2",
+      "args": [
+        [
+          "pop",
+          "rock"
+        ],
+        []
+      ],
+      "expected": 0,
+      "comparator": "exact",
+      "edge_case_id": "e2"
+    },
+    {
+      "id": "h3",
+      "args": [
+        [
+          "rock",
+          "rap",
+          "rock"
+        ],
+        [
+          "rock",
+          "rock",
+          "rap"
+        ]
+      ],
+      "expected": 2,
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    },
+    {
+      "id": "h4",
+      "args": [
+        [
+          "jazz",
+          "pop",
+          "soul",
+          "rap"
+        ],
+        [
+          "jazz",
+          "rap"
+        ]
+      ],
+      "expected": 4,
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    },
+    {
+      "id": "h5",
+      "args": [
+        [
+          "pop",
+          "pop",
+          "pop",
+          "soul",
+          "rap"
+        ],
+        [
+          "rap",
+          "soul"
+        ]
+      ],
+      "expected": 2,
+      "comparator": "exact",
+      "edge_case_id": "e5"
+    },
+    {
+      "id": "h6",
+      "args": [
+        [
+          "rap"
+        ],
+        [
+          "rap"
+        ]
+      ],
+      "expected": 1,
+      "comparator": "exact",
+      "edge_case_id": "e6"
+    },
+    {
+      "id": "h7",
+      "args": [
+        [
+          "pop",
+          "rock"
+        ],
+        [
+          "rock",
+          "jazz"
+        ]
+      ],
+      "expected": -1,
+      "comparator": "exact",
+      "edge_case_id": "e7"
+    },
+    {
+      "id": "h8",
+      "args": [
+        [
+          "indie",
+          "metal",
+          "indie",
+          "indie",
+          "metal",
+          "soul"
+        ],
+        [
+          "soul",
+          "metal"
+        ]
+      ],
+      "expected": 2,
+      "comparator": "exact",
+      "edge_case_id": "e5"
+    },
+    {
+      "id": "h9",
+      "args": [
+        [
+          "edm",
+          "house",
+          "edm",
+          "trance",
+          "house",
+          "edm"
+        ],
+        [
+          "house",
+          "trance",
+          "edm"
+        ]
+      ],
+      "expected": 3,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h10",
+      "args": [
+        [
+          "soul",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "rap",
+          "soul"
+        ],
+        [
+          "soul",
+          "rap"
+        ]
+      ],
+      "expected": 2,
+      "comparator": "exact",
+      "edge_case_id": "e5"
+    },
+    {
+      "id": "h11",
+      "args": [
+        [
+          "country",
+          "folk",
+          "country",
+          "folk",
+          "country"
+        ],
+        [
+          "folk",
+          "country"
+        ]
+      ],
+      "expected": 2,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h12",
+      "args": [
+        [
+          "latin",
+          "pop",
+          "latin",
+          "rock",
+          "pop",
+          "latin",
+          "jazz",
+          "rock",
+          "latin"
+        ],
+        [
+          "jazz",
+          "pop",
+          "rock"
+        ]
+      ],
+      "expected": 4,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h13",
+      "args": [
+        [
+          "rap",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "soul",
+          "rap",
+          "pop"
+        ],
+        [
+          "rap",
+          "soul"
+        ]
+      ],
+      "expected": 2,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h14",
+      "args": [
+        [
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "rap",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "pop",
+          "soul"
+        ],
+        [
+          "soul",
+          "rap"
+        ]
+      ],
+      "expected": 32,
+      "comparator": "exact",
+      "edge_case_id": null
+    }
+  ],
+  "rubric": {
+    "approaches": [
+      {
+        "name": "sliding window with genre counts and a 'genres covered' counter",
+        "time": "O(n + r)",
+        "space": "O(r)",
+        "acceptable": true
+      },
+      {
+        "name": "try every start and extend until covered",
+        "time": "O(n^2)",
+        "space": "O(r)",
+        "acceptable": false
+      },
+      {
+        "name": "check every possible stretch",
+        "time": "O(n^3)",
+        "space": "O(r)",
+        "acceptable": false
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "title": "Clarify the input",
+        "required": true,
+        "order": 1,
+        "description": "Asks what to return when no stretch works and when nothing is required, and whether repeats in the required list need multiple copies.",
+        "look_for": [
+          "asks what to return if it's impossible",
+          "asks about an empty required list",
+          "asks whether duplicates in required matter"
+        ],
+        "hints": [
+          "Before you start, are there any inputs where the answer isn't obvious?",
+          "What should the answer be if a required genre never appears, or if nothing is required at all?",
+          "Settle the impossible case, the empty required list and repeated genres before you design the loop."
+        ]
+      },
+      {
+        "id": "s2",
+        "title": "Grow the window until it covers everything",
+        "required": true,
+        "order": 2,
+        "description": "Extends a window to the right, tracking how many of each required genre it contains and how many required genres are fully covered.",
+        "look_for": [
+          "keeps counts of genres in the window",
+          "tracks how many required genres are covered",
+          "moves a right pointer forward"
+        ],
+        "hints": [
+          "Think about how you know, at any moment, whether your current stretch is good enough.",
+          "Could you keep a running tally as you add songs, so you don't rescan the whole stretch?",
+          "Use a sliding window: counts per genre plus a counter of how many required genres are covered."
+        ]
+      },
+      {
+        "id": "s3",
+        "title": "Shrink from the left and record the best",
+        "required": true,
+        "order": 3,
+        "description": "While the window still covers every required genre, records its length and moves the left edge forward to look for something shorter.",
+        "look_for": [
+          "moves a left pointer while the window is valid",
+          "updates the best length inside that loop"
+        ],
+        "hints": [
+          "Look at what happens after your window first covers everything.",
+          "Once a stretch works, could a shorter one that ends at the same song also work?",
+          "Keep shrinking from the left, in a loop, as long as the window stays valid, and record the best length each time."
+        ]
+      },
+      {
+        "id": "s4",
+        "title": "Update coverage correctly when removing a song",
+        "required": true,
+        "order": 4,
+        "description": "When a song leaves the window, decrements its count and only marks the genre uncovered when its count drops to zero.",
+        "look_for": [
+          "decrements the count of the removed genre",
+          "only reduces coverage when a count hits zero",
+          "ignores genres that aren't required"
+        ],
+        "hints": [
+          "Check what your code does when the song you remove has the same genre as another song still in the window.",
+          "If two rock songs are in the window and one leaves, is rock still covered?",
+          "A genre stops being covered only when its count in the window reaches zero."
+        ]
+      },
+      {
+        "id": "s5",
+        "title": "Handle the special cases",
+        "required": true,
+        "order": 5,
+        "description": "Returns -1 when no stretch works and 0 when nothing is required, and treats repeated required genres as one.",
+        "look_for": [
+          "returns -1 when impossible",
+          "returns 0 for an empty required list",
+          "turns required into a set"
+        ],
+        "hints": [
+          "Try your code on an input where the answer doesn't exist.",
+          "What answer do you get if a required genre never shows up, or if nothing is required?",
+          "Return -1 when nothing works, 0 when nothing is required, and treat required as a set."
+        ]
+      }
+    ],
+    "edge_cases": [
+      {
+        "id": "e1",
+        "description": "empty playlist"
+      },
+      {
+        "id": "e2",
+        "description": "empty required list"
+      },
+      {
+        "id": "e3",
+        "description": "repeated genres in the required list"
+      },
+      {
+        "id": "e4",
+        "description": "the answer is the whole playlist"
+      },
+      {
+        "id": "e5",
+        "description": "the shortest stretch is at the very end"
+      },
+      {
+        "id": "e6",
+        "description": "a single song"
+      },
+      {
+        "id": "e7",
+        "description": "a required genre never appears"
+      }
+    ],
+    "common_mistakes": [
+      {
+        "id": "m1",
+        "description": "shrinks the window only once per step instead of in a loop",
+        "symptom": "returns a stretch that is longer than necessary"
+      },
+      {
+        "id": "m2",
+        "description": "rescans the whole window each step to check coverage",
+        "symptom": "correct but O(n^2), too slow on long playlists"
+      },
+      {
+        "id": "m3",
+        "description": "treats repeated genres in required as needing multiple copies",
+        "symptom": "fails when required contains the same genre twice"
+      },
+      {
+        "id": "m4",
+        "description": "returns 0 instead of -1 when no stretch works",
+        "symptom": "can't tell 'impossible' apart from 'nothing required'"
+      }
+    ],
+    "wrap_up_questions": [
+      "What are the time and space complexity?",
+      "How would you return the actual stretch of songs, and what changes if the playlist streamed in forever?"
+    ]
+  },
+  "time_limit_min": 40,
+  "illustration": null,
+  "origin_note": "Original. Pattern: minimum covering window with counts."
+}
