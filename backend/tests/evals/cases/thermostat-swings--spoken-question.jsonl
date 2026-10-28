@@ -1,0 +1,9 @@
+{"meta": {"problem_slug": "thermostat-swings", "feedback": "active", "voice": true, "about": "asks the interviewer a question out loud (no Ask button), later thinks aloud with a rhetorical question"}}
+{"t": 5000, "do": "say", "text": "Can the temps list be empty, and does a change of exactly k count?"}
+{"t": 25000, "do": "say", "text": "Okay, I'll walk the list once and compare each reading with the previous one."}
+{"t": 40000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n"}
+{"t": 48000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps)):\n"}
+{"t": 56000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps)):\n        if abs(temps[i] - temps[i - 1]) > k:\n            swings += 1\n"}
+{"t": 64000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps)):\n        if abs(temps[i] - temps[i - 1]) > k:\n            swings += 1\n    return swings\n"}
+{"t": 80000, "do": "say", "text": "So what happens with a drop? Well, abs takes care of that, so drops count too."}
+{"expect": {"fires": [{"trigger": "asked", "by_t": 15000}], "limits": [{"trigger": "asked", "max": 1}], "max_shown": 3, "no_leak": true}}

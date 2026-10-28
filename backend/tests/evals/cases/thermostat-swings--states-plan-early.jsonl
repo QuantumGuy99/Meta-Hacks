@@ -1,0 +1,9 @@
+{"meta": {"problem_slug": "thermostat-swings", "feedback": "active", "voice": true, "about": "states a clear plan, asks about edge cases, then codes slowly for three minutes"}}
+{"t": 4000, "do": "chat", "text": "Can the list be empty, and does exactly k count as a swing?"}
+{"t": 12000, "do": "say", "text": "My plan: walk the list once, compare each reading with the one before it using abs, and count the jumps strictly bigger than k."}
+{"t": 30000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n"}
+{"t": 65000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps)):\n"}
+{"t": 100000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps)):\n        if abs(temps[i] - temps[i - 1]) > k:\n            swings += 1\n"}
+{"t": 135000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps)):\n        if abs(temps[i] - temps[i - 1]) > k:\n            swings += 1\n    return swings\n"}
+{"t": 180000, "do": "say", "text": "That matches what I said at the start."}
+{"expect": {"never": ["coded_before_plan", "plan_mismatch"], "max_shown": 3, "no_leak": true}}

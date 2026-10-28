@@ -406,11 +406,24 @@ def _problem_section(context: RubricContext | None, extra: CodingExtra | Defense
             f"# Grill\n{grill or '(none)'}\n\n# Verdict\n{verdict}"
         )
     if context is None:
-        return f"# Problem\n{extra.problem_slug}"
+        return f"# Problem\n{extra.problem_slug}\n\n{_wrap_up_section(extra)}"
     steps = "\n".join(
         f"- {s.id} {s.title}{' (required)' if s.required else ''}: {s.description}" for s in context.steps
     )
-    return f"# Problem: {context.title}\n{context.brief_md}\n\n## Rubric steps\n{steps}"
+    return (
+        f"# Problem: {context.title}\n{context.brief_md}\n\n## Rubric steps\n{steps}\n\n"
+        f"{_wrap_up_section(extra)}"
+    )
+
+
+def _wrap_up_section(extra: CodingExtra) -> str:
+    """The approach and the complexity verdict, both decided by code (COD-5), so the review agrees with them."""
+    verdict = {
+        True: "matched an acceptable approach in the rubric",
+        False: "did not match an acceptable approach in the rubric",
+        None: "not graded (not asked, not answered, or grading failed); don't comment on it",
+    }[extra.complexity_answer_ok]
+    return f"# Wrap-up\nApproach: {extra.approach or '(not stated)'}\nComplexity answer: {verdict}"
 
 
 def _code_section(rt: SessionRuntime, context: RubricContext | None) -> str:

@@ -12,7 +12,7 @@ import { UnderTheHood } from "@/components/room/UnderTheHood";
 import { clock, dimensionLabel } from "@/lib/fixtures";
 import { codeAt } from "@/lib/replay";
 import type { Moment, Report, TimelineEvent } from "@/types/contracts";
-import type { ActivityEvent } from "@/types/model-activity.draft";
+import type { ActivityEvent } from "@/lib/session";
 
 // Report + replay (FE-7, PLAN §14.5): scores, moments and metrics from a Report, and a replay of the session's
 // timeline. The code pane is codeAt (lib/replay.ts) at the scrubber's time. The demo and the live report

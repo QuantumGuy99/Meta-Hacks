@@ -10,6 +10,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from crucible.contracts.common import Phase, Session, SessionConfig
+from crucible.contracts.report import CodingExtra
 from crucible.engine.hub import SessionRuntime
 from crucible.engine.store import MemoryStore
 
@@ -121,8 +122,8 @@ class StubController:
     async def on_timeline(self, rt: SessionRuntime, event: object) -> None:
         return None
 
-    async def report_extra(self, rt: SessionRuntime) -> None:
-        return None
+    async def report_extra(self, rt: SessionRuntime) -> CodingExtra:
+        return CodingExtra(problem_slug="", steps=[], approach=None, complexity_answer_ok=None)
 
 
 def runtime(

@@ -23,6 +23,7 @@ from crucible.contracts.events import (
     EditorEvent,
     IntegrityFlag,
     Intervention,
+    ModelActivity,
     PhaseChange,
     RunResult,
     SystemNote,
@@ -50,6 +51,7 @@ PAYLOAD_MODELS: dict[TimelineKind, type[BaseModel]] = {
     TimelineKind.SAM_HIGHLIGHT: SamHighlight,
     TimelineKind.VERDICT: Verdict,
     TimelineKind.SYSTEM: SystemNote,
+    TimelineKind.MODEL_ACTIVITY: ModelActivity,
 }
 
 TAIL_SIZE = 500  # recent events kept in memory for the analyzer

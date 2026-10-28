@@ -61,8 +61,8 @@ contracts-check:    ## fail if contracts.ts is out of date (skipped until S-1 la
 validate:           ## validate every problem and sample app in data/ (DATA-2)
 	@echo "validate lands with DATA-2 (crucible.datatools)"; exit 1
 
-evals:              ## scripted sessions through the real models; costs credits
-	@echo "evals land with DATA-5"; exit 1
+evals:              ## scripted sessions through the real models; costs credits (results in backend/tests/evals/results/)
+	$(UV) run python -m tests.evals.runner
 
 clean:
 	rm -rf backend/.venv backend/.pytest_cache backend/.ruff_cache

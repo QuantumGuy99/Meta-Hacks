@@ -1,7 +1,7 @@
 "use client";
 
-import { useClock } from "@/lib/session";
-import type { ActivityEvent, ModelActivity } from "@/types/model-activity.draft";
+import { useClock, type ActivityEvent } from "@/lib/session";
+import type { ModelActivity } from "@/types/contracts";
 
 // "Under the hood" (docs/STORY.md, PR #39): a slim strip along the bottom of the room with one chip per Meta
 // model. A chip pulses while its model works on something, then shows what it did and how long it took, and

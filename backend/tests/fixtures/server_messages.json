@@ -63,6 +63,7 @@
   {"type": "defense.verdict", "verdict": {
     "passed": true, "reasons": ["f1 fixed: violations 37 → 0"], "findings_fixed": ["f1"], "findings_unfixed": [], "avg_grill_score": 8.0
   }},
+  {"type": "model.activity", "activity": {"call_id": "c7a1", "t": 412000, "model_name": "Muse Spark", "task": "watching your code", "status": "done", "latency_ms": 4100}},
   {"type": "report.ready", "session_id": "a1b2c3d4e5f6"},
   {"type": "error", "code": "runner_unavailable", "message": "The code runner didn't answer in 10 s. Try Run again.", "retryable": true}
 ]

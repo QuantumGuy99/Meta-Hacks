@@ -426,6 +426,9 @@ class Intervention(Strict):
 class InterventionText(Strict):  # LLM output of Interviewer.phrase()
     text: str
 
+class TurnLabel(Strict):         # LLM output of the voice classifier (COD-6, §9.7)
+    label: Literal["question_to_interviewer", "thinking_aloud"]
+
 class IntegrityFlag(Strict):
     id: str
     t: int
@@ -434,11 +437,19 @@ class IntegrityFlag(Strict):
     chars: int | None
     duration_ms: int | None
 
+class ModelActivity(Strict):  # the "Under the hood" strip (docs/STORY.md): labels only, never content
+    call_id: str                 # pairs a call's "started" with how it ended
+    t: int
+    model_name: Literal["Muse Spark", "Muse Wonder", "Muse Spark Open", "Muse Voice", "SAM 3.1", "Muse Image"]
+    task: str                    # a plain verb phrase: "watching your code", "reading your project"
+    status: Literal["started", "done", "fallback", "cached", "failed", "stopped"]
+    latency_ms: int | None       # None while started
+
 class TimelineKind(StrEnum):
     PHASE = "phase"; EDITOR = "editor"; SNAPSHOT = "snapshot"; TRANSCRIPT = "transcript"; RUN = "run"
     ANALYSIS = "analysis"; INTERVENTION = "intervention"; INTEGRITY = "integrity"
     AUDIT = "audit"; CHAOS_METRIC = "chaos_metric"; CHAOS_RUN = "chaos_run"; GRILL = "grill"
-    SAM_HIGHLIGHT = "sam_highlight"; VERDICT = "verdict"; SYSTEM = "system"
+    SAM_HIGHLIGHT = "sam_highlight"; VERDICT = "verdict"; SYSTEM = "system"; MODEL_ACTIVITY = "model_activity"
 
 class TimelineEvent(Strict):
     seq: int
@@ -570,6 +581,10 @@ class Analysis(Strict):             # LLM output of the analyzer (§9.4)
     chosen_approach: str | None
     explanation_quality: Literal["none", "weak", "ok", "strong"]
     proposal: InterventionProposal | None
+
+class ComplexityClaim(Strict):      # LLM output: the bounds stated at wrap-up (COD-5, §10.5)
+    time: str | None                # big-O in the rubric's variables; None if not stated
+    space: str | None
 ```
 
 ### 7.4 `defense.py`
@@ -867,8 +882,22 @@ Server → client:
 | `defense.sam.highlight` | `SamHighlight` (P1) |
 | `assistant.reply` | `AssistantTurn {id, t, question, answer, edits: AssistantEdit[], model}` (P1, §11.9) |
 | `defense.verdict` | `Verdict` |
+| `model.activity` | `ModelActivity`: a model starting or finishing work for this session, for the "Under the hood" strip (below) |
 | `report.ready` | `session_id` |
 | `error` | `code`, `message`, `retryable` |
+
+**`model.activity` (the "Under the hood" strip, docs/STORY.md):**
+- **Where it comes from:** the model wrapper reports each role call once when it starts and once when it ends,
+  not each retry: `done` (the main model answered), `fallback` (a backup did), `failed` (every model failed),
+  or `stopped` (cancelled mid-call, e.g. the engine detached at wrap-up). The hub watches the wrapper
+  (`LLM.watch`) and sends calls for a session open in this process to that session's tabs. Calls without a
+  session id (offline drafting) aren't shown.
+- **Labels** (`engine/activity.py`): a display name per chip (never a model id) and a plain task per role:
+  watching your code (analyzer), answering your question (interviewer), grading your answer (grill), reading
+  your project (audit), writing an attack (attacker), writing your report (report), finding what you circled
+  (vision). Muse Voice shows "listening" from speech start to the final turn, or "transcribing" per fallback
+  chunk.
+- **Also on the timeline** (`model_activity`), so the replay shows when each model stepped in. Never content.
 
 **Limits** (`engine/api.py`, `engine/limits.py`, the client models in `contracts/ws.py` and `events.py`):
 - **Message size:** at most 2 MiB per JSON message (the largest real one is a 1 MB circle image). Over that, the
@@ -1006,8 +1035,9 @@ steps that `low` catches.
    session.
 3. Dynamic state: phase, elapsed/remaining time, **code with line numbers**, diff since the last analysis,
    the last 3 run results (summaries, visible-test failures with inputs, hidden failures as counts only), the
-   transcript of the last 90 s, previous step statuses, interventions already given (text + step) to avoid
-   repeats, hint levels used per step, and the feedback mode.
+   transcript of the last 90 s, **the plan they stated earlier** (kept once it leaves that window, so
+   `stated_plan` and `plan_matches_code` stay meaningful), previous step statuses, interventions already given
+   (text + step) to avoid repeats, hint levels used per step, and the feedback mode.
 
 In defense **fix** stage the "problem" block is the finding (explanation, file/lines, chaos summary) and its
 `fix_steps` rubric.
@@ -1054,11 +1084,11 @@ request, a run or an analysis.
 | `HINT_REQUESTED` | `hint.request` | next ladder level for the step (the requested step, else the analyzer's proposal step, else the first not-done required step) | — |
 | `TIME_WARNING` | 50% and 80% of the time limit elapsed | INFO, text only | each once (both at once give one) |
 | `PASTE` | paste ≥ 40 chars or ≥ 2 non-blank lines, or a bulk insert (≥ 80 chars in one change) | INFO, text only, neutral ("I noticed a pasted block. I'll focus my feedback on the parts you wrote.") | said once; COD-4 logs every flag |
-| `CODED_BEFORE_PLAN` (P1) | ≥ 3 non-blank lines written beyond the starter code (the editor's first snapshot) while the latest analysis has `stated_plan` null, voice on, in `clarify`/`coding` | QUESTION ("Before you go further, what's your approach?") | once |
+| `CODED_BEFORE_PLAN` (P1) | ≥ 3 non-blank lines written beyond the starter code (the editor's first snapshot) while no plan has been stated this session (the policy keeps the latest `stated_plan`, so a plan older than the analyzer's 90 s window still counts), voice on, in `clarify`/`coding` | QUESTION ("Before you go further, what's your approach?") | once |
 | `RUN_FAILED` | the same visible test failed on 2 runs in a row, or 1 failure then 30 s with no edit or speech (hidden tests never count) | ladder for the step: the analyzer's `RUN_FAILED` step, else the first `incorrect` step, else the first required step not done | — |
 | `MISSED_STEP` | a required step is `skipped`/`not_started` while a step with higher `order` is `in_progress`/`done`/`incorrect`, seen in **2 consecutive analyses**; waits while the analyzer's own proposal for it is below 0.7 | ladder | — |
 | `BUG_SUSPECTED` | a `bug` or `edge_case` issue with a line and confidence ≥ 0.75, seen in 2 consecutive analyses, its line's text unchanged for 20 s | NUDGE, canned "Take another look around line N" (never the analyzer's draft, which may hint at the fix) | per issue |
-| `PLAN_MISMATCH` (P1) | `plan_matches_code == false` in 2 consecutive analyses, with a stated plan | QUESTION | per plan |
+| `PLAN_MISMATCH` (P1) | `plan_matches_code == false` in 2 consecutive analyses, with a stated plan (the latest, or the one the policy remembers) | QUESTION | per plan |
 | `SILENT` (P1, voice on) | in `coding`, ≥ 120 s without a final candidate turn (voice or chat) | NUDGE ("Talk me through what you're doing.") | every 5 min max |
 | `IDLE` | in `coding` (or defense `fix`), no edit and no speech ≥ 75 s | QUESTION ("Where are you at?") | every 3 min max |
 | `PRAISE` | a step marked tricky in the rubric becomes `done` | INFO | max 1 per 10 min |
@@ -1141,9 +1171,13 @@ One `VoiceBridge` per session (`rt.voice`), opened by the audio socket; `models/
 - **Is the candidate talking to the interviewer?** P0: a `chat.send` that reads as a question
   (`policy.is_question`), or a voice turn spoken while **Ask** was held for at least half of it (any overlap
   isn't enough: candidates let go and keep talking, and turn times can be a few hundred ms off). Questions asked
-  before the reply are answered together (a spoken question often arrives as two turns). P1 (COD-6): a cheap
-  classifier (Spark, `reasoning_effort="minimal"`, timeout 3 s) labels other final turns
-  `question_to_interviewer | thinking_aloud`.
+  before the reply are answered together (a spoken question often arrives as two turns). **Built (COD-6):**
+  every other final spoken turn goes to a cheap classifier (`engine/classifier.py`, `prompts/classifier.md`,
+  Spark `minimal`, 3 s, output `TurnLabel`) in a background task, with the candidate's 3 earlier spoken turns as
+  context. `question_to_interviewer` → ASKED. A turn is asked at most once (Ask and the classifier can both flag
+  it). A failure counts as thinking aloud, with a `system` note, because interrupting someone who is thinking is
+  worse than a missed question. Typed chat still uses `policy.is_question`. Wrap-up and grill answers are never
+  classified (the engine is detached then).
 - **Close codes:** `1000` done (after our `endStream`; otherwise reconnect). `1011` → reconnect with backoff
   (0.5 s, doubling); at "Max session duration reached" (the 60-min cap) reconnect without counting a failure.
   `1013` → wait 5 s, then reconnect. `1008` (bad request or streaming policy) → straight to the chunked fallback,
@@ -1261,6 +1295,18 @@ Owner: **SG**. Data: **ST**.
 
 ### 10.5 Coding report extras
 Final step statuses, chosen approach, whether the complexity answer matched an acceptable approach.
+
+- **As built (COD-5):** at report time, `coding/complexity.py` takes what the candidate said after the wrap-up
+  question that mentions "complexity", up to the next question (a spoken turn that started before the next question
+  still counts). Role `complexity` (Spark low, 8 s, prompt `coding/prompts/complexity.md`) writes down only the
+  stated bounds as a `ComplexityClaim`, in the rubric's variable names; it is shown the rubric's approach names
+  and bounds, never which are acceptable. Code decides: `complexity_answer_ok` is true when the stated time bound,
+  and the space bound if one was given, match one acceptable approach up to notation (`O(nm log(m))` is
+  `O(n * m log m)`; constants and dominated terms drop), leaving out an added term is allowed (`O(n)` for
+  `O(n + r)`), and a missing or wrong time bound is false. Not asked, not answered or no model → null; a failed
+  call → null with a system note. The report model is told the verdict and approach so the review agrees.
+  On real Spark: 29 of 30 phrasings across the three gold problems graded as expected, p50 1.7 s (the miss
+  was two connect timeouts in a row; the 20 s guard now covers the wrapper's retry).
 
 ### 10.6 P2: SAM 3.1 features (`vision/`)
 - **Show your work:** the candidate clicks "Show sketch", holds paper up to the webcam, and the browser
@@ -1589,6 +1635,12 @@ the original, and `fix.patch` applied → the same script **holds**.
   `passive-mode` (nothing delivered except asks), `stuck-idle` (IDLE), `wrong-approach-brute-force`.
 - **Defense** (`evals/defense/*.json`): per sample app, expected findings (for audit recall) and expected
   verdicts (baseline broke, verify with `fix.patch` held).
+- **Built so far** (`backend/tests/evals/cases/`, run by `make evals`; the runner also reads `data/evals/coding/`):
+  `skips-empty-input` and `off-by-one` on all three gold problems, plus `coded-before-plan`, `states-plan-early`
+  (no false "what's your approach?" once the plan is older than 90 s), `plan-mismatch` and `spoken-question` (a
+  question asked out loud without Ask is answered; a rhetorical one isn't). An eval passes in ≥ 2 of 3 runs.
+  Expectation keys: `fires`, `never`, `limits` (at most N of a trigger), `max_shown`, `no_leak`, `flags`, `saw`
+  (what the analyzer reported).
 
 ---
 
@@ -1739,13 +1791,19 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 | `analyzer` | `muse-spark-1.3` | minimal | skip tick |
 | `interviewer` | `muse-spark-1.3` | low | canned/rubric text |
 | `classifier` (P1) | `muse-spark-1.3` | minimal | treat as thinking aloud |
-| `grill_eval` | `muse-spark-1.3` | medium | Spark Open (Baseten) |
+| `complexity` (P1, COD-5) | `muse-spark-1.3` | low | leave the answer ungraded (null) |
+| `grill_eval` | `muse-spark-1.3` | medium | Spark (low) → Spark Open (Baseten) → keyword grading |
 | `audit` | `muse-wonder-1.0` | xhigh | `muse-spark-1.3` (high) → `flaws.json` (samples only) |
 | `report` | `muse-wonder-1.0` | high | `muse-spark-1.3` → metrics-only template |
-| `attacker` | `muse-spark-1.3` | high | Spark (medium) → reference attack (sample apps only) |
+| `attacker` | `muse-spark-1.3` | low | Spark (medium) → reference attack (sample apps only) |
 | `drafter` (datatools) | `muse-wonder-1.0` | high | Spark (medium) → Spark Open |
 | `vision` (P2) | `muse-spark-1.3` with image input | low | skip |
 | `assistant` (P1, §11.9) | `muse-spark-1.3` | low | "assistant unavailable" message |
+
+Attacker and grill effort were re-measured on 2026-10-28 with the real prompts (bank-transfer-min, 4 calls each):
+the attacker took p50 26 s / max 30 s at high (timing out against its 30 s budget), 18.5 s at medium and 6.6 s at
+low, with every attack valid; at low, 2 of 2 full Defense runs broke the app. grill_eval took 4.2 s at medium and
+3.0 s at low, marking the same points.
 
 - `reasoning_effort` values: `minimal | low | medium | high | xhigh | max` (`none` returns 400 on Spark and
   Wonder). Live roles (analyzer, interviewer, classifier, grill_eval) use the lowest effort that works.
@@ -1837,7 +1895,7 @@ Format: **ID — title** (owner · priority · depends on) followed by "done whe
 - **COD-2 — Coding phases, timers, wrap-up** (P0 · ENG-1, ENG-6).
 - **COD-3 — Test service** (P0 · RUN-1): run/submit → `run.result`, hidden-input redaction.
 - **COD-4 — Integrity detectors** (P0 · ENG-2).
-- **COD-5 — Coding report extras** (P1 · ENG-8).
+- **COD-5 — Coding report extras** (P1 · ENG-8). **Built Oct 28** (§10.5).
 - **COD-6 — Voice question classifier; plan-mismatch and coded-before-plan rules** (P1 · ENG-7).
 - **VIS-1 — SAM sketch + proctor** (P2 · COD-2).
 
@@ -1957,8 +2015,22 @@ directly relevant to the policy and chaos verify), Fireworks + Muse open models 
   (pass if expectations hold in ≥ 2 of 3 runs); defense audit recall; chaos break/hold. Results are written to
   `backend/tests/evals/results/<date>.md`.
 - **Frontend:** `tsc --noEmit`, eslint; P1 Playwright happy path against `MOCK=1`.
-- **Latency budget (measure at IC2):** pause → intervention on screen ≤ 6 s; Run → results ≤ 3 s (warm
-  sandbox); end speech → final transcript ≤ 2 s; report ≤ 90 s.
+- **Latency budget** (targets; measured 2026-10-28 on the local build against the live Meta API, client clock;
+  re-measure on the deployed build with `uv run python -m tests.evals.latency --url <backend>`):
+
+  | Path | Target | Measured | How |
+  |---|---|---|---|
+  | Typing pause → nudge on screen | ≤ 6 s | p50 4.95 s, max 5.14 s (n=8) | 2.5 s pause, then the analyzer (Spark minimal: p50 2.3 s, p95 3.9 s over 31 calls), then delivery on the next 0.5 s tick |
+  | Paste note (no model) | – | 2.6–3.0 s after the pause | the quiet window only |
+  | Question → answer | – | p50 1.6–2.2 s, max 2.5 s (≤ 4.7 s in the ENG-6 check) | one Spark call |
+  | Run → results | ≤ 3 s (warm sandbox) | 0.02–0.04 s on the local runner | Modal (RUN-2) not measured yet |
+  | End of speech → final transcript | ≤ 2 s | 0.1–0.2 s | realtime Muse Voice (ENG-7 check, and in a real browser) |
+  | Report | ≤ 90 s | 13–21 s on Wonder; Wonder twice ran past 90 s, so it now gets 45 s before Spark (worst case about 90 s) | |
+  | Intro on join | ≤ 1 s | 1 ms | canned line |
+
+  Nudges are held on purpose, which isn't latency: 45 s between unsolicited messages (counted from the last
+  message, including answers), 2 analyses in a row for most rules, 20 s for a bug's line to settle, and 30 s of
+  idle after a single failed run.
 
 ---
 
@@ -2049,7 +2121,7 @@ Record each segment separately on the deployed build, at real speed (speed-ups a
 | Problem text rights | Original statements only + review checklist (§13.1) |
 | Demo-day failure | Pre-recorded takes on the deployed build by Tue Nov 3; never present MOCK as live |
 
-**Timeouts:** analyzer 12 s · interviewer 6 s · classifier 3 s · grill eval 20 s (Spark medium measured 4–15 s) · audit 120 s · report 45 s per model (Wonder measured 15–21 s, once over 90 s; then Spark) ·
+**Timeouts:** analyzer 12 s · interviewer 6 s · classifier 3 s · complexity 8 s (20 s guard, report time) · grill eval 20 s (Spark medium measured 4–15 s) · audit 120 s · report 45 s per model (Wonder measured 15–21 s, once over 90 s; then Spark) ·
 attack writer 30 s · test run 10 s · chaos run 60 s · ASR handshake 10 s · SAM 5 s · image 20 s.
 
 ---

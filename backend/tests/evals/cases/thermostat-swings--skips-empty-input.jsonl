@@ -1,0 +1,10 @@
+{"meta": {"problem_slug": "thermostat-swings", "feedback": "active", "voice": true, "about": "codes a working solution but never asks about an empty or one-reading log, or a change of exactly k"}}
+{"t": 5000, "do": "say", "text": "Okay, so I count how many neighboring readings jump by more than k."}
+{"t": 12000, "do": "say", "text": "I'll loop over the list once and compare each reading with the one before it."}
+{"t": 20000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n"}
+{"t": 28000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps)):\n"}
+{"t": 36000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps)):\n        if abs(temps[i] - temps[i - 1]) > k:\n            swings += 1\n"}
+{"t": 44000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps)):\n        if abs(temps[i] - temps[i - 1]) > k:\n            swings += 1\n    return swings\n"}
+{"t": 62000, "do": "say", "text": "The abs handles drops too, so that should cover it."}
+{"t": 82000, "do": "say", "text": "Let me read it over once more before I run it."}
+{"expect": {"fires": [{"trigger": "missed_step", "step_id": "s1", "by_t": 112000}], "saw": [{"step_id": "s1", "status": ["not_started", "skipped"], "by_t": 92000}], "never": ["bug_suspected"], "max_shown": 3, "no_leak": true}}

@@ -38,6 +38,7 @@ import { VoiceToggle } from "./VoiceToggle";
 
 const FILE = "solution.py";
 const PHASES: [Phase, string][] = [
+  ["intro", "Warm-up"],
   ["clarify", "Clarify"],
   ["coding", "Coding"],
   ["wrap_up", "Wrap up"],
@@ -45,19 +46,18 @@ const PHASES: [Phase, string][] = [
 const PHASE_INDEX: Partial<Record<Phase, number>> = {
   setup: 0,
   intro: 0,
-  clarify: 0,
-  coding: 1,
-  wrap_up: 2,
-  ended: 3,
-  reporting: 3,
-  reported: 3,
-  failed: 3,
+  clarify: 1,
+  coding: 2,
+  wrap_up: 3,
+  ended: 4,
+  reporting: 4,
+  reported: 4,
+  failed: 4,
 };
 // Edit kinds that change the code; focus and visibility events don't (#47).
 const CODE_EVENTS = new Set(["change", "paste", "undo", "redo"]);
 const RUN_TIMEOUT_MS = 90_000;
-// How long after Skip Intro a bad_phase error is the server refusing it (servers before the warm-up only take
-// clarify → coding and coding → wrap_up), which needs no toast.
+// A bad_phase error this soon after Skip Intro is a server without #57 refusing it: the warm-up just carries on.
 const SKIP_REFUSAL_MS = 5_000;
 
 type Editor = Parameters<NonNullable<Parameters<typeof CodeEditor>[0]["onEditor"]>>[0];
@@ -84,7 +84,7 @@ export function LiveRoom({ id }: { id: string }) {
   const [problem, setProblem] = useState<ProblemPublic | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
-  const [pending, setPending] = useState<{ runs: number; at: number; wall: number } | null>(null);
+  const [pending, setPending] = useState<{ kind: "run" | "submit"; runs: number; at: number; wall: number } | null>(null);
   const [showNotes, setShowNotes] = useState(false);
   const [ending, setEnding] = useState(false);
   const [skipped, setSkipped] = useState(false);
@@ -97,6 +97,8 @@ export function LiveRoom({ id }: { id: string }) {
   const ended = isFinished(phase);
   // code can only run from clarify on (the server rejects it during setup and the intro)
   const beforeClarify = phase === null || phase === "setup" || phase === "intro";
+  // The warm-up comes before the problem (#57), so the problem and the editor wait for it to end.
+  const warmingUp = phase === "setup" || phase === "intro";
 
   // The problem, then the code: the latest snapshot on the timeline (after a reload) or the starter code.
   useEffect(() => {
@@ -164,18 +166,21 @@ export function LiveRoom({ id }: { id: string }) {
   const now = useClock(waiting);
   const runTimedOut = waiting && now > 0 && now - pending.wall > RUN_TIMEOUT_MS;
   const running = waiting && !runTimedOut;
+  const busy = running ? pending.kind : null;
   useEffect(() => {
     if (runTimedOut) toast.error("No result from the runner yet", { description: "Check your connection, then run again." });
   }, [runTimedOut]);
+  // A submit that passes every test moves on to the wrap-up, so Submit locks; after a failing one it stays (#47).
+  const submitted = state.runs.some((r) => r.kind === "submit" && r.total > 0 && r.passed === r.total && !r.compile_error);
 
   const run = (kind: "run" | "submit") => {
-    if (running || !editor || beforeClarify) return;
+    if (running || !editor || beforeClarify || (kind === "submit" && submitted)) return;
     if (editor.getValue().length > CODE_MAX) {
       toast.error("Your code is too long to run", { description: `Keep it under ${CODE_MAX.toLocaleString()} characters.` });
       return;
     }
     capture.current?.snapshot(); // the backend must see the exact code being run
-    setPending({ runs: state.runs.length, at: performance.now(), wall: Date.now() });
+    setPending({ kind, runs: state.runs.length, at: performance.now(), wall: Date.now() });
     send({ type: kind === "run" ? "code.run" : "code.submit", file: FILE, code: editor.getValue() });
   };
 
@@ -196,14 +201,15 @@ export function LiveRoom({ id }: { id: string }) {
     }
   };
 
-  // Skip Intro: stop the interviewer talking and go straight to the problem. On a server that refuses it, the
-  // intro just carries on.
+  // Skip Intro: straight to the problem, with the interviewer stopped mid-sentence. The button goes once pressed;
+  // a server that refuses it just carries on.
   const skipIntro = () => {
     voice.interrupt();
     skippedAt.current = performance.now();
     setSkipped(true);
     send({ type: "phase.advance", to: "clarify" });
   };
+  const showSkip = phase === "intro" && !skipped;
 
   const onEditor = useCallback((ed: Editor) => setEditor(ed), []);
 
@@ -244,12 +250,12 @@ export function LiveRoom({ id }: { id: string }) {
         <button type="button" className="ui-btn" aria-pressed={showNotes} onClick={() => setShowNotes((v) => !v)}>
           Notes
         </button>
-        {phase === "intro" && !skipped && (
+        {showSkip && (
           <button type="button" className="ui-btn" onClick={skipIntro}>
             Skip Intro
           </button>
         )}
-        {(phase === "clarify" || beforeClarify) && (
+        {(phase === "clarify" || beforeClarify) && !showSkip && (
           // the server only takes clarify → coding, so the button waits out the intro
           <button
             type="button"
@@ -281,17 +287,24 @@ export function LiveRoom({ id }: { id: string }) {
         <ResizablePanel defaultSize="26%" minSize="18%">
           <section className="rm-panel rm-problem" aria-label="Problem">
             <header className="rm-panel-head">
-              <span>{problem?.title ?? "Loading the problem…"}</span>
-              {problem && (
+              <span>{warmingUp ? "Warm-up" : (problem?.title ?? "Loading the problem…")}</span>
+              {problem && !warmingUp && (
                 <span className="rm-tag">
                   {levelLabel(problem.difficulty)} · {problem.topics.map(levelLabel).join(", ")}
                 </span>
               )}
             </header>
-            {problem && (
-              <Streamdown className="rm-md" mode="static" controls={false}>
-                {problemMarkdown(problem)}
-              </Streamdown>
+            {warmingUp ? (
+              <p className="live-empty">
+                A minute of getting to know you first. The problem appears here once the interviewer presents it, or now
+                with Skip Intro.
+              </p>
+            ) : (
+              problem && (
+                <Streamdown className="rm-md" mode="static" controls={false}>
+                  {problemMarkdown(problem)}
+                </Streamdown>
+              )
             )}
           </section>
         </ResizablePanel>
@@ -307,20 +320,22 @@ export function LiveRoom({ id }: { id: string }) {
                       Reset Code
                     </button>
                     <button type="button" className="ui-btn" onClick={() => run("run")} disabled={running || !editor || ended || beforeClarify}>
-                      {running ? "Running…" : "Run"}
+                      {busy === "run" ? "Running…" : "Run"}
                     </button>
                     <button
                       type="button"
                       className="ui-btn ui-btn-primary"
                       onClick={() => run("submit")}
-                      disabled={running || !editor || ended || beforeClarify}
+                      disabled={running || submitted || !editor || ended || beforeClarify}
                     >
-                      Submit
+                      {submitted ? "Submitted" : busy === "submit" ? "Submitting…" : "Submit"}
                     </button>
                   </span>
                 </header>
                 <div className="rm-editor-host">
-                  {code !== null ? (
+                  {warmingUp ? (
+                    <p className="live-empty">The editor opens with the problem.</p>
+                  ) : code !== null ? (
                     <CodeEditor value={code} onChange={setCode} readOnly={ended} onRun={() => run("run")} onEditor={onEditor} path={FILE} />
                   ) : (
                     <p className="live-empty">Loading your editor…</p>

@@ -14,9 +14,10 @@ const STEP: Record<StepStatus, [label: string, className: string]> = {
 };
 
 export function CodingExtras({ coding }: { coding: CodingExtra }) {
+  // null: not graded (never asked, no answer, no model, or the grading failed), so say no more than that
   const complexity =
     coding.complexity_answer_ok === null
-      ? { text: "Not answered", cls: "is-mid" }
+      ? { text: "Not graded", cls: "is-mid" }
       : coding.complexity_answer_ok
         ? { text: "Right", cls: "is-ok" }
         : { text: "Not quite", cls: "is-bad" };
@@ -26,7 +27,7 @@ export function CodingExtras({ coding }: { coding: CodingExtra }) {
       <dl className="rp-coding-facts">
         <div>
           <dt>Approach</dt>
-          <dd>{coding.approach ?? "No approach was stated."}</dd>
+          <dd>{coding.approach ?? "No approach was recorded."}</dd>
         </div>
         <div>
           <dt>Complexity answer</dt>

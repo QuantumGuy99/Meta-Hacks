@@ -30,7 +30,8 @@ line number from the numbered code when there is one, and the mistake id when it
 Describe the symptom, never the fix.
 
 ## Other fields
-- `stated_plan`: the approach the candidate has described out loud, in one sentence. Null if they haven't.
+- `stated_plan`: the approach the candidate has described out loud, in one sentence. If "The plan they stated
+  earlier" is shown and they haven't changed it, return that plan. Null only if they have never described one.
 - `plan_matches_code`: whether the code follows that plan. Null if there's no plan or no code yet.
 - `chosen_approach`: the name of the rubric approach the code is closest to. Null if unclear.
 - `explanation_quality`: how well they've explained their thinking so far: none, weak, ok or strong.
