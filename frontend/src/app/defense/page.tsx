@@ -1,23 +1,20 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import type { Metadata } from "next";
+import { Suspense } from "react";
+import { SamplePicker } from "@/components/defense/SamplePicker";
+import "@/components/landing/landing.css";
+import "@/components/live/live.css";
 
-// FE-6 placeholder: sample app cards (and zip upload, P1) land here.
-export default function DefensePicker() {
+export const metadata: Metadata = {
+  title: "New project defense · Ares",
+  description: "Pick a sample app: Ares audits it, attacks it, grills you on what broke, then verifies your fix.",
+};
+
+export default function DefenseSetupPage() {
   return (
-    <main className="mx-auto flex min-h-svh w-full max-w-3xl flex-col justify-center gap-6 px-6">
-      <h1 className="text-5xl font-medium tracking-tight">Project Defense</h1>
-      <p className="text-lg">
-        The sample app picker is on the build list (FE-6). Pick an app, watch it get audited and
-        attacked, then defend your fix. Until then, try the scripted bank-transfer defense.
-      </p>
-      <div className="flex flex-wrap items-center gap-6">
-        <Button render={<Link href="/defense/demo" />} size="lg" nativeButton={false}>
-          Open the Defense Demo
-        </Button>
-        <Link href="/" className="underline underline-offset-4">
-          Back to the Main Screen
-        </Link>
-      </div>
+    <main id="main" className="lp setup-page" tabIndex={-1}>
+      <Suspense>
+        <SamplePicker />
+      </Suspense>
     </main>
   );
 }

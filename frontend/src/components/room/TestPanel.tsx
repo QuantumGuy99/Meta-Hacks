@@ -22,6 +22,13 @@ export function TestPanel({ result, running }: { result: RunResult | null; runni
         {running && <span className="rm-running">Running…</span>}
       </header>
       {!result && !running && <p className="rm-empty">Run the visible tests with Run or Ctrl+Enter.</p>}
+      {result?.compile_error && (
+        <div className="rm-out is-error">
+          <span>Your code didn&apos;t run</span>
+          <pre translate="no">{result.compile_error}</pre>
+        </div>
+      )}
+      {result?.timed_out && <p className="rm-out is-error">The run hit the time limit.</p>}
       {result && (
         <ul className="rm-cases">
           {visible.map((c) => (
@@ -38,7 +45,13 @@ export function TestPanel({ result, running }: { result: RunResult | null; runni
               </span>
             </li>
           ))}
-          {result.kind === "submit" && (
+          {result.kind === "submit" && (result.compile_error || result.cases.length === 0) && (
+            <li className="is-fail">
+              <span className="rm-case-status">Fail</span>
+              <span>Hidden tests didn&apos;t run.</span>
+            </li>
+          )}
+          {result.kind === "submit" && !result.compile_error && result.cases.length > 0 && (
             <li className={hiddenFailed.length ? "is-fail" : "is-pass"}>
               <span className="rm-case-status">{hiddenFailed.length ? "Fail" : "Pass"}</span>
               <span>
@@ -48,6 +61,14 @@ export function TestPanel({ result, running }: { result: RunResult | null; runni
             </li>
           )}
         </ul>
+      )}
+      {(["stdout", "stderr"] as const).map((stream) =>
+        result?.[stream] ? (
+          <div key={stream} className={`rm-out ${stream === "stderr" ? "is-error" : ""}`}>
+            <span>{stream}</span>
+            <pre translate="no">{result[stream]}</pre>
+          </div>
+        ) : null,
       )}
     </section>
   );

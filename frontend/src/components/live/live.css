@@ -1,0 +1,219 @@
+/* Live pages wired to the backend: the setup forms (/coding, /defense), connection status, the live defense
+   layout (stage + interviewer feed) and the report's waiting state. Builds on landing, room and defense css. */
+
+/* ---------- setup forms ---------- */
+.setup-page {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 48px 16px;
+}
+:root .lp .dlg.setup {
+  max-width: 520px;
+}
+.lp .dlg.setup h1 {
+  font-family: var(--display), var(--font-sans), system-ui, sans-serif;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.lp .setup-track-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+.lp .setup-track-4 .dlg-pill {
+  width: calc(25% - 3px);
+}
+.setup-checks {
+  display: grid;
+  gap: 10px;
+  font-size: 14px;
+}
+.setup-checks label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.setup-checks input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--cobalt);
+}
+.setup-error {
+  padding: 10px 12px;
+  border: 1px solid rgb(255 107 107 / 0.4);
+  border-radius: 4px;
+  background: rgb(255 107 107 / 0.08);
+  color: #ffb4b4;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.setup-alt {
+  align-self: center;
+  font-size: 14px;
+  color: var(--muted-ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.setup-alt:hover {
+  color: var(--ink);
+}
+.setup-cards {
+  display: grid;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.setup-cards legend {
+  font-size: 14px;
+  margin-bottom: 6px;
+  padding: 0;
+}
+.setup-card {
+  display: grid;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-2, var(--ui-line));
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+.setup-card input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.setup-card span {
+  color: var(--muted-ink);
+  font-size: 13px;
+}
+.setup-card.is-on {
+  border-color: var(--cobalt);
+  background: rgb(47 107 255 / 0.1);
+}
+.setup-card:has(input:focus-visible) {
+  outline: 2px solid var(--secondary-blue, var(--cobalt));
+  outline-offset: 2px;
+}
+
+/* ---------- live rooms ---------- */
+.live-status {
+  font-size: 13px;
+  color: #ffd27a;
+}
+.live-empty {
+  padding: 24px;
+  color: var(--muted-ink);
+}
+.rm-out {
+  margin: 8px 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-line);
+  border-radius: 4px;
+  font-size: 13px;
+}
+.rm-out > span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--muted-ink);
+  font-size: 12px;
+  text-transform: lowercase;
+}
+.rm-out pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--mono), ui-monospace, monospace;
+  max-height: 160px;
+  overflow: auto;
+}
+.rm-out.is-error {
+  border-color: rgb(255 107 107 / 0.4);
+  color: #ffb4b4;
+}
+.room-phases li.is-done {
+  color: var(--ink);
+}
+.msg-caption {
+  margin-top: 4px;
+  padding: 8px 10px;
+  border: 1px dashed var(--ui-line);
+  border-radius: 4px;
+  color: var(--muted-ink);
+  font-style: italic;
+}
+.msg-caption .msg-who {
+  display: block;
+  font-style: normal;
+}
+.df-stages button.is-done {
+  color: var(--ink);
+}
+.df-stages button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.live-stage-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+/* defense: the stage on the left, the interviewer's feed on the right */
+.live-df {
+  height: 100svh;
+}
+.live-df-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 25%);
+}
+.live-df-body .df-stage {
+  min-width: 0;
+  overflow: auto;
+}
+.live-df-body .df-audit {
+  height: calc(100svh - 120px);
+}
+.live-df-body > .rm-interviewer {
+  border-left: 1px solid var(--ui-line);
+  min-height: 0;
+}
+
+/* ---------- report ---------- */
+.live-wait-body {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 96px 16px;
+  display: grid;
+  gap: 14px;
+}
+.live-wait-body h1 {
+  font-family: var(--display), var(--font-sans), system-ui, sans-serif;
+  font-size: clamp(28px, 4vw, 40px);
+  letter-spacing: -0.02em;
+}
+.live-wait-body p {
+  color: var(--muted-ink);
+  line-height: 1.55;
+}
+.live-defense-sum {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin: 24px 0;
+}
+@media (max-width: 900px) {
+  .live-df-body {
+    grid-template-columns: 1fr;
+  }
+  .live-defense-sum {
+    grid-template-columns: 1fr;
+  }
+}

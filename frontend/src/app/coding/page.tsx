@@ -1,23 +1,21 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import type { Metadata } from "next";
+import { Suspense } from "react";
+import { SetupForm } from "@/components/coding/SetupForm";
+import "@/components/landing/landing.css";
+import "@/components/live/live.css";
 
-// FE-5 placeholder: the setup form (difficulty, topic, feedback, voice, speak replies) lands here.
-export default function CodingSetup() {
+export const metadata: Metadata = {
+  title: "New coding interview · Ares",
+  description: "Pick a problem, feedback style and voice, then start a live Ares coding interview.",
+};
+
+export default function CodingSetupPage() {
   return (
-    <main className="mx-auto flex min-h-svh w-full max-w-3xl flex-col justify-center gap-6 px-6">
-      <h1 className="text-5xl font-medium tracking-tight">Coding Interview Setup</h1>
-      <p className="text-lg">
-        The setup form is next on the build list (FE-5). It will create a session and open the
-        interview room. Until then, try the scripted room.
-      </p>
-      <div className="flex flex-wrap items-center gap-6">
-        <Button render={<Link href="/coding/demo" />} size="lg" nativeButton={false}>
-          Open the Demo Room
-        </Button>
-        <Link href="/" className="underline underline-offset-4">
-          Back to the Main Screen
-        </Link>
-      </div>
+    <main id="main" className="lp setup-page" tabIndex={-1}>
+      {/* useSearchParams (the landing dialog's ?topic=&feedback=) needs a Suspense boundary */}
+      <Suspense>
+        <SetupForm />
+      </Suspense>
     </main>
   );
 }

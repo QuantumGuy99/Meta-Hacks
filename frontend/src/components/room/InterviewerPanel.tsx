@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, m } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Streamdown } from "streamdown";
 import "streamdown/styles.css";
 import { levelLabel } from "@/lib/fixtures";
@@ -83,17 +83,24 @@ export function InterviewerPanel({
   onStreamDone,
   onAsk,
   onHint,
-  hintsLeft,
+  hintsLeft = 0,
   notes = [],
+  caption = null,
+  extra = null,
 }: {
   messages: RoomMessage[];
   state: InterviewerState;
   streamingId: string | null;
   onStreamDone: () => void;
   onAsk: (text: string) => void;
-  onHint: () => void;
-  hintsLeft: number;
+  /** Leave out to hide the Hint button (defense has no hints in chat). */
+  onHint?: () => void;
+  hintsLeft?: number;
   notes?: RoomNote[];
+  /** A live caption under the messages: what the candidate is saying right now (partial transcript). */
+  caption?: string | null;
+  /** Extra controls in the ask row, e.g. the mic toggle. */
+  extra?: ReactNode;
 }) {
   const [draft, setDraft] = useState("");
   const list = useRef<HTMLDivElement>(null);
@@ -135,6 +142,12 @@ export function InterviewerPanel({
             </m.div>
           ))}
         </AnimatePresence>
+        {caption && (
+          <p className="msg-caption" aria-live="off">
+            <span className="msg-who">You · speaking</span>
+            {caption}
+          </p>
+        )}
       </div>
 
       {notes.length > 0 && (
@@ -175,9 +188,12 @@ export function InterviewerPanel({
         <button type="submit" className="ui-btn ui-btn-primary" disabled={!draft.trim()}>
           Ask
         </button>
-        <button type="button" className="ui-btn" onClick={onHint} disabled={hintsLeft === 0}>
-          Hint
-        </button>
+        {onHint && (
+          <button type="button" className="ui-btn" onClick={onHint} disabled={hintsLeft === 0}>
+            Hint
+          </button>
+        )}
+        {extra}
       </form>
     </section>
   );
