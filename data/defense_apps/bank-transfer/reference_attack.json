@@ -1,4 +1,5 @@
 {
+  "flaw_id": "f1",
   "concurrency": 200,
   "duration_s": 10,
   "functions": {
