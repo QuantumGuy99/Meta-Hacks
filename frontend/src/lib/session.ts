@@ -43,6 +43,8 @@ export type LiveState = {
   streamingId: string | null;
   pending: string[];
   shown: string[];
+  /** Date.now() when each intervention reached this browser (none for ones loaded from the timeline). */
+  arrived: Record<string, number>;
   turns: TranscriptTurn[];
   runs: RunResult[];
   notes: { steps: StepProgress[]; issues: SuspectedIssue[]; stated_plan: string | null } | null;
@@ -68,6 +70,7 @@ export const initialLive: LiveState = {
   streamingId: null,
   pending: [],
   shown: [],
+  arrived: {},
   turns: [],
   runs: [],
   notes: null,
@@ -128,14 +131,15 @@ function addIntervention(state: LiveState, iv: Intervention, wall: number): Live
   const known = state.interventions.some((x) => x.id === iv.id);
   const interventions = upsert(state.interventions, iv, (x) => x.id);
   if (known) return { ...state, interventions };
+  const arrived = { ...state.arrived, [iv.id]: wall };
   const started = state.session?.started_at ? Date.parse(state.session.started_at) : Number.NaN;
   if (Number.isFinite(started) && iv.t < wall - started - HISTORY_MS) {
-    return { ...state, interventions, shown: [...state.shown, iv.id] };
+    return { ...state, interventions, arrived, shown: [...state.shown, iv.id] };
   }
   if (state.streamingId === null) {
-    return { ...state, interventions, shown: [...state.shown, iv.id], streamingId: iv.id };
+    return { ...state, interventions, arrived, shown: [...state.shown, iv.id], streamingId: iv.id };
   }
-  return { ...state, interventions, pending: [...state.pending, iv.id] };
+  return { ...state, interventions, arrived, pending: [...state.pending, iv.id] };
 }
 
 /** Replace the item with the same key, or append it. Reconnects can resend what we already have. */

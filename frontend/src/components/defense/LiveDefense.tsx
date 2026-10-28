@@ -29,6 +29,7 @@ const STAGES: [Phase, string][] = [
   ["verdict", "Verdict"],
 ];
 const ORDER = STAGES.map(([p]) => p);
+const GRILL_WINDOW_MS = 90_000;
 
 type Editor = Parameters<NonNullable<Parameters<typeof CodeEditor>[0]["onEditor"]>>[0];
 
@@ -55,6 +56,8 @@ export function LiveDefense({ id }: { id: string }) {
   const { mic, toggleMic, setAsking } = useMic(id);
   const [picked, setPicked] = useState<{ stage: Phase; at: Phase | null } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  // The finding whose file is open under the topology (the audit's file preview, PLAN §14.4).
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
   const [answeredAt, setAnsweredAt] = useState<number | null>(null);
   const [files, setFiles] = useState<Record<string, string> | null>(null);
@@ -109,6 +112,17 @@ export function LiveDefense({ id }: { id: string }) {
   }, [projectId]);
   const paths = useMemo(() => Object.keys(files ?? {}).sort(), [files]);
   const findingFile = target?.file ?? audit?.findings.find((f) => f.id === targetId)?.file ?? null;
+  const preview = audit?.findings.find((f) => f.id === previewId) ?? null;
+  const previewLines = useMemo(
+    () =>
+      preview
+        ? Array.from({ length: preview.line_end - preview.line_start + 1 }, (_, i) => ({
+            line: preview.line_start + i,
+            note: `Flagged by the audit: ${preview.title}`,
+          }))
+        : [],
+    [preview],
+  );
   const openFile = activeFile ?? (findingFile && paths.includes(findingFile) ? findingFile : (paths[0] ?? null));
 
   const startedAtMs = state.session?.started_at ? Date.parse(state.session.started_at) : null;
@@ -127,6 +141,20 @@ export function LiveDefense({ id }: { id: string }) {
     if (openFile) capture.current?.setFile(openFile);
   }, [openFile]);
   const onEditor = useCallback((ed: Editor) => setEditor(ed), []);
+
+  // The 90 s answer window (PLAN §11.5), from when the current question reached this browser until it's
+  // graded. A question loaded from the timeline after a reload falls back to the session's clock.
+  const askedAt = asked ? (state.arrived[asked.id] ?? (startedAtMs !== null ? startedAtMs + asked.t : null)) : null;
+  const deadline = phase === "grill" && !grilled && askedAt !== null ? askedAt + GRILL_WINDOW_MS : null;
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    if (deadline === null) return;
+    const tick = () => setNow(Date.now());
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [deadline]);
+  const answerLeft = deadline === null || now === 0 ? null : Math.max(0, Math.ceil((deadline - now) / 1000));
 
   useEffect(() => {
     if (state.error) toast.error(state.error.message, { id: `err-${state.error.at}` });
@@ -238,8 +266,44 @@ export function LiveDefense({ id }: { id: string }) {
             {view === "audit" &&
               (audit ? (
                 <div className="df-audit">
-                  <div className="df-topo">
-                    <TopologyView nodes={audit.nodes} edges={audit.edges} selectedId={selected} onSelect={setSelected} flags={flags} pulseId={state.highlight?.node_id ?? null} />
+                  <div className="live-audit-main">
+                    <div className="df-topo">
+                      <TopologyView
+                        nodes={audit.nodes}
+                        edges={audit.edges}
+                        selectedId={selected}
+                        onSelect={(nodeId) => {
+                          setSelected(nodeId);
+                          setPreviewId(audit.findings.find((f) => f.node_id === nodeId)?.id ?? null);
+                        }}
+                        flags={flags}
+                        pulseId={state.highlight?.node_id ?? null}
+                      />
+                    </div>
+                    {preview && (
+                      <section className="live-preview" aria-label={`Preview of ${preview.file}`}>
+                        <header className="rm-panel-head">
+                          <span translate="no">
+                            {preview.file} · lines {preview.line_start}–{preview.line_end}
+                          </span>
+                          <button type="button" className="ui-btn" onClick={() => setPreviewId(null)}>
+                            Close
+                          </button>
+                        </header>
+                        {original[preview.file] !== undefined ? (
+                          <CodeEditor
+                            key={preview.id}
+                            path={`preview/${preview.file}`}
+                            value={original[preview.file]}
+                            readOnly
+                            flagged={previewLines}
+                            onEditor={(ed) => ed.revealLinesInCenter(preview.line_start, preview.line_end)}
+                          />
+                        ) : (
+                          <p className="live-empty">{files ? "This file isn't part of the project's source." : "Loading the file…"}</p>
+                        )}
+                      </section>
+                    )}
                   </div>
                   <aside className="df-side">
                     <h2>Findings</h2>
@@ -248,8 +312,12 @@ export function LiveDefense({ id }: { id: string }) {
                       <button
                         key={f.id}
                         type="button"
-                        className={f.node_id && f.node_id === selected ? "df-finding is-on" : "df-finding"}
-                        onClick={() => setSelected(f.node_id)}
+                        className={f.id === previewId ? "df-finding is-on" : "df-finding"}
+                        aria-pressed={f.id === previewId}
+                        onClick={() => {
+                          setSelected(f.node_id);
+                          setPreviewId(f.id);
+                        }}
                       >
                         <span className="sev">{severityLabel(f.severity)}</span>
                         <strong>{f.title}</strong>
@@ -352,7 +420,18 @@ export function LiveDefense({ id }: { id: string }) {
             {view === "grill" && (
               <div className="df-grill">
                 <div className="df-q">
-                  <span className="df-muted">Question</span>
+                  <span className="df-muted" aria-live="off">
+                    Question
+                    {answerLeft !== null &&
+                      (answerLeft > 0 ? (
+                        <>
+                          {" · "}
+                          <NumberFlow value={answerLeft} suffix=" s" /> left to answer
+                        </>
+                      ) : (
+                        " · Time's up: answer now"
+                      ))}
+                  </span>
                   <h2>{question?.text ?? "The question arrives once the attack finishes."}</h2>
                 </div>
                 {!grilled && (

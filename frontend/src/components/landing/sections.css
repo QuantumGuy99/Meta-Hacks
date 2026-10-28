@@ -717,3 +717,10 @@
     min-height: 8rem;
   }
 }
+
+/* start dialog: shown when the server can't be reached (topics and projects come from the API) */
+.lp .dlg-note {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted-ink);
+}

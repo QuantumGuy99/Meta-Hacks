@@ -87,6 +87,7 @@ export function InterviewerPanel({
   notes = [],
   caption = null,
   extra = null,
+  panel = null,
 }: {
   messages: RoomMessage[];
   state: InterviewerState;
@@ -101,6 +102,8 @@ export function InterviewerPanel({
   caption?: string | null;
   /** A bar above the chat box, e.g. the speech-to-text mic controls. */
   extra?: ReactNode;
+  /** A panel between the messages and the chat box, e.g. the interviewer's notes. */
+  panel?: ReactNode;
 }) {
   const [draft, setDraft] = useState("");
   const list = useRef<HTMLDivElement>(null);
@@ -164,6 +167,7 @@ export function InterviewerPanel({
         </div>
       )}
 
+      {panel}
       {extra}
       <form
         className="rm-ask"

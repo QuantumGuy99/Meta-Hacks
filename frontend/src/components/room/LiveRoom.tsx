@@ -3,7 +3,7 @@
 import NumberFlow, { NumberFlowGroup } from "@number-flow/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import { toast } from "sonner";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
@@ -14,8 +14,9 @@ import { codeAt } from "@/lib/replay";
 import { feedMessages, liveCaption, statusLine, useLiveSession, useRemaining } from "@/lib/session";
 import type { Phase, ProblemPublic } from "@/types/contracts";
 import { CodeEditor } from "./CodeEditor";
-import { InterviewerPanel, type RoomNote } from "./InterviewerPanel";
+import { InterviewerPanel } from "./InterviewerPanel";
 import { MicControls } from "./MicControls";
+import { NotesPanel } from "./NotesPanel";
 import { TestPanel } from "./TestPanel";
 import { useMic } from "./useMic";
 
@@ -139,23 +140,6 @@ export function LiveRoom({ id }: { id: string }) {
   };
 
   const onEditor = useCallback((ed: Editor) => setEditor(ed), []);
-
-  const notes: RoomNote[] = useMemo(
-    () => [
-      ...(state.notes?.steps ?? []).map((s, i) => ({
-        title: `Step ${i + 1}${s.evidence ? `: ${s.evidence}` : ""}`,
-        status: s.status,
-        evidence: s.evidence,
-      })),
-      ...(state.notes?.issues ?? []).map((issue) => ({
-        title: `${issue.line ? `Line ${issue.line}: ` : ""}${issue.description}`,
-        status: "noted" as const,
-      })),
-      // integrity notes are facts, never accusations (PLAN §4.4 rule 6)
-      ...state.flags.map((f) => ({ title: f.detail.charAt(0).toUpperCase() + f.detail.slice(1), status: "noted" as const })),
-    ],
-    [state.notes, state.flags],
-  );
 
   const mins = remaining === null ? null : Math.floor(remaining / 60);
   const secs = remaining === null ? null : remaining % 60;
@@ -281,7 +265,7 @@ export function LiveRoom({ id }: { id: string }) {
             onAsk={(text) => send({ type: "chat.send", text })}
             onHint={() => send({ type: "hint.request" })}
             hintsLeft={ended ? 0 : 1}
-            notes={showNotes ? notes : []}
+            panel={showNotes ? <NotesPanel notes={state.notes} flags={state.flags} /> : null}
             caption={caption}
             extra={
               state.session?.config.voice ? (

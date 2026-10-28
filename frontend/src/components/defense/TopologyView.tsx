@@ -7,12 +7,13 @@ import {
   Handle,
   Position,
   ReactFlow,
+  useReactFlow,
   type Edge,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { BaseNode, BaseNodeContent, BaseNodeHeader, BaseNodeHeaderTitle } from "@/components/base-node";
 import type { TopologyEdge, TopologyNode } from "@/types/contracts";
 
@@ -115,8 +116,10 @@ export function TopologyView({
     [nodes, edges],
   );
 
+  const host = useRef<HTMLDivElement>(null);
+
   return (
-    <div className="topo" aria-label="Project topology diagram">
+    <div className="topo" ref={host} aria-label="Project topology diagram">
       <ReactFlow
         colorMode="dark"
         nodes={flowNodes}
@@ -132,7 +135,28 @@ export function TopologyView({
       >
         <Background gap={24} size={1} color="#1e1e22" />
         <Controls showInteractive={false} />
+        <FitOnResize host={host} />
       </ReactFlow>
     </div>
   );
+}
+
+/** Refit the diagram when its box changes size (e.g. the audit's file preview opens underneath it). */
+function FitOnResize({ host }: { host: RefObject<HTMLDivElement | null> }) {
+  const { fitView } = useReactFlow();
+  useEffect(() => {
+    const el = host.current;
+    if (!el) return;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => void fitView({ padding: 0.15 }));
+    });
+    observer.observe(el);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [host, fitView]);
+  return null;
 }

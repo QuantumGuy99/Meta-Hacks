@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ApiError, api, errorText } from "@/lib/api";
 import type { ChaosRun, IntegrityFlag, Intervention, Report, RunResult, TimelineEvent, TranscriptTurn } from "@/types/contracts";
+import { DefenseExtras } from "./DefenseExtras";
 import { ReportView, type ReportLine, type ReportMark } from "./ReportView";
 
 // /report/[id]: waits while the report is generating (202), then renders it with the session's replay.
@@ -156,27 +157,7 @@ export function LiveReport({ id }: { id: string }) {
       transcript={linesOf(timeline)}
       marks={marksOf(report, timeline)}
     >
-      {defense && (
-        <section className="live-defense-sum" aria-label="Defense results">
-          <div className={`df-gate ${defense.verdict.passed ? "is-pass" : "is-fail"}`}>
-            <span className="df-muted">Merge gate</span>
-            <strong>{defense.verdict.passed ? "PASS" : "FAIL"}</strong>
-          </div>
-          <ul className="df-reasons">
-            {defense.findings.map((f) => {
-              const grill = defense.grill.find((g) => g.finding_id === f.id);
-              const fixed = defense.verdict.findings_fixed.includes(f.id);
-              return (
-                <li key={f.id} className={fixed ? "is-hit" : "is-miss"}>
-                  <span>{fixed ? "Fixed" : "Open"}</span>
-                  {f.title}
-                  {grill ? ` · grill ${grill.score} of 10` : ""}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+      {defense && <DefenseExtras defense={defense} />}
     </ReportView>
   );
 }
