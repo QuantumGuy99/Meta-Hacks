@@ -53,7 +53,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-REPORT_DEADLINE_S = 150  # Wonder's 90 s (§21) plus most of a Spark fallback; then the template
+REPORT_DEADLINE_S = 100  # Wonder's 45 s (§21), then Spark's 45 s, with margin; then the template
 TEMPLATE_MODEL = "template"
 MAX_MOMENTS = 14
 LONG_SILENCE_MS = 60_000  # a quieter stretch than this becomes a moment

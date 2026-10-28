@@ -7,27 +7,33 @@ from pydantic import Field
 
 from crucible.contracts.common import Phase, Strict
 
+# Size limits on what a browser can send (§8.2). Generous for real use; they stop a client from sending
+# megabytes of text that would end up in model prompts and the timeline.
+MAX_FILE_CHARS = 200_000  # one source file (projects are ≤ 6,000 lines in all, §11.1)
+MAX_PATH_CHARS = 256
+MAX_CHANGES_PER_EVENT = 100  # Monaco sends one change per cursor
+
 
 class EditorChange(Strict):
     range_offset: int  # Monaco rangeOffset (offset in the model BEFORE this event)
     range_length: int  # Monaco rangeLength
-    text: str  # inserted text
+    text: str = Field(max_length=MAX_FILE_CHARS)  # inserted text
 
 
 class EditorEvent(Strict):
     t: int
-    file: str = "solution.py"
+    file: str = Field(default="solution.py", max_length=MAX_PATH_CHARS)
     version: int  # Monaco model versionId after the event
     kind: Literal["change", "paste", "undo", "redo", "focus", "blur", "hidden", "visible"]
-    changes: list[EditorChange] = Field(default_factory=list)
+    changes: list[EditorChange] = Field(default_factory=list, max_length=MAX_CHANGES_PER_EVENT)
     pasted_chars: int | None = None
 
 
 class CodeSnapshot(Strict):
     t: int
-    file: str
+    file: str = Field(max_length=MAX_PATH_CHARS)
     version: int
-    code: str
+    code: str = Field(max_length=MAX_FILE_CHARS)
 
 
 class TranscriptTurn(Strict):
