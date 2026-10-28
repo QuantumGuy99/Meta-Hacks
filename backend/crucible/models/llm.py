@@ -132,11 +132,6 @@ class LLM:
         """Be told when each role call starts and ends (the session hub shows it on the strip)."""
         self._watchers.append(on_activity)
 
-    def register_provider(self, provider: Provider, client: AsyncOpenAI, model: str) -> None:
-        """Plug in a partner client (Glimmer, from `models/glimmer.py`) for every role that lists it."""
-        self._clients[provider] = client
-        self._provider_models[provider] = model
-
     async def complete_json[T: BaseModel](
         self,
         role: ModelRole,
@@ -258,7 +253,7 @@ class LLM:
             if index == 0:
                 model = self._settings.role_models.get(role, model)
             resolved = replace(target, model=model)
-            # A per-call effort only replaces efforts the registry sends; Baseten and Glimmer never get one.
+            # A per-call effort only replaces efforts the registry sends; Baseten never gets one.
             if effort is not None and target.effort is not None:
                 resolved = replace(resolved, effort=effort)
             if self._settings.use_contributor_models and resolved.provider == "meta":
@@ -344,7 +339,7 @@ class LLM:
 def estimate_cost_usd(
     model: str, prompt_tokens: int, completion_tokens: int, cached_tokens: int = 0
 ) -> float | None:
-    """List-price estimate (PLAN §15.3). None for models without a known price (Spark Open, Glimmer)."""
+    """List-price estimate (PLAN §15.3). None for models without a known price (Spark Open)."""
     price = PRICES.get(model)
     if price is None:
         return None

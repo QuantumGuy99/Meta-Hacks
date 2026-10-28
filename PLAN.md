@@ -1740,13 +1740,18 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 | `analyzer` | `muse-spark-1.3` | minimal | skip tick |
 | `interviewer` | `muse-spark-1.3` | low | canned/rubric text |
 | `classifier` (P1) | `muse-spark-1.3` | minimal | treat as thinking aloud |
-| `grill_eval` | `muse-spark-1.3` | medium | Spark Open (Baseten) |
+| `grill_eval` | `muse-spark-1.3` | medium | Spark (low) → Spark Open (Baseten) → keyword grading |
 | `audit` | `muse-wonder-1.0` | xhigh | `muse-spark-1.3` (high) → `flaws.json` (samples only) |
 | `report` | `muse-wonder-1.0` | high | `muse-spark-1.3` → metrics-only template |
-| `attacker` | `muse-spark-1.3` | high | Spark (medium) → reference attack (sample apps only) |
+| `attacker` | `muse-spark-1.3` | low | Spark (medium) → reference attack (sample apps only) |
 | `drafter` (datatools) | `muse-wonder-1.0` | high | Spark (medium) → Spark Open |
 | `vision` (P2) | `muse-spark-1.3` with image input | low | skip |
 | `assistant` (P1, §11.9) | `muse-spark-1.3` | low | "assistant unavailable" message |
+
+Attacker and grill effort were re-measured on 2026-10-28 with the real prompts (bank-transfer-min, 4 calls each):
+the attacker took p50 26 s / max 30 s at high (timing out against its 30 s budget), 18.5 s at medium and 6.6 s at
+low, with every attack valid; at low, 2 of 2 full Defense runs broke the app. grill_eval took 4.2 s at medium and
+3.0 s at low, marking the same points.
 
 - `reasoning_effort` values: `minimal | low | medium | high | xhigh | max` (`none` returns 400 on Spark and
   Wonder). Live roles (analyzer, interviewer, classifier, grill_eval) use the lowest effort that works.
