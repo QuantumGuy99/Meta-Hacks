@@ -5,16 +5,40 @@ import { test } from "node:test";
 
 import {
   createTts,
-  MAX_CHUNK_CHARS,
+  isNaturalVoice,
+  loadVoiceChoice,
+  MAX_SENTENCE_CHARS,
   pickVoice,
+  rankVoices,
+  saveVoiceChoice,
   speakable,
   splitSpeech,
   STALL_CHECK_MS,
+  VOICE_KEY,
+  voiceLabel,
   VOICES_WAIT_MS,
 } from "../tts.ts";
 
-const voice = (name, lang = "en-US", isDefault = false) => ({ name, lang, default: isDefault });
-const VOICES = [voice("Alex", "en-US", true), voice("Google US English"), voice("Thomas", "fr-FR")];
+const voice = (name, lang = "en-US") => ({ name, lang });
+const VOICES = [voice("Alex"), voice("Google US English"), voice("Samantha"), voice("Thomas", "fr-FR")];
+
+// The English voices Chrome 156 lists on our Mac (Oct 28), in Chrome's order: no Natural, Premium or Enhanced ones.
+const CHROME_MAC = [
+  ["Samantha", "en-US"], ["Albert", "en-US"], ["Bad News", "en-US"], ["Bahh", "en-US"], ["Bells", "en-US"],
+  ["Boing", "en-US"], ["Bubbles", "en-US"], ["Cellos", "en-US"], ["Daniel", "en-GB"],
+  ["Eddy (English (United States))", "en-US"], ["Eddy (English (United Kingdom))", "en-GB"],
+  ["Flo (English (United States))", "en-US"], ["Flo (English (United Kingdom))", "en-GB"], ["Fred", "en-US"],
+  ["Good News", "en-US"], ["Grandma (English (United States))", "en-US"], ["Grandma (English (United Kingdom))", "en-GB"],
+  ["Grandpa (English (United States))", "en-US"], ["Grandpa (English (United Kingdom))", "en-GB"], ["Jester", "en-US"],
+  ["Junior", "en-US"], ["Karen", "en-AU"], ["Kathy", "en-US"], ["Moira", "en-IE"], ["Organ", "en-US"], ["Ralph", "en-US"],
+  ["Reed (English (United States))", "en-US"], ["Reed (English (United Kingdom))", "en-GB"], ["Rishi", "en-IN"],
+  ["Rocko (English (United States))", "en-US"], ["Rocko (English (United Kingdom))", "en-GB"],
+  ["Sandy (English (United States))", "en-US"], ["Sandy (English (United Kingdom))", "en-GB"],
+  ["Shelley (English (United States))", "en-US"], ["Shelley (English (United Kingdom))", "en-GB"], ["Superstar", "en-US"],
+  ["Tessa", "en-ZA"], ["Trinoids", "en-US"], ["Whisper", "en-US"], ["Wobble", "en-US"], ["Zarvox", "en-US"],
+  ["Google US English", "en-US"], ["Google UK English Female", "en-GB"], ["Google UK English Male", "en-GB"],
+  ["Amélie", "fr-CA"],
+].map(([name, lang]) => voice(name, lang));
 
 // Speaks one utterance at a time, like the browser; the test drives start, end and errors.
 class FakeSynth {
@@ -42,7 +66,7 @@ class FakeSynth {
   }
   speak(u) {
     this.spoken.push(u);
-    if (!u.onstart) return; // unlock()'s empty utterance
+    if (!u.onstart) return; // a silent warm-up or unlock utterance
     this.current = u;
     this.pending = true;
   }
@@ -88,6 +112,18 @@ class FakeSynth {
   }
 }
 
+const makeUtterance = (text) => ({
+  text,
+  lang: "",
+  voice: null,
+  rate: 1,
+  pitch: 1,
+  volume: 1,
+  onstart: null,
+  onend: null,
+  onerror: null,
+});
+
 function setup({ voices = VOICES, ...opts } = {}) {
   const synth = new FakeSynth();
   synth.voices = voices;
@@ -99,28 +135,169 @@ function setup({ voices = VOICES, ...opts } = {}) {
       onBlocked: (b) => events.push(b ? "blocked" : "unblocked"),
       ...opts,
     },
-    { synth, makeUtterance: (text) => ({ text, lang: "", voice: null, rate: 1, onstart: null, onend: null, onerror: null }) },
+    { synth, makeUtterance },
   );
   return { synth, tts, events };
 }
 
-// --- voice and text ------------------------------------------------------------------------------------------
+class FakeStorage {
+  items = new Map();
+  getItem(key) {
+    return this.items.get(key) ?? null;
+  }
+  setItem(key, value) {
+    this.items.set(key, value);
+  }
+  removeItem(key) {
+    this.items.delete(key);
+  }
+}
 
-test("prefers a natural voice, then Google US English, then Samantha, English only", () => {
-  assert.equal(pickVoice([...VOICES, voice("Microsoft Aria Online (Natural) - English (United States)")]).name,
-    "Microsoft Aria Online (Natural) - English (United States)");
-  assert.equal(pickVoice(VOICES).name, "Google US English");
-  assert.equal(pickVoice([voice("Alex", "en-US", true), voice("Samantha")]).name, "Samantha");
-  assert.equal(pickVoice([voice("Amélie (Natural)", "fr-CA"), voice("Alex", "en-US", true)]).name, "Alex");
+// --- voice ranking -------------------------------------------------------------------------------------------
+
+test("ranks Edge's neural voices, then Premium, Enhanced, other natural, Google, then the old macOS voices", () => {
+  const all = [
+    voice("Moira", "en-IE"),
+    voice("Karen", "en-AU"),
+    voice("Daniel", "en-GB"),
+    voice("Samantha"),
+    voice("Google UK English Male", "en-GB"),
+    voice("Google UK English Female", "en-GB"),
+    voice("Google US English"),
+    voice("Some Neural Voice"),
+    voice("Evan (Enhanced)"),
+    voice("Zoe (Premium)"),
+    voice("Microsoft Aria Online (Natural) - English (United States)"),
+    voice("Microsoft Ava Online (Natural) - English (United States)"),
+    voice("Rishi", "en-IN"),
+  ];
+  assert.deepEqual(
+    rankVoices(all).map((v) => v.name),
+    [
+      "Microsoft Ava Online (Natural) - English (United States)",
+      "Microsoft Aria Online (Natural) - English (United States)",
+      "Zoe (Premium)",
+      "Evan (Enhanced)",
+      "Some Neural Voice",
+      "Google US English",
+      "Google UK English Female",
+      "Google UK English Male",
+      "Samantha",
+      "Daniel",
+      "Karen",
+      "Moira",
+      "Rishi",
+    ],
+  );
 });
 
-test("prefers US English, then the default, then any English; none is null", () => {
-  assert.equal(pickVoice([voice("Libby (Natural)", "en-GB"), voice("Jenny (Natural)", "en-US")]).name, "Jenny (Natural)");
-  assert.equal(pickVoice([voice("Daniel", "en-GB"), voice("Fred", "en-US", true)]).name, "Fred");
+test("within a tier, en-US comes before the other English voices", () => {
+  assert.equal(pickVoice([voice("Serena (Premium)", "en-GB"), voice("Ava (Premium)")]).name, "Ava (Premium)");
+  assert.equal(pickVoice([voice("Libby (Natural)", "en-GB"), voice("Jenny (Natural)")]).name, "Jenny (Natural)");
+  assert.equal(pickVoice([voice("Tessa", "en-ZA"), voice("Alex")]).name, "Alex");
   assert.equal(pickVoice([voice("Daniel", "en_GB")]).name, "Daniel");
-  assert.equal(pickVoice([voice("Thomas", "fr-FR")]), null);
+});
+
+test("Edge's multilingual neural voices count as its newest ones", () => {
+  const edge = [
+    voice("Microsoft Guy Online (Natural) - English (United States)"),
+    voice("Microsoft AndrewMultilingual Online (Natural) - English (United States)"),
+  ];
+  assert.match(pickVoice(edge).name, /AndrewMultilingual/);
+});
+
+test("on our Mac's Chrome: Google US English, and no novelty or Eloquence voice is ever listed", () => {
+  const ranked = rankVoices(CHROME_MAC).map((v) => v.name);
+  assert.equal(pickVoice(CHROME_MAC).name, "Google US English");
+  assert.deepEqual(ranked, [
+    "Google US English",
+    "Google UK English Female",
+    "Google UK English Male",
+    "Samantha",
+    "Daniel",
+    "Karen",
+    "Moira",
+    "Rishi",
+    "Tessa",
+  ]);
+});
+
+test("a list of only novelty, Eloquence and non-English voices has no pick", () => {
+  const junk = ["Albert", "Bad News", "Zarvox", "Whisper", "Fred", "Kathy", "Eddy (English (United States))",
+    "Flo (English (United Kingdom))", "Grandma (English (United States))", "Reed (English (United States))",
+    "Rocko (English (United States))", "Sandy (English (United States))", "Shelley (English (United States))"];
+  assert.deepEqual(rankVoices(junk.map((n) => voice(n))), []);
+  assert.equal(pickVoice([...junk.map((n) => voice(n)), voice("Amélie (Natural)", "fr-CA")]), null);
   assert.equal(pickVoice([]), null);
 });
+
+test("natural voices are Edge's neural, Premium, Enhanced and other natural ones; Google's and Samantha aren't", () => {
+  assert.ok(isNaturalVoice(voice("Microsoft Emma Online (Natural) - English (United States)")));
+  assert.ok(isNaturalVoice(voice("Ava (Premium)")));
+  assert.ok(isNaturalVoice(voice("Evan (Enhanced)")));
+  assert.equal(isNaturalVoice(voice("Google US English")), false);
+  assert.equal(isNaturalVoice(voice("Samantha")), false);
+});
+
+test("picker labels are short", () => {
+  assert.equal(voiceLabel(voice("Microsoft Ava Online (Natural) - English (United States)")), "Ava (Natural) · US");
+  assert.equal(voiceLabel(voice("Zoe (Premium)")), "Zoe (Premium) · US");
+  assert.equal(voiceLabel(voice("Google US English")), "Google US English");
+  assert.equal(voiceLabel(voice("Google UK English Female", "en-GB")), "Google UK English Female");
+  assert.equal(voiceLabel(voice("Daniel", "en-GB")), "Daniel · UK");
+  assert.equal(voiceLabel(voice("Moira", "en-IE")), "Moira · IE");
+});
+
+// --- the saved pick ------------------------------------------------------------------------------------------
+
+test("a saved pick is used when it's installed, even over a better voice", () => {
+  const { synth, tts } = setup({ voiceName: "Samantha" });
+  assert.equal(tts.voice.name, "Samantha");
+  tts.speak("Hello.");
+  assert.equal(synth.spoken[0].voice.name, "Samantha");
+});
+
+test("a saved pick that isn't installed falls back to the best voice", () => {
+  const { tts } = setup({ voiceName: "Ava (Premium)" });
+  assert.equal(tts.voice.name, "Google US English");
+});
+
+test("a saved pick applies once the voices load, and onVoices reports the list and the voice", () => {
+  const seen = [];
+  const { synth, tts } = setup({ voices: [], voiceName: "Samantha", onVoices: (list, v) => seen.push([list.length, v?.name]) });
+  assert.equal(tts.voice, null);
+  synth.loadVoices(VOICES);
+  assert.deepEqual(seen, [[3, "Samantha"]]);
+  assert.deepEqual(tts.voices.map((v) => v.name), ["Google US English", "Samantha", "Alex"]);
+});
+
+test("setVoice switches from the next sentence, and null goes back to the best", () => {
+  const { synth, tts } = setup();
+  tts.speak("One. Two.");
+  synth.start();
+  tts.setVoice("Samantha");
+  synth.end();
+  assert.equal(synth.spoken[0].voice.name, "Google US English");
+  assert.equal(synth.spoken[1].voice.name, "Samantha");
+  tts.setVoice(null);
+  assert.equal(tts.voice.name, "Google US English");
+});
+
+test("the pick is saved per browser, and storage errors are harmless", () => {
+  const storage = new FakeStorage();
+  assert.equal(loadVoiceChoice(storage), null);
+  saveVoiceChoice("Samantha", storage);
+  assert.equal(storage.getItem(VOICE_KEY), "Samantha");
+  assert.equal(loadVoiceChoice(storage), "Samantha");
+  saveVoiceChoice(null, storage);
+  assert.equal(loadVoiceChoice(storage), null);
+  const broken = { getItem() { throw new Error("denied"); }, setItem() { throw new Error("full"); }, removeItem() {} };
+  assert.equal(loadVoiceChoice(broken), null);
+  saveVoiceChoice("Samantha", broken);
+  assert.equal(loadVoiceChoice(null), null); // no storage at all (Node, the server render)
+});
+
+// --- text and prosody ----------------------------------------------------------------------------------------
 
 test("markdown is read as plain text and code blocks are skipped", () => {
   assert.equal(
@@ -129,18 +306,47 @@ test("markdown is read as plain text and code blocks are skipped", () => {
   );
 });
 
-test("sentences are packed into chunks, and numbers aren't split", () => {
-  assert.deepEqual(splitSpeech("It takes 3.5 seconds. Why? Because!", 20), ["It takes 3.5", "seconds. Why?", "Because!"]);
-  assert.deepEqual(splitSpeech("Hi there. How are you? Good."), ["Hi there. How are you? Good."]);
+test("one chunk per sentence; numbers, abbreviations and lowercase run-ons don't split", () => {
+  assert.deepEqual(splitSpeech("It takes 3.5 seconds. Why? Because!"), ["It takes 3.5 seconds.", "Why?", "Because!"]);
+  assert.deepEqual(splitSpeech("Try a heap, e.g. a min-heap. Then sort it, i.e. in place."), [
+    "Try a heap, e.g. a min-heap.",
+    "Then sort it, i.e. in place.",
+  ]);
+  assert.deepEqual(splitSpeech("Use O(n). then check it."), ["Use O(n). then check it."]);
   assert.deepEqual(splitSpeech("   "), []);
 });
 
-test("a long sentence splits at commas, then at spaces, never over the limit", () => {
-  const long = `${"word ".repeat(60).trim()}, and then ${"more ".repeat(40).trim()}.`;
-  const chunks = splitSpeech(long);
+test("only a sentence over the limit splits, at its clauses, never over the limit", () => {
+  const long = `Then ${"word ".repeat(30).trim()}, and then ${"more ".repeat(30).trim()}; finally ${"done ".repeat(20).trim()}.`;
+  const chunks = splitSpeech(`Short one. ${long}`);
+  assert.equal(chunks[0], "Short one.");
   assert.ok(chunks.length >= 3);
-  assert.ok(chunks.every((c) => c.length <= MAX_CHUNK_CHARS), chunks.map((c) => c.length).join(","));
-  assert.equal(chunks.join(" "), long);
+  assert.ok(chunks.every((c) => c.length <= MAX_SENTENCE_CHARS), chunks.map((c) => c.length).join(","));
+  assert.ok(chunks.slice(1, -1).every((c) => /[,;]$/.test(c)), "each piece ends at a clause");
+  assert.equal(chunks.slice(1).join(" "), long);
+});
+
+test("speaks at a slightly brisk rate and natural pitch, the first sentence on its own", () => {
+  const { synth, tts } = setup();
+  tts.speak("Hi, I'm your interviewer. Your problem is on the left, so take a moment to read it.");
+  const [u] = synth.spoken;
+  assert.equal(u.text, "Hi, I'm your interviewer.");
+  assert.equal(u.rate, 1.05);
+  assert.equal(u.pitch, 1);
+  assert.equal(u.volume, 1);
+});
+
+test("warm() speaks one silent, empty utterance when idle, and nothing while speaking or muted", () => {
+  const { synth, tts } = setup();
+  tts.warm();
+  assert.deepEqual(synth.texts(), [""]);
+  assert.equal(synth.spoken[0].volume, 0);
+  assert.equal(synth.spoken[0].voice.name, "Google US English");
+  tts.speak("Hello.");
+  tts.warm();
+  tts.setMuted(true);
+  tts.warm();
+  assert.deepEqual(synth.texts(), ["", "Hello."]);
 });
 
 // --- the queue -----------------------------------------------------------------------------------------------
