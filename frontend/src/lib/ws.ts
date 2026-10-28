@@ -12,6 +12,7 @@ export type SocketStatus = "connecting" | "open" | "reconnecting" | "closed" | "
 export type SessionSocket = { send: (msg: ClientMessage) => void; close: () => void };
 
 const NOT_FOUND_CLOSE = 4404;
+const FLOOD_CLOSE = 4429; // too many dropped messages in a short time
 const BACKOFF_MS = [500, 1000, 2000, 4000, 8000];
 const MAX_QUEUED = 500;
 const KEEPALIVE_MS = 25_000;
@@ -83,6 +84,8 @@ export function connectSession(
         handlers.onStatus("not_found");
         return;
       }
+      // Closed for flooding (PR #38): come back slowly rather than straight into the same limit.
+      if (e.code === FLOOD_CLOSE) attempt = Math.max(attempt, BACKOFF_MS.length - 2);
       handlers.onStatus("reconnecting");
       scheduleRetry();
     };

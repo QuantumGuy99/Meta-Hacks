@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Streamdown } from "streamdown";
 import "streamdown/styles.css";
 import { levelLabel } from "@/lib/fixtures";
+import { CHAT_MAX } from "@/lib/session";
 import type { InterventionLevel, StepStatus } from "@/types/contracts";
 
 export type RoomMessage = {
@@ -187,6 +188,7 @@ export function InterviewerPanel({
           name="ask"
           autoComplete="off"
           placeholder="Ask a question or explain your plan…"
+          maxLength={CHAT_MAX}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
         />

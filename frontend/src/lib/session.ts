@@ -318,6 +318,23 @@ export function useClock(active: boolean): number {
   return active ? now : 0;
 }
 
+// The server's limits on what a client sends (PR #38, PLAN §8.2): longer is rejected with `bad_message`.
+export const CHAT_MAX = 4_000;
+export const CODE_MAX = 200_000;
+export const VERIFY_MAX_FILES = 60;
+
+/** An `error` message as one line for the candidate; the socket's own limit codes get plain words. */
+export function socketErrorText(err: ErrorMsg): string {
+  switch (err.code) {
+    case "rate_limited":
+      return "You're sending faster than the server accepts. Give it a moment.";
+    case "too_large":
+      return "That was too large to send. Shorten it and try again.";
+    default:
+      return err.message;
+  }
+}
+
 /** Socket status as one short line, or null while everything is fine. */
 export function statusLine(status: SocketStatus): string | null {
   switch (status) {

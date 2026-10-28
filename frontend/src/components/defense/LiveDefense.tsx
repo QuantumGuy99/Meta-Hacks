@@ -12,7 +12,19 @@ import { useMic } from "@/components/room/useMic";
 import { api, errorText } from "@/lib/api";
 import { attachEditorCapture, type EditorCapture } from "@/lib/capture/editor";
 import { clock, levelLabel, severityLabel } from "@/lib/fixtures";
-import { feedMessages, liveCaption, statusLine, useClock, useLiveSession, useRemaining, type LiveState } from "@/lib/session";
+import {
+  CHAT_MAX,
+  CODE_MAX,
+  socketErrorText,
+  feedMessages,
+  liveCaption,
+  statusLine,
+  useClock,
+  useLiveSession,
+  useRemaining,
+  VERIFY_MAX_FILES,
+  type LiveState,
+} from "@/lib/session";
 import type { ChaosMetric, ChaosRun, Phase } from "@/types/contracts";
 import { LiveLoadChart } from "./LiveLoadChart";
 import { TopologyView } from "./TopologyView";
@@ -161,7 +173,7 @@ export function LiveDefense({ id }: { id: string }) {
   const attackWaited = attackWait ? waited(state.arrived.audit) : null;
 
   useEffect(() => {
-    if (state.error) toast.error(state.error.message, { id: `err-${state.error.at}` });
+    if (state.error) toast.error(socketErrorText(state.error), { id: `err-${state.error.at}` });
   }, [state.error]);
   // Attack results as toasts: only ones that finish while you're here, not ones a reload brings back.
   const lastDone = state.chaosRuns.at(-1);
@@ -184,8 +196,24 @@ export function LiveDefense({ id }: { id: string }) {
   const verify = () => {
     if (!targetId || !files || running) return;
     capture.current?.snapshot();
+    // Only the edited files (the server takes at most VERIFY_MAX_FILES, each under CODE_MAX); with no edits,
+    // the flagged file, so Verify still re-runs the attack.
     const changed = Object.fromEntries(Object.entries(files).filter(([p, code]) => original[p] !== code));
-    const sent = Object.keys(changed).length ? changed : findingFile && files[findingFile] ? { [findingFile]: files[findingFile] } : files;
+    const sent = Object.keys(changed).length
+      ? changed
+      : findingFile && files[findingFile] !== undefined
+        ? { [findingFile]: files[findingFile] }
+        : {};
+    if (Object.keys(sent).length === 0) {
+      toast.error("Nothing to verify yet", { description: "Edit the flagged file, then verify." });
+      return;
+    }
+    if (Object.keys(sent).length > VERIFY_MAX_FILES || Object.values(sent).some((code) => code.length > CODE_MAX)) {
+      toast.error("Too much to verify at once", {
+        description: `Verify takes up to ${VERIFY_MAX_FILES} edited files of under ${CODE_MAX.toLocaleString()} characters each.`,
+      });
+      return;
+    }
     setVerifying({ runs: state.chaosRuns.length, at: performance.now(), wall: Date.now() });
     send({ type: "defense.verify", finding_id: targetId, files: sent });
   };
@@ -456,6 +484,7 @@ export function LiveDefense({ id }: { id: string }) {
                       <textarea
                         name="answer"
                         rows={5}
+                        maxLength={CHAT_MAX}
                         value={answer}
                         onChange={(e) => setAnswer(e.target.value)}
                         placeholder="Explain what broke and why…"

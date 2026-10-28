@@ -11,7 +11,16 @@ import { api, errorText } from "@/lib/api";
 import { attachEditorCapture, type EditorCapture } from "@/lib/capture/editor";
 import { levelLabel } from "@/lib/fixtures";
 import { codeAt } from "@/lib/replay";
-import { feedMessages, liveCaption, statusLine, useClock, useLiveSession, useRemaining } from "@/lib/session";
+import {
+  CODE_MAX,
+  feedMessages,
+  liveCaption,
+  socketErrorText,
+  statusLine,
+  useClock,
+  useLiveSession,
+  useRemaining,
+} from "@/lib/session";
 import type { Phase, ProblemPublic } from "@/types/contracts";
 import { CodeEditor } from "./CodeEditor";
 import { InterviewerPanel } from "./InterviewerPanel";
@@ -110,7 +119,7 @@ export function LiveRoom({ id }: { id: string }) {
     else toast.error(`${lastRun.total - lastRun.passed} of ${lastRun.total} tests failed`, { id });
   }, [lastRun, lastRunIsLive]);
   useEffect(() => {
-    if (state.error) toast.error(state.error.message, { id: `err-${state.error.at}` });
+    if (state.error) toast.error(socketErrorText(state.error), { id: `err-${state.error.at}` });
   }, [state.error]);
 
   // When the interview ends (time, wrap-up or End), the report is next.
@@ -132,6 +141,10 @@ export function LiveRoom({ id }: { id: string }) {
 
   const run = (kind: "run" | "submit") => {
     if (running || !editor || beforeClarify) return;
+    if (editor.getValue().length > CODE_MAX) {
+      toast.error("Your code is too long to run", { description: `Keep it under ${CODE_MAX.toLocaleString()} characters.` });
+      return;
+    }
     capture.current?.snapshot(); // the backend must see the exact code being run
     setPending({ runs: state.runs.length, at: performance.now(), wall: Date.now() });
     send({ type: kind === "run" ? "code.run" : "code.submit", file: FILE, code: editor.getValue() });
