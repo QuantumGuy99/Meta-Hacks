@@ -27,6 +27,7 @@ import { InterviewerPanel } from "./InterviewerPanel";
 import { MicControls } from "./MicControls";
 import { NotesPanel } from "./NotesPanel";
 import { TestPanel } from "./TestPanel";
+import { UnderTheHood } from "./UnderTheHood";
 import { useMic } from "./useMic";
 
 // The live coding room (/coding/[id], PLAN §14.2): everything on screen comes from the session socket.
@@ -310,6 +311,7 @@ export function LiveRoom({ id }: { id: string }) {
           />
         </ResizablePanel>
       </ResizablePanelGroup>
+      <UnderTheHood events={state.activity} />
     </div>
   );
 }

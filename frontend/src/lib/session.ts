@@ -22,6 +22,12 @@ import type {
   TranscriptTurn,
   Verdict,
 } from "@/types/contracts";
+import {
+  MODEL_ACTIVITY_KIND,
+  type ActivityEvent,
+  type ModelActivity,
+  type ModelActivityMsg,
+} from "@/types/model-activity.draft";
 import { api } from "./api";
 import { connectSession, type SessionSocket, type SocketStatus } from "./ws";
 
@@ -59,6 +65,8 @@ export type LiveState = {
   verdict: Verdict | null;
   reportReady: boolean;
   error: (ErrorMsg & { at: number }) | null;
+  /** model.activity events for the Under the hood strip (PR #39), oldest first. */
+  activity: ActivityEvent[];
 };
 
 export const initialLive: LiveState = {
@@ -85,6 +93,7 @@ export const initialLive: LiveState = {
   verdict: null,
   reportReady: false,
   error: null,
+  activity: [],
 };
 
 type Action =
@@ -116,6 +125,9 @@ function addHistory(state: LiveState, events: TimelineEvent[]): LiveState {
         break;
       case "chaos_run":
         next = { ...next, chaosRuns: upsert(next.chaosRuns, p as ChaosRun, (x) => x.id) };
+        break;
+      case MODEL_ACTIVITY_KIND as TimelineEvent["kind"]:
+        next = { ...next, activity: addActivity(next.activity, p as ModelActivity) };
         break;
       case "chaos_metric":
         next = { ...next, metrics: upsert(next.metrics, p as ChaosMetric, (x) => `${x.run_id}:${x.t_ms}`) };
@@ -151,6 +163,12 @@ function addIntervention(state: LiveState, iv: Intervention, wall: number): Live
   return { ...state, interventions, arrived, pending: [...state.pending, iv.id] };
 }
 
+/** Add one model.activity event; a call's "started" and its ending both stay, a repeat of either doesn't. */
+function addActivity(list: ActivityEvent[], e: ActivityEvent): ActivityEvent[] {
+  if (list.some((x) => x.call_id === e.call_id && x.status === e.status)) return list;
+  return [...list, e];
+}
+
 /** Record when something first reached this browser over the socket (not when it came from history). */
 function stamp(arrived: Record<string, number>, key: string, wall: number): Record<string, number> {
   return key in arrived ? arrived : { ...arrived, [key]: wall };
@@ -174,6 +192,10 @@ export function reduceLive(state: LiveState, action: Action): LiveState {
     return { ...state, streamingId: next ?? null, pending: rest, shown: next ? [...state.shown, next] : state.shown };
   }
   const msg = action.msg;
+  if ((msg as { type: string }).type === "model.activity") {
+    const activity = (msg as unknown as ModelActivityMsg).activity;
+    return { ...state, activity: addActivity(state.activity, { ...activity, wall: action.wall }) };
+  }
   switch (msg.type) {
     case "session.state":
       return {

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { CodeEditor } from "@/components/room/CodeEditor";
 import { InterviewerPanel } from "@/components/room/InterviewerPanel";
 import { MicControls } from "@/components/room/MicControls";
+import { UnderTheHood } from "@/components/room/UnderTheHood";
 import { useMic } from "@/components/room/useMic";
 import { api, errorText } from "@/lib/api";
 import { attachEditorCapture, type EditorCapture } from "@/lib/capture/editor";
@@ -72,6 +73,7 @@ export function LiveDefense({ id }: { id: string }) {
   // The finding whose file is open under the topology (the audit's file preview, PLAN §14.4).
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [answer, setAnswer] = useState("");
+  // Date.now() of the last answer sent, to tell "grading" from "a follow-up question came back"
   const [answeredAt, setAnsweredAt] = useState<number | null>(null);
   const [files, setFiles] = useState<Record<string, string> | null>(null);
   const [original, setOriginal] = useState<Record<string, string>>({});
@@ -223,9 +225,11 @@ export function LiveDefense({ id }: { id: string }) {
     if (!text) return;
     send({ type: "chat.send", text });
     setAnswer("");
-    setAnsweredAt(performance.now());
+    setAnsweredAt(Date.now());
   };
-  const grading = answeredAt !== null && !grilled && view === "grill";
+  // The grade (defense.grill.eval) only comes once the grill for a finding is final, after a follow-up if one
+  // is asked (#29). Until then a newer question means a follow-up: the answer box comes back, not "grading".
+  const grading = answeredAt !== null && !grilled && view === "grill" && (askedAt === null || answeredAt > askedAt);
 
   const status = statusLine(state.status);
   const metric = last(baseline);
@@ -633,6 +637,7 @@ export function LiveDefense({ id }: { id: string }) {
           }
         />
       </div>
+      <UnderTheHood events={state.activity} />
     </div>
   );
 }

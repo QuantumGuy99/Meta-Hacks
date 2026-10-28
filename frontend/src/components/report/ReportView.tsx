@@ -8,9 +8,11 @@ import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import { Slider } from "@/components/ui/slider";
 import { HeadlineReveal } from "@/components/motion/HeadlineReveal";
 import { CodeEditor } from "@/components/room/CodeEditor";
+import { UnderTheHood } from "@/components/room/UnderTheHood";
 import { clock, dimensionLabel } from "@/lib/fixtures";
 import { codeAt } from "@/lib/replay";
 import type { Moment, Report, TimelineEvent } from "@/types/contracts";
+import type { ActivityEvent } from "@/types/model-activity.draft";
 
 // Report + replay (FE-7, PLAN §14.5): scores, moments and metrics from a Report, and a replay of the session's
 // timeline. The code pane is codeAt (lib/replay.ts) at the scrubber's time. The demo and the live report
@@ -30,6 +32,7 @@ export function ReportView({
   file,
   transcript,
   marks,
+  activity = [],
   children,
 }: {
   title: string;
@@ -40,6 +43,8 @@ export function ReportView({
   file: string;
   transcript: ReportLine[];
   marks: ReportMark[];
+  /** model.activity from the timeline: the Under the hood strip under the replay, at the scrubber's time */
+  activity?: ActivityEvent[];
   /** mode-specific sections under the metrics (defense: findings, attacks, verdict) */
   children?: ReactNode;
 }) {
@@ -254,6 +259,8 @@ export function ReportView({
               ))}
             </ol>
           </div>
+
+          {activity.length > 0 && <UnderTheHood events={activity} t={t * 1000} />}
 
           <ul className="rp-moments" aria-label="Moments">
             {marks.map((mo, i) => (

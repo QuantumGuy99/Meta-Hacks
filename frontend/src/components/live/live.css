@@ -183,6 +183,101 @@
   color: var(--muted-ink);
 }
 
+/* Under the hood (docs/STORY.md): one chip per Meta model along the bottom of the room and in the replay */
+.uth {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 14px;
+  min-height: 34px;
+  padding: 6px var(--margin);
+  border-top: 1px solid var(--ui-line);
+  background: var(--bg);
+  font-family: var(--mono), ui-monospace, monospace;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+.rp-replay .uth {
+  margin-top: 12px;
+  padding: 8px 0;
+  background: transparent;
+}
+.uth-title {
+  flex: none;
+  color: var(--muted-ink);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.uth ul {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.uth-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  transition: opacity 400ms ease;
+}
+.uth-chip strong {
+  font-weight: 600;
+}
+.uth-task {
+  color: var(--muted-ink);
+}
+.uth-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3a3a40;
+}
+.uth-chip.is-idle,
+.uth-chip.is-dim {
+  opacity: 0.45;
+}
+.uth-chip.is-working .uth-dot,
+.uth-chip.is-done .uth-dot,
+.uth-chip.is-cached .uth-dot {
+  background: var(--cobalt);
+}
+.uth-chip.is-working .uth-dot {
+  animation: uth-pulse 1.2s ease-in-out infinite;
+}
+.uth-chip.is-working .uth-task {
+  color: var(--ink);
+}
+.uth-chip.is-fallback .uth-dot {
+  background: #ffb648;
+}
+.uth-chip.is-fallback .uth-task {
+  color: #ffd27a;
+}
+.uth-chip.is-failed .uth-dot {
+  background: #ff6b6b;
+}
+@keyframes uth-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.8);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .uth-chip.is-working .uth-dot {
+    animation: none;
+  }
+}
+
 /* speech-to-text mic bar above the chat box */
 .rm-voice {
   display: flex;
