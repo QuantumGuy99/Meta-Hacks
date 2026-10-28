@@ -315,13 +315,14 @@ class VoiceBridge:
     # --- turns ------------------------------------------------------------------------------------------------------
 
     async def _final(self, turn_id: str, text: str, start_ms: int, end_ms: int) -> None:
-        """A completed turn: on the timeline first (the analyzer and the mode react), then to every tab."""
+        """A completed turn: on the timeline, on every tab, then the analyzer and the mode react."""
         text = text.strip()
         if not text:
             return
         turn = _turn(turn_id, text, start_ms, end_ms, final=True)
-        await self._rt.record(TimelineKind.TRANSCRIPT, turn)
-        await self._rt.broadcast(TranscriptUpdate(type="transcript.update", turn=turn))
+        await self._rt.record(
+            TimelineKind.TRANSCRIPT, turn, show=TranscriptUpdate(type="transcript.update", turn=turn)
+        )
         if self._asked(turn.start_ms, turn.end_ms):
             self._rt.asked(text)
 

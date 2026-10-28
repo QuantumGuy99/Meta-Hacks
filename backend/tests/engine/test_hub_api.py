@@ -1,5 +1,6 @@
 """End-to-end tests for the session API and WebSocket hub (PLAN §8, §9.1), with an in-memory store."""
 
+import json
 import time
 from collections.abc import Callable, Iterator
 from typing import Any
@@ -13,6 +14,7 @@ from crucible.coding.problems import ProblemBank
 from crucible.coding.session import CodingMode
 from crucible.contracts.common import Mode
 from crucible.contracts.events import TimelineKind
+from crucible.contracts.ws import ChatSend, SessionState
 from crucible.engine.api import SESSION_NOT_FOUND_CLOSE, router
 from crucible.engine.hub import SessionHub
 from crucible.engine.store import MemoryStore
@@ -263,3 +265,55 @@ def test_an_idle_runtime_expires_and_reopens_where_it_left_off(client: TestClien
         sync(ws)
     seqs = [e["seq"] for e in client.get(f"/api/sessions/{sid}/timeline").json()]
     assert seqs == list(range(1, len(seqs) + 1))
+
+
+# --- what the candidate says is on screen before what it triggers ------------------------------------------------
+
+
+class ReplyingController:
+    """Answers every candidate turn at once, like the coding wrap-up's next question or closing line."""
+
+    def allowed_transitions(self) -> dict:
+        return {}
+
+    async def on_start(self, rt: Any) -> None:
+        return None
+
+    async def on_resume(self, rt: Any) -> None:
+        return None
+
+    async def on_client_message(self, rt: Any, msg: object) -> bool:
+        return False
+
+    async def on_timeline(self, rt: Any, event: Any) -> None:
+        if event.kind == TimelineKind.TRANSCRIPT and event.payload["speaker"] == "candidate":
+            await rt.note("info", "the mode reacted")
+            await rt.broadcast(
+                SessionState(
+                    type="session.state",
+                    session=rt.session,
+                    phase=rt.session.phase,
+                    remaining_s=None,
+                    interviewer_state="idle",
+                )
+            )
+
+    async def report_extra(self, rt: Any) -> None:
+        return None
+
+
+@pytest.mark.asyncio
+async def test_a_chat_turn_reaches_the_tabs_before_the_reaction_it_triggers() -> None:
+    from tests.factories import runtime as make_runtime
+
+    rt = make_runtime()
+    rt.controller = ReplyingController()
+    sent: list[str] = []
+
+    class Tab:
+        async def send_text(self, data: str) -> None:
+            sent.append(json.loads(data)["type"])
+
+    connection = rt.add(Tab())
+    await rt.handle(connection, ChatSend(type="chat.send", text="O(n) time, O(1) space."))
+    assert sent == ["transcript.update", "session.state"]
