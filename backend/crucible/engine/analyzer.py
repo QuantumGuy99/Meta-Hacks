@@ -39,16 +39,25 @@ Reason = Literal["ask", "run", "turn", "pause", "steady_change"]
 
 
 class StructuredModel(Protocol):
-    """The slice of `crucible.models.llm.LLM` the analyzer uses."""
+    """The slice of `crucible.models.llm.LLM` the engine uses: the analyzer, interviewer and report."""
 
     async def complete_json[T: BaseModel](
         self,
-        role: Literal["analyzer"],
+        role: Literal["analyzer", "interviewer"],
         messages: Sequence[Mapping[str, Any]],
         schema: type[T],
         *,
         session_id: str | None = None,
     ) -> T: ...
+
+    async def complete_json_with_model[T: BaseModel](
+        self,
+        role: Literal["report"],
+        messages: Sequence[Mapping[str, Any]],
+        schema: type[T],
+        *,
+        session_id: str | None = None,
+    ) -> tuple[T, str]: ...
 
 
 @dataclass(slots=True)
