@@ -17,6 +17,7 @@ SAM_BONUS = 1
 KEYWORD_HIT_RATIO = 0.4
 # Keywords alone shouldn't fail a correct explanation on the root cause (#35): point 0 needs fewer words.
 KEYWORD_ROOT_RATIO = 0.25
+MAX_ANSWER_CHARS = 4_000  # about 3 minutes of speech; longer answers are cut before they reach the model
 SAFE_FEEDBACK = "Think about what another request could be doing while this one waits. What could change?"
 _STOPWORDS = frozenset(
     [
@@ -196,7 +197,7 @@ def _messages(finding: Finding, chaos_summary: str, answer: str) -> list[dict]:
         "finding": finding.model_dump(include={"title", "file", "line_start", "line_end", "explanation"}),
         "load_test": chaos_summary,
         "expected_points": dict(enumerate(finding.grill.expected_points)),
-        "answer": answer,
+        "answer": answer[:MAX_ANSWER_CHARS],
     }
     return [
         {"role": "system", "content": PROMPTS["grill_eval_system"]},

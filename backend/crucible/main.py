@@ -26,10 +26,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from crucible import model_setup
 from crucible.config import Settings, get_settings
 from crucible.defense import router as defense
+from crucible.quota import DailyQuota, client_ip
 from crucible.runner import make_runner
 
 logger = logging.getLogger(__name__)
 
+SESSIONS_PATH = "/api/sessions"  # POST creates a session: the call the daily quota counts
 ROLE_ENV = model_setup.ROLE_ENV  # re-exported: older scripts import it from here
 
 
@@ -110,6 +112,8 @@ def _error(status: int, code: str, message: str) -> JSONResponse:
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     s = settings or get_settings()
+    if s.is_production and (problems := s.production_problems()):
+        raise RuntimeError(f"refusing to start in production: {'; '.join(problems)}")
     engine = _engine(s)
     if engine is None:
         logger.warning("engine not merged yet (#5/#8): serving /api/health only")
@@ -139,6 +143,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await defense.shutdown(app)
 
     app = FastAPI(title="Crucible", version=_app_version(), lifespan=lifespan)
+    if not s.MOCK:
+        quota = DailyQuota(s.MAX_SESSIONS_PER_IP_PER_DAY)
+
+        @app.middleware("http")
+        async def _session_quota(request: Request, call_next):
+            """Caps new sessions per client per day; a failed creation gives its slot back."""
+            if request.method != "POST" or request.url.path != SESSIONS_PATH:
+                return await call_next(request)
+            client = client_ip(request, behind_proxy=s.BEHIND_PROXY)
+            if not quota.take(client):
+                logger.warning("session quota reached for a client (%d/day)", quota.limit)
+                return _error(429, "rate_limited", "Daily session limit reached. Try again tomorrow.")
+            response = await call_next(request)
+            if response.status_code != 201:
+                quota.give_back(client)
+            return response
+
+    # Added last so it wraps everything: the quota's 429 still carries CORS headers the browser can read.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=s.cors_origins,

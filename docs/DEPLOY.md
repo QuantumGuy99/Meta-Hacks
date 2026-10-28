@@ -28,6 +28,10 @@ Then, in the Railway dashboard for the service:
    - `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`: copy them from `~/.modal.toml` (written by `modal token new`).
    - `CORS_ORIGINS`: the Vercel URL, e.g. `https://crucible.vercel.app`.
    - `RUNNER=modal`, `MOCK=0`, `MAX_SESSIONS_PER_IP_PER_DAY=10`.
+
+   On Railway (or with `APP_ENV=prod`) the backend **refuses to start** if a dev-only setting is on:
+   `DEFENSE_DEV_API`, `ALLOW_LOCAL_RUNNER`, `USE_CONTRIBUTOR_MODELS`, a runner other than Modal, or a
+   `CORS_ORIGINS` that includes `*` or localhost. The deploy log names the setting to fix.
 3. **Networking:** generate a public domain. That gives the backend URL.
 
 Check it: `curl https://<backend-domain>/api/health` → `{"ok":true,...}`.
