@@ -277,6 +277,7 @@ Owners: **SG** Srinithin Ganesh · **SS** Shreyas Sahoo · **LG** Likhil Gudipat
         │   ├── capture/editor.ts              (SG)  Monaco → EditorEvent batches + snapshots
         │   ├── capture/audio/*                (SG)  mic → AudioWorklet → PCM 24 kHz Int16 frames
         │   ├── replay.ts                      (SG)  code at time t (mirrors engine/codestate.py)
+        │   ├── tts.ts                         (SG)  interviewer voice, speechSynthesis (LG reviews)
         │   └── defense.ts                     (SS)  defense-stage helpers/selectors
         └── types/contracts.ts                 # GENERATED (make contracts); do not edit
 ```
@@ -1686,13 +1687,32 @@ MOCK is only ever switched on explicitly: a timeout, a missing credential or a M
 session never falls back to recorded data (it follows §21: a real fallback model, or an `error` verdict with
 a retry button), because recorded results shown as live would be a faked demo.
 
-### 14.7 Voice: speech to text only
-Voice in the room is **speech to text**: the candidate's mic streams to the audio socket (§8.3), Muse Voice
-Transcribe turns it into `transcript.update` turns, and the room shows them as live captions and chat
-messages. **Hold to Ask** marks a spoken question for the interviewer. The setup forms turn voice on by
-default and fall back to the chat box when the socket closes with 44xx/45xx.
-There is **no text to speech**: the interviewer's replies are shown as text and never read aloud (the
-frontend sends `speak_replies: false`). That also keeps every runtime model call a Meta one.
+### 14.7 Voice: speech to text in, TTS out (`lib/tts.ts`)
+**In, speech to text:** the candidate's mic streams to the audio socket (§8.3), Muse Voice Transcribe turns it
+into `transcript.update` turns, and the room shows them as live captions and chat messages. **Hold to Ask**
+marks a spoken question for the interviewer. The setup forms turn voice on by default and fall back to the
+chat box when the socket closes with 44xx/45xx.
+
+**Out, text to speech:** the interviewer's replies are read aloud with the browser's `speechSynthesis`: a
+chosen English voice (prefer a natural voice when available), a queue, `cancel()` for barge-in, and an
+`onstart`/`onend` that drives the speaking indicator. No third-party TTS (e.g. ElevenLabs): it would be the
+only non-Meta model call at runtime, needs another key, and `speechSynthesis` has no outage to fall back from.
+- **API:** `createTts({onStart, onEnd, onBlocked})` → `{speak(text), cancel(), setMuted(bool), unlock(),
+  dispose(), speaking, blocked, supported}`. Without `speechSynthesis` (or on the server render) every call is a
+  no-op.
+- **Voice:** waits for `voiceschanged` (at most 1.5 s), then English only, en-US first: a name with "Natural"
+  (Edge), "Google US English" (Chrome), "Samantha" (macOS), else the default English voice.
+- **Queue:** markdown is read as plain text and code blocks are skipped; each message is split into sentences
+  packed into chunks of ≤ 180 characters (Chrome cuts an utterance off after about 15 s), spoken one at a time.
+  `onStart` fires when the first chunk starts and `onEnd` once the queue is empty or cancelled. A lost end
+  event (Chrome) is caught once the engine goes idle, and a chunk stuck far past its length is cut, so the mic
+  is never held silent for good.
+- **Blocked:** a browser that refuses to speak before the user has interacted with the page (`not-allowed`, or
+  Safari dropping it silently) sets `blocked` and holds the newest message; the room shows "Turn on voice",
+  whose click calls `unlock()`.
+- **The room:** speaks each new interviewer message with `speak: true` as it appears, and calls the audio
+  capture's `setPaused(true)` from `onStart` until `onEnd`, so the mic sends silence (§8.3). Holding Ask cancels
+  the speech.
 
 ---
 
