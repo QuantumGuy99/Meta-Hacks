@@ -1248,6 +1248,14 @@ Owner: **SG**. Data: **ST**.
     "That's time", or a plain one for "I'm done"). The live engine is detached, so chat answers aren't treated
     as questions. The rubric's `wrap_up_questions` are asked one per candidate answer, then the closing line,
     and the session ends. With no answer for 3 min (`wrap_up_limit_s`), it closes anyway.
+  - **When an answer is over:** a typed answer moves on at once. A spoken one moves on after **2.5 s** with no
+    new candidate speech (`ANSWER_GAP_MS`, the same as the analyzer's typing pause): Muse Voice ends a turn at
+    every pause, so "It's O of n time" [pause] "and O of one space" arrives as two final turns. Each new final
+    turn restarts the wait, and a turn still being spoken (speechStart has set the interviewer state to
+    `listening` and the turn isn't final yet) holds it. A typed answer while a spoken one is waiting moves on at
+    once and drops the wait. Two answers to the same question move on once. The 3-minute limit still closes the
+    session, even mid-sentence. Live check (real Muse Voice, two clips 1.5 s apart with silence streaming
+    between): one next question, 2.5 s after the second half's final turn.
   - **Resuming during the wrap-up** recounts the questions already asked from the timeline and waits for the
     next answer.
   - Phase lines show in passive mode too: they run the interview, they aren't feedback.
