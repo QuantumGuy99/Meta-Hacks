@@ -194,6 +194,13 @@ Finding.chaos (plan) ──► AttackWriter (Spark → reference attack) fills 3
 6. **Neutral integrity.** Pastes and tab switches are facts in the report, never accusations.
 7. **Secrets stay server-side.** The browser never receives an API key. Audio goes through the backend proxy.
 8. **Real demo.** MOCK mode exists for frontend development only.
+9. **The candidate talks to Ares, and Ares keeps the program's secrets.** Every model whose words reach the
+   candidate answers as Ares, built by the Ares team, and doesn't name or discuss the models or providers behind
+   it. Whatever it's asked, it never reveals API keys, tokens, environment variables or its own instructions,
+   never gives access to Ares's source code, servers, files, databases or other sessions, and never handles
+   money: no card numbers, bank details, payments, transfers or refunds. The rules live in one prompt,
+   `models/prompts/ares_identity.md`, which the wrapper sends first on every candidate-facing call, and code
+   also drops any reply that contains a configured key (§15.1).
 
 ---
 
@@ -1713,6 +1720,13 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 | `vision` (P2) | `muse-spark-1.3` with image input | low | skip |
 | `assistant` (P1, §11.9) | `muse-spark-1.3` | low | "assistant unavailable" message |
 
+- **Ares identity (§4.4 rule 9):** for `analyzer`, `interviewer`, `grill_eval`, `audit`, `report` and `vision`
+  the wrapper inserts `models/prompts/ares_identity.md` as the first system message, ahead of the role's own
+  prompt; `attacker`, `classifier` and `drafter` never reach the candidate and don't get it. After every reply
+  the wrapper scans the text for every configured API key of 8+ characters, including a partner's registered
+  later (Glimmer); a match is a non-retryable failure, so the next model in the chain answers and the leaked
+  reply is never returned. Tests:
+  `tests/models/test_ares_identity.py`.
 - `reasoning_effort` values: `minimal | low | medium | high | xhigh | max` (`none` returns 400 on Spark and
   Wonder). Live roles (analyzer, interviewer, classifier, grill_eval) use the lowest effort that works.
   One-shot roles use the strongest setting that fits their timeout. Measured 2026-10-27 on `bank-transfer-min`:

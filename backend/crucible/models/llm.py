@@ -13,6 +13,7 @@ from openai import AsyncOpenAI
 from openai.types import CompletionUsage
 from pydantic import BaseModel, ValidationError
 
+from crucible.models.prompts import ARES_IDENTITY
 from crucible.models.registry import (
     CONTRIBUTOR_MAX_EFFORT,
     CONTRIBUTOR_MODELS,
@@ -32,6 +33,12 @@ RETRY_BACKOFF_S = 1.0  # jittered to 0.5 to 1.5 s
 # 429, 5xx and dropped connections get one more try on the same model; any other error moves down the chain.
 _RETRYABLE = (openai.RateLimitError, openai.InternalServerError, openai.APIConnectionError)
 _CONTRIBUTOR_IDS = frozenset(CONTRIBUTOR_MODELS.values())
+# Roles whose words reach the candidate speak as Ares and follow its security rules (PLAN §4.4 rule 9). The
+# attacker, classifier and problem drafter never talk to the candidate, so they don't get it.
+ARES_ROLES: frozenset[ModelRole] = frozenset(
+    {"analyzer", "interviewer", "grill_eval", "audit", "report", "vision"}
+)
+_MIN_SECRET_CHARS = 8  # shorter values (test keys, blanks) are too common to scan for
 
 Messages = Sequence[Mapping[str, Any]]
 
@@ -101,6 +108,10 @@ class LLM:
         if settings.baseten_model:
             self._provider_models["baseten"] = settings.baseten_model
         self._on_call = on_call
+        # Configured keys: a reply carrying one never reaches the candidate (checked in code, not by the model).
+        self._secrets = tuple(
+            s for s in (settings.api_key, settings.baseten_api_key) if s and len(s) >= _MIN_SECRET_CHARS
+        )
         self._sleep = sleep
         self._rng = rng
 
@@ -108,6 +119,9 @@ class LLM:
         """Plug in a partner client (Glimmer, from `models/glimmer.py`) for every role that lists it."""
         self._clients[provider] = client
         self._provider_models[provider] = model
+        key = getattr(client, "api_key", None)
+        if isinstance(key, str) and len(key) >= _MIN_SECRET_CHARS and key not in self._secrets:
+            self._secrets += (key,)
 
     async def complete_json[T: BaseModel](
         self,
@@ -138,7 +152,7 @@ class LLM:
         session_id: str | None = None,
     ) -> tuple[T, str]:
         """`complete_json`, plus the id of the model that answered (the report records it, PLAN §7.5)."""
-        request_messages = _with_images(messages, images)
+        request_messages = _with_images(_with_identity(role, messages), images)
 
         async def call(client: AsyncOpenAI, target: ModelTarget) -> tuple[T, CompletionUsage | None]:
             completion = await client.beta.chat.completions.parse(
@@ -147,6 +161,7 @@ class LLM:
             message = completion.choices[0].message
             if message.parsed is None:
                 raise _NoOutput("refused" if message.refusal else "no parsed output")
+            self._check_secrets(message.parsed.model_dump_json())
             return message.parsed, completion.usage
 
         return await self._run(role, call, effort=effort, timeout_s=timeout_s, session_id=session_id)
@@ -160,13 +175,14 @@ class LLM:
         timeout_s: float | None = None,
         session_id: str | None = None,
     ) -> str:
-        request_messages = [dict(m) for m in messages]
+        request_messages = _with_identity(role, messages)
 
         async def call(client: AsyncOpenAI, target: ModelTarget) -> tuple[str, CompletionUsage | None]:
             completion = await client.chat.completions.create(**_request(target, request_messages))
             content = completion.choices[0].message.content
             if not content:
                 raise _NoOutput("empty reply")
+            self._check_secrets(content)
             return content, completion.usage
 
         text, _model = await self._run(role, call, effort=effort, timeout_s=timeout_s, session_id=session_id)
@@ -197,6 +213,11 @@ class LLM:
             else:
                 return result, target.model
         raise AllModelsFailed(role, errors)
+
+    def _check_secrets(self, text: str) -> None:
+        """A reply that contains a configured key counts as a failed call; the next model in the chain answers."""
+        if any(secret in text for secret in self._secrets):
+            raise _NoOutput("reply contained a configured secret")
 
     def _chain(self, role: ModelRole, effort: Effort | None) -> list[ModelTarget]:
         """The role's targets with model overrides, the per-call effort and the contributor switch applied."""
@@ -379,6 +400,14 @@ def _request(target: ModelTarget, messages: list[dict[str, Any]]) -> dict[str, A
     if target.effort is not None:
         kwargs["reasoning_effort"] = target.effort
     return kwargs
+
+
+def _with_identity(role: ModelRole, messages: Messages) -> list[dict[str, Any]]:
+    """A copy of `messages`, with Ares's identity and security rules first for candidate-facing roles."""
+    out = [dict(m) for m in messages]
+    if role in ARES_ROLES:
+        out.insert(0, {"role": "system", "content": ARES_IDENTITY})
+    return out
 
 
 def _with_images(messages: Messages, images: Sequence[str]) -> list[dict[str, Any]]:

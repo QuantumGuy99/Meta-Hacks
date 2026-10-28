@@ -239,7 +239,7 @@ async def test_images_are_attached_to_the_last_user_message() -> None:
     messages = [{"role": "system", "content": "s"}, {"role": "user", "content": "what is this?"}]
 
     await wrapper.complete_json("vision", messages, Verdict, images=["data:image/png;base64,AAAA"])
-    assert meta.calls[0]["messages"][1]["content"] == [
+    assert meta.calls[0]["messages"][-1]["content"] == [  # last: vision also gets Ares's rules first
         {"type": "text", "text": "what is this?"},
         {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}},
     ]
