@@ -6,7 +6,8 @@ import random
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import Any, Literal
+from uuid import uuid4
 
 import openai
 from openai import AsyncOpenAI
@@ -67,6 +68,28 @@ class CallRecord:
 
 
 OnCall = Callable[[CallRecord], Awaitable[None]]
+
+
+ActivityStatus = Literal["started", "done", "fallback", "failed", "stopped"]
+
+
+@dataclass(frozen=True, slots=True)
+class CallActivity:
+    """One role call starting or ending (not each attempt): what the "Under the hood" strip shows (STORY.md).
+
+    `stopped`: the caller cancelled it mid-call (the engine detached). `fallback`: a backup model answered.
+    """
+
+    call_id: str
+    role: ModelRole
+    session_id: str | None
+    status: ActivityStatus
+    provider: Provider | None  # the model working on it, or the one that answered
+    model: str | None
+    latency_ms: int | None = None
+
+
+OnActivity = Callable[[CallActivity], Awaitable[None]]
 type _Call[R] = Callable[[AsyncOpenAI, ModelTarget], Awaitable[tuple[R, CompletionUsage | None]]]
 
 
@@ -101,8 +124,13 @@ class LLM:
         if settings.baseten_model:
             self._provider_models["baseten"] = settings.baseten_model
         self._on_call = on_call
+        self._watchers: list[OnActivity] = []
         self._sleep = sleep
         self._rng = rng
+
+    def watch(self, on_activity: OnActivity) -> None:
+        """Be told when each role call starts and ends (the session hub shows it on the strip)."""
+        self._watchers.append(on_activity)
 
     def register_provider(self, provider: Provider, client: AsyncOpenAI, model: str) -> None:
         """Plug in a partner client (Glimmer, from `models/glimmer.py`) for every role that lists it."""
@@ -184,19 +212,43 @@ class LLM:
         """The first answer down the role's chain, with the id of the model that gave it."""
         budget_s = timeout_s if timeout_s is not None else ROLES[role].timeout_s
         errors: list[str] = []
+        call_id, started = uuid4().hex[:12], time.perf_counter()
+        first: ModelTarget | None = None
+
+        async def tell(status: ActivityStatus, target: ModelTarget | None, latency: bool = True) -> None:
+            provider, model = (target.provider, target.model) if target else (None, None)
+            ms = round((time.perf_counter() - started) * 1000) if latency else None
+            await self._tell(CallActivity(call_id, role, session_id, status, provider, model, ms))
+
         for target in self._chain(role, effort):
             client = self._clients.get(target.provider)
             if client is None or target.model is None:
                 logger.debug("llm %s: skipping %s, not configured", role, target.provider)
                 errors.append(f"{target.provider}: not configured")
                 continue
+            if first is None:
+                first = target
+                await tell("started", target, latency=False)
             try:
                 result = await self._attempt(role, client, target, call, budget_s, session_id)
             except _Failed as exc:
                 errors.append(f"{target.model}: {exc}")
+            except asyncio.CancelledError:
+                await tell("stopped", target)
+                raise
             else:
+                await tell("done" if target is first else "fallback", target)
                 return result, target.model
+        await tell("failed", first)
         raise AllModelsFailed(role, errors)
+
+    async def _tell(self, activity: CallActivity) -> None:
+        """Watchers only display activity: one that fails must never break a model call."""
+        for watcher in self._watchers:
+            try:
+                await watcher(activity)
+            except Exception:
+                logger.exception("an activity watcher failed for %s", activity.role)
 
     def _chain(self, role: ModelRole, effort: Effort | None) -> list[ModelTarget]:
         """The role's targets with model overrides, the per-call effort and the contributor switch applied."""
