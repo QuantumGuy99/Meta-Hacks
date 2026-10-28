@@ -49,6 +49,7 @@ session. Update it before you finish any session that changed code, decisions or
 
 ## Verified facts and gotchas
 <!-- e.g. "2026-10-28 [claude] Modal Sandbox.open() writes files into a running sandbox (V7)" -->
+- 2026-10-28 [claude] On Windows the harness timer is a thread raising SIGINT: it lands up to ~25 ms late, and like SIGALRM it can't stop a blocked lock or other C code (the runner's process kill does).
 - 2026-10-27 [claude] Modal `block_network=True` blocks egress and keeps loopback (V7 done).
 - 2026-10-27 [claude] Modal stdout arrives in chunks, not lines; ModalRunner.stream_exec splits them (V7).
 - 2026-10-27 [claude] Main moves under you: PR #2 landed while PR #4 was open. `git fetch` and check
@@ -57,6 +58,7 @@ session. Update it before you finish any session that changed code, decisions or
   the session id is the scenario name (PLAN §14.6).
 
 ## Session log (keep the last 10, newest first)
+- 2026-10-28 [claude] for LG: the harness's per-test timer works on Windows (a timer thread raises SIGINT; the SIGALRM path is unchanged). `test_harness.py` and `test_problem_run.py` pass on Windows.
 - 2026-10-27 [claude] Merged #13–#15; opened #17, #18; docs refreshed (README status, role plan, spec).
 - 2026-10-27 [claude] SG approved #13–#15. Attack containment in 3 layers (validator bans, loopback hook, Modal block_network); V7 done; samples load once.
 - 2026-10-27 [claude] Day 0 + Day 1 checklist complete; RUN-1 "done when" checked on a real problem.

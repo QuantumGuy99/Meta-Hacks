@@ -1,5 +1,7 @@
 """The test harness (RUN-1, PLAN §12): comparators, timeouts, errors and output caps, through LocalRunner."""
 
+import signal
+
 import pytest
 
 from crucible.contracts.coding import CaseSpec, FunctionSig, Param
@@ -81,6 +83,14 @@ async def test_per_test_timeout_then_later_cases_still_run(runner):
     assert r.timed_out and "timed out" in r.cases[0].error and r.cases[1].passed
 
 
+async def test_per_test_timeout_wakes_a_sleeping_case(runner):
+    code = "import time\ndef solve(xs):\n    if xs == [0]:\n        time.sleep(30)\n    return len(xs)\n"
+    cases = [case("slow", [[0]], 1), case("fast", [[1, 2]], 2)]
+    r = await runner.run_tests("s", req(code, cases, limits=RunLimits(per_test_s=0.3, total_s=5)))
+    assert r.timed_out and "timed out" in r.cases[0].error and r.cases[1].passed
+    assert "stopped" not in r.stderr  # the per-test timer ended it, not the process kill
+
+
 async def test_total_limit_skips_the_rest(runner):
     code = "import time\ndef solve(xs):\n    time.sleep(0.25)\n    return 0\n"
     cases = [case(f"c{i}", [[i]], 0) for i in range(6)]
@@ -100,6 +110,11 @@ async def test_code_that_blocks_the_timer_is_killed(runner):
         "import signal, time\nsignal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGALRM})\n"
         "def solve(xs):\n    time.sleep(30)\n"
     )
+    if not hasattr(signal, "SIGALRM"):  # Windows: the timer arrives as SIGINT, which this code ignores
+        code = (
+            "import signal, time\n"
+            "def solve(xs):\n    signal.signal(signal.SIGINT, signal.SIG_IGN)\n    time.sleep(30)\n"
+        )
     r = await runner.run_tests(
         "s", req(code, [case("v1", [[1]], 0)], limits=RunLimits(per_test_s=0.2, total_s=0.5))
     )
