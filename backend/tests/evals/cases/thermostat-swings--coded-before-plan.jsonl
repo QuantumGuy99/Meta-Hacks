@@ -1,0 +1,8 @@
+{"meta": {"problem_slug": "thermostat-swings", "feedback": "active", "voice": true, "about": "starts coding without ever stating an approach"}}
+{"t": 3000, "do": "say", "text": "Okay, let me just start."}
+{"t": 6000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n"}
+{"t": 12000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps)):\n"}
+{"t": 18000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps)):\n        if abs(temps[i] - temps[i - 1]) > k:\n            swings += 1\n"}
+{"t": 24000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps)):\n        if abs(temps[i] - temps[i - 1]) > k:\n            swings += 1\n    return swings\n"}
+{"t": 45000, "do": "say", "text": "Hmm."}
+{"expect": {"fires": [{"trigger": "coded_before_plan", "by_t": 70000}], "limits": [{"trigger": "coded_before_plan", "max": 1}], "max_shown": 3, "no_leak": true}}

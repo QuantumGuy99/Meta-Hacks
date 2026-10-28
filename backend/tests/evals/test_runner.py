@@ -133,6 +133,7 @@ TIMELINE = [
         ({"fires": [{"trigger": "missed_step", "by_t": 10_000}]}, [False]),  # too late
         ({"fires": [{"trigger": ["run_failed", "bug_suspected"]}]}, [True]),  # either trigger
         ({"never": ["idle", "silent"]}, [False, True]),  # decided counts, even suppressed
+        ({"limits": [{"trigger": "missed_step", "max": 1}, {"trigger": "idle", "max": 0}]}, [True, False]),
         ({"max_shown": 1}, [False]),  # missed_step + bug_suspected shown; phase and suppressed don't count
         ({"max_shown": 2}, [True]),
         ({"no_leak": True}, [False]),

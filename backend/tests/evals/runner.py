@@ -188,6 +188,7 @@ class Play:
                 await self.paste(step.code or "", step.pasted)
             case "say":
                 await self.say(step.text or "")
+                await self.classified()
             case "chat":
                 await self.send(ChatSend(type="chat.send", text=step.text or ""))
             case "run":
@@ -246,6 +247,12 @@ class Play:
             source="voice",
         )
         await self.rt.record(TimelineKind.TRANSCRIPT, turn)
+
+    async def classified(self) -> None:
+        """Let the voice classifier (COD-6) finish on what was just said, as it would while the candidate pauses."""
+        engine = self.rt._engine
+        if engine is not None:
+            await settle(lambda: not engine._classifying)
 
     async def run(self, kind: str) -> None:
         msg_type = CodeRun if kind == "run" else CodeSubmit
@@ -375,7 +382,7 @@ async def open_play(hub: SessionHub, spec: Eval, clock: SimClock, tab: Tab, prob
 def check(
     expect: dict[str, Any], events: Sequence[TimelineEvent], reference: str | None
 ) -> list[tuple[str, bool, str]]:
-    """Each expectation as (name, ok, detail). Keys: fires, never, max_shown, no_leak, flags, saw."""
+    """Each expectation as (name, ok, detail). Keys: fires, never, limits, max_shown, no_leak, flags, saw."""
     interventions = [e for e in events if e.kind == TimelineKind.INTERVENTION]
     results: list[tuple[str, bool, str]] = []
     for want in expect.get("fires", []):
@@ -385,6 +392,11 @@ def check(
     for trigger in expect.get("never", []):
         hits = [e.t // 1000 for e in interventions if e.payload["trigger"] == trigger]
         results.append((f"never {trigger}", not hits, f"fired at {hits} s" if hits else "ok"))
+    for limit in expect.get("limits", []):
+        count = sum(1 for e in interventions if e.payload["trigger"] == limit["trigger"])
+        results.append(
+            (f"{limit['trigger']} at most {limit['max']}", count <= limit["max"], f"{count} times")
+        )
     if "max_shown" in expect:
         shown = [e for e in interventions if _unsolicited(e) and not e.payload["suppressed"]]
         ok = len(shown) <= expect["max_shown"]

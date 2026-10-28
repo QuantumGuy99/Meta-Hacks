@@ -43,7 +43,7 @@ class StructuredModel(Protocol):
 
     async def complete_json[T: BaseModel](
         self,
-        role: Literal["analyzer", "interviewer"],
+        role: Literal["analyzer", "interviewer", "classifier"],
         messages: Sequence[Mapping[str, Any]],
         schema: type[T],
         *,
@@ -101,6 +101,7 @@ class AnalysisInput:
     transcript: list[TranscriptTurn]
     previous: Analysis | None
     interventions: list[Intervention]
+    plan: str | None = None  # the plan they stated earlier, which may be older than the transcript window
 
 
 def build_messages(context: RubricContext, view: AnalysisInput) -> list[dict[str, str]]:
@@ -124,6 +125,9 @@ class Analyzer:
     ) -> None:
         self.state = SchedulerState()
         self.previous: Analysis | None = None
+        self.plan: str | None = (
+            None  # the latest stated plan, shown again once it leaves the transcript window
+        )
         self._rt = rt
         self._context = context
         self._model = model
@@ -183,6 +187,8 @@ class Analyzer:
             return None
         await rt.record(TimelineKind.ANALYSIS, analysis)
         self.previous = analysis
+        if analysis.stated_plan:
+            self.plan = analysis.stated_plan
         await self._on_analysis(analysis)
         return analysis
 
@@ -221,6 +227,7 @@ class Analyzer:
                 if e.payload["final"]
             ],
             previous=self.previous,
+            plan=self.plan,
             interventions=[
                 Intervention.model_validate(e.payload)
                 for e in rt.timeline.tail([TimelineKind.INTERVENTION])
@@ -277,6 +284,8 @@ def _state_block(view: AnalysisInput) -> str:
             or "Nothing."
         )
     )
+    if view.plan:
+        parts.append(f"## The plan they stated earlier\n{view.plan}")
     if view.previous is not None:
         parts.append(
             "## Your previous step statuses\n"

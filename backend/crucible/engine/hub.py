@@ -351,10 +351,10 @@ class SessionRuntime:
         if self._engine is not None:
             self._engine.heard_speech()
 
-    def asked(self, question: str) -> None:
+    def asked(self, question: str, turn_id: str | None = None) -> None:
         """A spoken question (Ask was held): the interviewer answers it like a typed one."""
         if self._engine is not None:
-            self._engine.ask(question)
+            self._engine.ask(question, turn_id)
 
     async def detach(self) -> None:
         if self._engine is not None:
