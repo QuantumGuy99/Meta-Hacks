@@ -53,8 +53,7 @@ async def run_audit(
     if use_cache and key in _CACHE:
         return _CACHE[key]
     try:
-        raw = await llm.complete_json("audit", _messages(sample), AuditResult, timeout_s=AUDIT_TIMEOUT_S)
-        result = check_audit(raw, sample.files)
+        result = await _model_audit(sample, llm, sink)
     except ModelUnavailable as exc:
         if not sample.flaws:
             raise AuditFailed(f"audit models unavailable and no flaws.json: {exc}") from exc
@@ -62,8 +61,22 @@ async def run_audit(
             sink, "warning", f"Audit models unavailable; using {sample.project.id}/flaws.json. ({exc})"
         )
         result = audit_from_flaws(sample)
+    if not result.findings and sample.flaws:
+        await note(sink, "warning", f"The audit found nothing twice; using {sample.project.id}/flaws.json.")
+        result = audit_from_flaws(sample)
     _CACHE[key] = result
     return result
+
+
+async def _model_audit(sample: Sample, llm: ModelClient, sink: EventSink) -> AuditResult:
+    """One retry when the audit comes back empty: Wonder returned no findings in 2 of 6 live runs (#43)."""
+    raw = await llm.complete_json("audit", _messages(sample), AuditResult, timeout_s=AUDIT_TIMEOUT_S)
+    result = check_audit(raw, sample.files)
+    if result.findings:
+        return result
+    await note(sink, "warning", "The audit found nothing; asking once more.")
+    raw = await llm.complete_json("audit", _messages(sample), AuditResult, timeout_s=AUDIT_TIMEOUT_S)
+    return check_audit(raw, sample.files)
 
 
 def check_audit(a: AuditResult, files: dict[str, str]) -> AuditResult:
@@ -143,9 +156,19 @@ def derive_topology(files: dict[str, str]) -> tuple[list[TopologyNode], list[Top
     edges = []
     for mod, path in sorted(modules.items()):
         for target in sorted(modules):
-            if target != mod and re.search(rf"(from|import)\s+{re.escape(target)}\b", files[path]):
+            if target != mod and _imports(files[path], target):
                 edges.append(TopologyEdge(source=mod, target=target, label=None))
     return nodes, edges
+
+
+def _imports(source: str, module: str) -> bool:
+    """`import app.ledger`, `from app.ledger import x` or `from app import ledger`."""
+    if re.search(rf"(from|import)\s+{re.escape(module)}\b", source):
+        return True
+    package, _, name = module.rpartition(".")
+    return bool(package) and bool(
+        re.search(rf"from\s+{re.escape(package)}\s+import\s+[^\n]*\b{re.escape(name)}\b", source)
+    )
 
 
 def _finding_from_flaw(flaw: dict, i: int, node_id: str | None, ref: ReferenceAttack | None) -> Finding:
