@@ -9,8 +9,9 @@ from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter, ValidationError
 
-from crucible.contracts.common import ApiError, ApiErrorBody, Session, SessionConfig
+from crucible.contracts.common import ApiError, ApiErrorBody, Phase, ReportPending, Session, SessionConfig
 from crucible.contracts.events import TimelineEvent
+from crucible.contracts.report import Report
 from crucible.contracts.ws import ClientMessage
 from crucible.engine.hub import FINISHED, ModeUnavailable, PhaseError, SessionHub, SessionSetupError
 from crucible.engine.timeline import public_view
@@ -59,6 +60,27 @@ async def get_timeline(session_id: str, request: Request) -> list[TimelineEvent]
         return _not_found(session_id)
     events = await hub.read_timeline(session_id)
     return public_view(events, live=session.phase not in FINISHED)
+
+
+@router.get(
+    "/api/sessions/{session_id}/report",
+    response_model=Report,
+    responses={202: {"model": ReportPending}, 404: {"model": ApiError}, 409: {"model": ApiError}},
+)
+async def get_report(session_id: str, request: Request) -> Report | JSONResponse:
+    """The report once it's built; 202 while it's generating (§8.1)."""
+    hub = _hub(request)
+    session = await hub.get_session(session_id)
+    if session is None:
+        return _not_found(session_id)
+    report = await hub.report(session_id)
+    if report is not None:
+        return report
+    if session.phase in (Phase.ENDED, Phase.REPORTING):
+        return JSONResponse(status_code=202, content=ReportPending(status="generating").model_dump())
+    if session.phase in FINISHED:
+        return _error(404, "report_unavailable", "This session failed before it could be reported on.")
+    return _error(409, "session_live", "The report is built once the session ends.")
 
 
 @router.websocket("/ws/sessions/{session_id}")

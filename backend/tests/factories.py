@@ -70,6 +70,9 @@ def analysis(
     }
 
 
+FAKE_MODEL_ID = "fake-model"
+
+
 class FakeModel:
     """Answers `complete_json` from a script; the last reply repeats. An Exception reply is raised."""
 
@@ -90,6 +93,16 @@ class FakeModel:
         if isinstance(reply, Exception):
             raise reply
         return schema.model_validate(reply)
+
+    async def complete_json_with_model[T: BaseModel](
+        self,
+        role: str,
+        messages: Sequence[Mapping[str, Any]],
+        schema: type[T],
+        *,
+        session_id: str | None = None,
+    ) -> tuple[T, str]:
+        return await self.complete_json(role, messages, schema, session_id=session_id), FAKE_MODEL_ID
 
 
 class StubController:

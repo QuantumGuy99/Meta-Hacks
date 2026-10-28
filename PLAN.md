@@ -823,7 +823,7 @@ ServerMessage = Annotated[Union[SessionState, InterviewerMessage, TranscriptUpda
 | GET | `/api/sessions/{id}` | → `Session` | |
 | POST | `/api/sessions/{id}/end` | → `Session` | starts report generation |
 | GET | `/api/sessions/{id}/timeline` | → `TimelineEvent[]` | for replay. Hidden-test details never appear (nor a submit's stdout). While the session is live, also no analyses, system notes, suppressed interventions or audit details (explanations, expected points, fix steps) (§9.2) |
-| GET | `/api/sessions/{id}/report` | → `Report` or 202 `{status}` | |
+| GET | `/api/sessions/{id}/report` | → `Report` or 202 `{status}` | 409 `session_live` while live; 404 `report_unavailable` for a failed session. Asking restarts a report that a server restart cut short |
 
 Errors: `{"error": {"code": str, "message": str}}` with proper HTTP status codes.
 
@@ -905,10 +905,22 @@ Owner: **SG**. Used by coding mode (whole session) and defense mode (grill + fix
   `plan_session` raises `SessionSetupError` for a bad config (→ `400 bad_config`).
   `await rt.attach(RubricContext)` / `await rt.detach()` start and stop the live engine (analyzer → policy →
   interviewer) for a rubric: coding at `clarify`, defense at `fix`. Ending a session detaches it.
-  `RubricContext` is in `engine/context.py`. `Interviewer.say()` arrives with ENG-6.
+  `RubricContext` is in `engine/context.py`.
+  - **`on_resume`** runs on the first *connect* after a runtime is reopened, once the socket is attached, so
+    what the mode says reaches the tab. Ending a session over REST doesn't resume it.
+  - **`on_close(rt)`** is optional: if a controller defines it, the hub awaits it when the runtime closes, to
+    cancel the mode's own timers and tasks.
+  - **`rt.sender`** is the connection whose message `on_client_message` is handling, so a mode can answer just
+    that tab (`rt.error(rt.sender, …)`).
+  - **`say(rt, text, trigger, level, *, speak=None, step_id=None, fallback=None)`** in `engine/interviewer.py`
+    sends a line the mode chose, through the leak guard (§9.6; `reference=` adds the overlap check). Coding
+    uses it for phase lines; Defense can use it for grill lines.
+  - **After `ended`:** `rt.end()` starts the report task (§9.8): `ended → reporting → reported`, then
+    `report.ready`. `rt.last_context` keeps the last attached `RubricContext` after detach, for the report.
 - Routes live in `engine/api.py` (`router`); `main.py` includes it and puts
   `SessionHub(store, {Mode.CODING: CodingMode(ProblemBank.load()), …}, model=llm)` on `app.state.hub`. Until
-  `crucible.store` lands, `engine/store.py` has an in-memory `MemoryStore` with the same interface.
+  `crucible.store` lands, `engine/store.py` has an in-memory `MemoryStore` with the same interface (sessions,
+  events, and `save_report`/`get_report`).
 
 ### 9.2 Timeline (`timeline.py`)
 - `append(kind, payload, t=None) -> TimelineEvent`: assigns `seq` (monotonic per session) and `t` (server
@@ -1055,21 +1067,33 @@ quiet window and hold, stale drop), the ladder and passive mode. `tests/engine/t
 wiring; `test_first_nudge.py` runs the hint button end to end.
 
 ### 9.6 Interviewer (`interviewer.py`)
-- `phrase(rule, proposal, context) -> InterventionText{text}`: uses the analyzer's draft text when present
-  and the level matches; otherwise one Spark call (`reasoning_effort="low"`, timeout 6 s). Fallback: the
-  rubric hint text, or a canned line per trigger (`prompts/canned.md`, built in ENG-5).
-- `answer(question, context)`: replies to `ASKED`. It answers clarifying questions from the problem spec
-  only; for "is this right?" it answers with a question; it never confirms correctness of hidden tests.
+- **Nudges, questions and hints** (`deliver(rt, decision, context)`): the analyzer's draft when the policy kept it,
+  else the rubric hint for the step and level, else the trigger's canned line (`prompts/canned.md`). No extra
+  model call to phrase them: the analyzer already drafts at the right level, and a second Spark call would add
+  2–6 s to every nudge.
+- `answer(rt, model, context, question) -> str | None`: replies to `ASKED` with one Spark call (role
+  `interviewer`, prompt `prompts/interviewer_answer.md`, 15 s deadline covering the wrapper's 6 s timeout and
+  retry). The model sees only what the candidate can see: the statement, signature, examples and constraints
+  (`RubricContext.brief_md`), their numbered code, the last 8 final transcript turns within 3 min, and the
+  question. Never the rubric, hidden tests or reference. It answers clarifying questions from the spec (or
+  says to state an assumption), answers "is this right?" with a question, and never confirms correctness. A
+  leaky reply gets one retry asking for a Socratic question; a second leak, a timeout or a model error sends
+  the canned `asked` line, with a `system` note.
 - Phase lines: intro (problem presentation, ≤ 60 words), wrap-up questions (from `rubric.wrap_up_questions`),
-  closing line. The intro is pre-generated at session creation so it plays instantly.
-- **Leak guard** (applies to every outgoing text): reject it if it contains a code fence, ≥ 2 lines that
-  parse as Python statements, or any normalized line with ≥ 0.6 token overlap with a non-trivial line of
-  the reference solution. On rejection: regenerate once at a lower level; if it still fails, send the rubric
-  hint text for the current level. Log every rejection.
-- `say(rt, text, trigger, level, speak, step_id=None, *, fallback=None)`: the entry point other modes use
-  (Defense grill questions, feedback and follow-ups). It runs the same leak guard; on rejection it sends the
-  caller's `fallback` text (Defense passes a canned Socratic question) instead of a rubric hint, which
-  grill messages don't have. With no fallback it sends the canned line for the trigger.
+  closing line. They are canned templates (`coding/prompts/phase_lines.md`), so the intro plays as soon as
+  the candidate joins and can't leak.
+- **Leak guard** (`leak_reason(text, reference)`, applies to every outgoing text): reject it if it contains a
+  code fence or ≥ 2 lines that parse as Python statements, or if any line of it (or the whole text) shares
+  ≥ 60% of the tokens of a non-trivial reference line. Non-trivial means ≥ 5 tokens and not a signature,
+  comment, docstring or import. The reference is the problem's reference solution (or a sample's fix). On
+  rejection in `deliver()`: send the rubric hint or canned line instead, else a generic prompt to walk through
+  the code. In `answer()`: retry once, then the canned line. Every rejection is logged and noted on the
+  timeline.
+- `say(rt, text, trigger, level, *, speak=None, step_id=None, fallback=None, reference=None)`: the entry point
+  other modes use (Defense grill questions, feedback and follow-ups, coding phase lines). It runs the same leak
+  guard, checking overlap against `reference` when given. On rejection it sends the caller's `fallback` text
+  (Defense passes a canned Socratic question) instead of a rubric hint, which grill messages don't have. With
+  no fallback it sends the canned line for the trigger.
 - Speech: `speak = config.speak_replies`, except PASTE and TIME_WARNING notes, which are text-only. The browser speaks
   it; the backend appends an interviewer `TranscriptTurn` (source=text) so the replay shows it.
 
@@ -1098,20 +1122,34 @@ wiring; `test_first_nudge.py` runs the hint button end to end.
   pace is computed per turn.
 
 ### 9.8 ReportBuilder (`report.py`)
-1. **Metrics in code** from the timeline (`Metrics`, §7.5).
-2. **Candidate moments in code** (8–14, sorted by `t`): first edit, approach stated, each intervention shown
-   (with time until the related step became `done` = "time to recover"), first passing run, each integrity
-   flag, longest silence, the submit result, wrap-up answers; defense: each chaos verdict, grill score and
-   verify result.
-3. **ReportDraft** from model role `report` (default `muse-wonder-1.0`, `reasoning_effort="high"`, timeout
-   90 s) with: problem/rubric or findings, final code, step history, transcript, interventions, metrics and
-   candidate moments. Fallback: Spark 1.3 with the same schema; if that fails too, a minimal template report
-   from metrics only.
-4. **Merge** the draft with metrics and extras into `Report`, store it, set phase `reported` and broadcast
-   `report.ready`.
-Score guidance in the prompt: independence falls with hint levels used; communication uses
-`explanation_quality` history + talk time; correctness uses hidden-test results; never penalize missing voice
-when voice was off.
+1. **Metrics in code** from the stored timeline (`Metrics`, §7.5). Interventions shown and `hints_by_level`
+   count only help the candidate saw: not suppressed ones, phase lines, grill questions, or paste and time
+   notes. Talk time is voice turns only. The longest silence is the longest stretch with no talking, typing or
+   runs, counted only in phases where the candidate is expected to act (clarify, coding, wrap-up, grill, fix).
+2. **Candidate moments in code** (up to 14, sorted by `t`; a short session has fewer): first edit, approach
+   stated, each intervention shown (with "time to recover": when its step next became `done`), questions the
+   candidate asked, first passing run, each integrity flag, the longest silence (≥ 60 s), the final submit,
+   wrap-up answers; defense: each chaos verdict, grill score and verify result, and the verdict. Over 14, the
+   most important kinds are kept (submit, verdicts, broken findings, first edit first).
+3. **ReportDraft** from model role `report` (`muse-wonder-1.0`, `reasoning_effort="high"`, timeout 90 s →
+   Spark 1.3, same schema) via `complete_json_with_model`, which also returns the model that answered. Prompt:
+   `engine/prompts/report_system.md`, with the problem and rubric (or findings, chaos runs, grill and verdict),
+   final code, step history, runs, transcript, interventions, metrics and candidate moments. Overall deadline
+   150 s. No model, a failure or the deadline → a **template report** from metrics only (`model: "template"`,
+   with a `system` note).
+4. **Merge, code decides:** scores code can measure replace the model's: coding `correctness` = hidden tests
+   passed (of the last submit); defense `correctness` = broken findings that held after the fix, and
+   `system_understanding` = the average grill score. Dimensions are kept in the mode's order (coding:
+   problem_solving, correctness, code_quality, communication, independence, debugging; defense:
+   system_understanding, debugging, correctness, communication, independence). `overall` = the mean of the
+   dimension scores × 10. Moments: one per candidate moment, with code's `t` and `kind` and the model's words
+   (the facts as they are when the model skipped one). Three strengths and improvements at most.
+   The template report scores `correctness` from the last run when there was no submit, and `independence` as
+   10 − (1 per nudge, 1.5 per question, 2.5 per hint, 4 per concept).
+5. **Store** it, set phase `reported` and broadcast `report.ready`. A bug in the builder sets `failed` with a
+   `system` note instead of leaving the session in `reporting`.
+Score guidance in the prompt: independence falls with hint levels used; communication uses explanation quality
+and talk time, and never penalizes missing voice when voice was off; correctness uses hidden-test results.
 
 ---
 
@@ -1129,6 +1167,21 @@ Owner: **SG**. Data: **ST**.
 - `wrap_up → ended`: after both wrap-up answers (or 3 min).
 - Time limits: easy 20 min, medium 30, hard 40 (`time_limit_min` in the problem overrides). **Demo preset:**
   10 min.
+- **As built (COD-2, `coding/session.py`):**
+  - **Intro:** the interviewer says a phase line from `coding/prompts/phase_lines.md` (problem title, minutes)
+    through `say()`, then moves straight to `clarify` and attaches the rubric. ENG-6 keeps it canned rather
+    than model-phrased, so it plays at once.
+  - **"Started coding"** = 3 new non-blank lines compared with the starter code, typed or pasted. Programmatic
+    snapshots don't count.
+  - **Time limit:** a 0.5 s timer moves `clarify` or `coding` to `wrap_up` when `remaining_s` reaches 0.
+    `clarify → wrap_up` is allowed only for this.
+  - **Wrap-up:** entered for any of three reasons, each with its own opener line ("passes every test",
+    "That's time", or a plain one for "I'm done"). The live engine is detached, so chat answers aren't treated
+    as questions. The rubric's `wrap_up_questions` are asked one per candidate answer, then the closing line,
+    and the session ends. With no answer for 3 min (`wrap_up_limit_s`), it closes anyway.
+  - **Resuming during the wrap-up** recounts the questions already asked from the timeline and waits for the
+    next answer.
+  - Phase lines show in passive mode too: they run the interview, they aren't feedback.
 
 ### 10.2 ProblemBank (`problems.py`)
 - Loads `data/problems/*/problem.json` (+ `statement.md`, `reference.py`, `brute.py`) at startup and
@@ -1136,14 +1189,28 @@ Owner: **SG**. Data: **ST**.
   (`ProblemBank.load(root, strict=...)`). Folders starting with `_` are drafts, and the slug must match its
   folder. The loader and `pick(difficulty, topic)` landed with ENG-4, which needs a rubric to attach.
 - `random(difficulty, topic)` excludes problems used in the last 5 sessions from the same IP (best effort).
-- `CodingMode(bank)` is coding's mode factory: an explicit `problem_slug` must exist, otherwise a problem is
-  picked at the difficulty and topic, and the problem's `time_limit_min` sets the session limit.
+  Not built yet: `pick()` is uniform among matches.
+- `CodingMode(bank, runner=...)` is coding's mode factory: an explicit `problem_slug` must exist, otherwise a
+  problem is picked at the difficulty and topic, and the problem's `time_limit_min` sets the session limit.
+  `runner` may be a factory (`main.py` passes `lambda: make_runner(settings)`), so a misconfigured runner
+  surfaces as an error on Run, not at startup.
+- **API** (`coding/api.py`): `GET /api/problems?difficulty=&topic=` → `ProblemSummary[]` (sorted by slug) and
+  `GET /api/problems/{slug}` → `ProblemPublic` (404 `problem_not_found`). `main.py` shares one `ProblemBank`
+  between the hub and this router (`app.state.problems`).
 
 ### 10.3 Tests (`tests.py`)
 - **Run** = visible tests; **Submit** = visible + hidden. Calls `Runner.run_tests` (§12) with code,
-  function signature, cases and limits (2 s per test, 10 s total).
+  function signature, cases and limits (2 s per test, 10 s total), with a 20 s outer deadline.
 - Hidden test inputs/outputs never leave the backend: the browser gets pass/fail + error class only.
 - Results → timeline `run` → `run.result` → analyzer trigger.
+- Built in COD-3 as `RunService`: one run at a time per session (a second press gets a retryable `busy`). If
+  the code sent with Run differs from the tracked code, it's recorded as a snapshot first, so the replay shows
+  exactly what ran. The full result goes on the timeline and the browser gets `redact_run()` (§9.2). A runner
+  failure leaves a `system` note and sends `runner_unavailable` (retryable) to the tab that pressed Run, via
+  `rt.sender` (the connection whose message the mode is handling). Run works from `clarify` on; a submit that
+  passes every test during `coding` moves to `wrap_up` (§10.1).
+- The Modal runner's `run_tests` is RUN-2. Until then, coding sessions need `RUNNER=local` +
+  `ALLOW_LOCAL_RUNNER=1` (dev).
 
 ### 10.4 Integrity (`integrity.py`)
 - Editor `paste` with ≥ 40 chars or ≥ 2 lines → `IntegrityFlag(kind="paste")`.
@@ -1151,6 +1218,11 @@ Owner: **SG**. Data: **ST**.
 - `hidden` → `visible` lasting ≥ 10 s → `tab_hidden` with the duration.
 - P2 proctor mode: §10.6.
 - Copy in the UI and the report is neutral: "pasted 32 lines at 06:14".
+- **As built (COD-4):** `IntegrityDetector` turns editor events into flags. Each flag is recorded as an
+  `integrity` timeline event and sent as `integrity.flag`. The wording is factual only: "pasted 2 lines at
+  06:14", "120 characters appeared at once at 03:02", "switched away for 14 s at 08:40" (a tab-away flag carries
+  the time it started). The policy's `PASTE` rule (ENG-5) still decides whether the interviewer mentions a
+  paste; the flags are the record.
 
 ### 10.5 Coding report extras
 Final step statuses, chosen approach, whether the complexity answer matched an acceptable approach.

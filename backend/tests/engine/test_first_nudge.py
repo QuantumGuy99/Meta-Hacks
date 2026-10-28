@@ -72,6 +72,11 @@ def kinds(client: TestClient, sid: str, kind: TimelineKind) -> list[Any]:
     return client.portal.call(runtime.timeline.tail, [kind])
 
 
+def nudges(client: TestClient, sid: str) -> list[Any]:
+    """Interventions other than the interviewer's phase lines (the intro, the wrap-up)."""
+    return [e for e in kinds(client, sid, TimelineKind.INTERVENTION) if e.payload["trigger"] != "phase"]
+
+
 def test_session_uses_the_problems_time_limit(client: TestClient) -> None:
     response = client.post("/api/sessions", json={"mode": "coding", "problem_slug": "quiet-streak"})
     assert response.json()["time_limit_s"] == 20 * 60
@@ -123,13 +128,13 @@ def test_passive_mode_shows_nothing_but_records_the_nudge(client: TestClient) ->
         receive_until(ws, lambda m: m["type"] == "session.state" and m["phase"] == "clarify")
         ws.send_json({"type": "chat.send", "text": "I'll loop over the readings."})
         ws.send_json({"type": "chat.send", "text": "Then I'll track the best run."})
-        wait_for(lambda: len(kinds(client, sid, TimelineKind.INTERVENTION)) == 1)
+        wait_for(lambda: len(nudges(client, sid)) == 1)
         ws.send_json({"type": "hello", "client_now_ms": 0})
         seen = []
         while not seen or seen[-1] != "session.state":
             seen.append(ws.receive_json()["type"])
     assert "interviewer.message" not in seen and "notes.update" not in seen
-    assert kinds(client, sid, TimelineKind.INTERVENTION)[0].payload["suppressed"] is True
+    assert nudges(client, sid)[0].payload["suppressed"] is True
 
 
 def test_a_model_failure_skips_the_tick_and_says_so(tmp_path: Path) -> None:
@@ -138,9 +143,15 @@ def test_a_model_failure_skips_the_tick_and_says_so(tmp_path: Path) -> None:
         with socket as ws:
             receive_until(ws, lambda m: m["type"] == "session.state" and m["phase"] == "clarify")
             ws.send_json({"type": "chat.send", "text": "hello?"})
-            wait_for(lambda: len(kinds(client, sid, TimelineKind.SYSTEM)) == 1)
-        note = kinds(client, sid, TimelineKind.SYSTEM)[0]
-        assert "analysis skipped" in note.payload["message"]
+
+            def notes() -> list[str]:
+                return [e.payload["message"] for e in kinds(client, sid, TimelineKind.SYSTEM)]
+
+            # The analyzer skips its tick, and the question gets the canned reply instead of a model answer.
+            wait_for(lambda: any("analysis skipped" in n for n in notes()))
+            wait_for(lambda: any("interviewer model didn't answer" in n for n in notes()))
+            reply = receive_until(ws, lambda m: m["type"] == "interviewer.message")
+        assert reply["intervention"]["trigger"] == "asked"
 
 
 def test_ending_the_session_stops_the_analyzer(client: TestClient, model: FakeModel) -> None:
