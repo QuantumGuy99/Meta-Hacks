@@ -1958,8 +1958,22 @@ directly relevant to the policy and chaos verify), Fireworks + Muse open models 
   (pass if expectations hold in ≥ 2 of 3 runs); defense audit recall; chaos break/hold. Results are written to
   `backend/tests/evals/results/<date>.md`.
 - **Frontend:** `tsc --noEmit`, eslint; P1 Playwright happy path against `MOCK=1`.
-- **Latency budget (measure at IC2):** pause → intervention on screen ≤ 6 s; Run → results ≤ 3 s (warm
-  sandbox); end speech → final transcript ≤ 2 s; report ≤ 90 s.
+- **Latency budget** (targets; measured 2026-10-28 on the local build against the live Meta API, client clock;
+  re-measure on the deployed build with `uv run python -m tests.evals.latency --url <backend>`):
+
+  | Path | Target | Measured | How |
+  |---|---|---|---|
+  | Typing pause → nudge on screen | ≤ 6 s | p50 4.95 s, max 5.14 s (n=8) | 2.5 s pause, then the analyzer (Spark minimal: p50 2.3 s, p95 3.9 s over 31 calls), then delivery on the next 0.5 s tick |
+  | Paste note (no model) | – | 2.6–3.0 s after the pause | the quiet window only |
+  | Question → answer | – | p50 1.6–2.2 s, max 2.5 s (≤ 4.7 s in the ENG-6 check) | one Spark call |
+  | Run → results | ≤ 3 s (warm sandbox) | 0.02–0.04 s on the local runner | Modal (RUN-2) not measured yet |
+  | End of speech → final transcript | ≤ 2 s | 0.1–0.2 s | realtime Muse Voice (ENG-7 check, and in a real browser) |
+  | Report | ≤ 90 s | 13–21 s on Wonder; Wonder twice ran past 90 s, so it now gets 45 s before Spark (worst case about 90 s) | |
+  | Intro on join | ≤ 1 s | 1 ms | canned line |
+
+  Nudges are held on purpose, which isn't latency: 45 s between unsolicited messages (counted from the last
+  message, including answers), 2 analyses in a row for most rules, 20 s for a bug's line to settle, and 30 s of
+  idle after a single failed run.
 
 ---
 
