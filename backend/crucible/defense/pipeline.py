@@ -196,12 +196,40 @@ class DefensePipeline:
 
     def _reference_for(self, f: Finding) -> AttackFunctions | None:
         ref = self.sample.reference_attack
-        if ref is None:
+        if ref is None or self.state.audit is None:
             return None
-        first_chaos = (
-            next((x.id for x in self.state.audit.findings if x.chaos), None) if self.state.audit else None
-        )
-        return ref.functions if ref.flaw_id in (f.id, None) and (ref.flaw_id or first_chaos == f.id) else None
+        target = reference_target(self.state.audit.findings, self.sample.flaws, ref.flaw_id)
+        return ref.functions if target == f.id else None
+
+
+REFERENCE_LINE_SLACK = 5  # a model's line range may start or end a few lines off the flaw's
+
+
+def reference_target(findings: list[Finding], flaws: list[dict], flaw_id: str | None) -> str | None:
+    """The finding a sample's reference attack belongs to. A live audit names its own ids, so match the
+    flaw in flaws.json by id, then by file and overlapping lines (#35). Without a match, fall back only when
+    it can't be the wrong bug: the one chaos finding, or the one with the flaw's category (#50 review)."""
+    chaos = [f for f in findings if f.chaos is not None]
+    if not chaos:
+        return None
+    flaw = (
+        next((x for x in flaws if x.get("id") == flaw_id), None) if flaw_id else (flaws[0] if flaws else None)
+    )
+    if flaw_id and any(f.id == flaw_id for f in chaos):
+        return flaw_id
+    if flaw is not None:
+        for f in chaos:
+            if f.file == flaw.get("file") and _overlaps(f, flaw):
+                return f.id
+        same_category = [f for f in chaos if f.category == flaw.get("category")]
+        if len(same_category) == 1:
+            return same_category[0].id
+    return chaos[0].id if len(chaos) == 1 else None
+
+
+def _overlaps(f: Finding, flaw: dict) -> bool:
+    start, end = flaw.get("line_start", 0), flaw.get("line_end", 0)
+    return f.line_start <= end + REFERENCE_LINE_SLACK and start <= f.line_end + REFERENCE_LINE_SLACK
 
 
 async def run_scripted(

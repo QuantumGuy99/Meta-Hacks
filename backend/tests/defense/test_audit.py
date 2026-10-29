@@ -53,7 +53,10 @@ def test_public_view_has_no_explanation_grill_or_fix(bank):
 def test_findings_capped_and_sorted_by_severity(bank):
     base = audit_mod.audit_from_flaws(bank).findings[0]
     many = [
-        base.model_copy(update={"id": f"f{i}", "severity": sev})
+        # Distinct line ranges: copies of one bug would be merged into a single finding.
+        base.model_copy(
+            update={"id": f"f{i}", "severity": sev, "line_start": 1 + 8 * i, "line_end": 3 + 8 * i}
+        )
         for i, sev in enumerate(["low", "critical", "medium", "high", "low", "critical", "low"])
     ]
     nodes = [TopologyNode(id="app.main", label="main.py", kind="route", file="app/main.py", flagged=False)]
