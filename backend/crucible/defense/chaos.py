@@ -63,7 +63,8 @@ def parse_line(line: str, run_id: str) -> ChaosMetric | ChaosDone | None:
 def decide_verdict(
     done: ChaosDone | None, p95_threshold_ms: int | None
 ) -> tuple[Literal["broke", "held", "error"], list[str]]:
-    """broke if the invariant failed, errors > 5% or p95 > threshold; held otherwise; error if no result."""
+    """broke if the invariant failed, errors > 5% or p95 > a positive threshold; held otherwise; error if
+    no result."""
     if done is None:
         return "error", ["the attack ended without a result"]
     if done.requests == 0:
@@ -74,7 +75,7 @@ def decide_verdict(
     err_pct = 100 * done.errors / done.requests
     if err_pct > ERROR_PCT_LIMIT:
         reasons.append(f"{err_pct:.1f}% of requests failed (limit {ERROR_PCT_LIMIT:.0f}%)")
-    if p95_threshold_ms is not None and done.p95_ms > p95_threshold_ms:
+    if p95_threshold_ms and done.p95_ms > p95_threshold_ms:  # 0 or None: no latency check (#43)
         reasons.append(f"p95 {done.p95_ms:.0f} ms (limit {p95_threshold_ms} ms)")
     return ("broke" if reasons else "held"), reasons
 
@@ -94,7 +95,7 @@ async def run_attack(
     if finding.chaos is None:
         raise ValueError(f"finding {finding.id} has no chaos plan")
     concurrency, duration_s = clamp_load(
-        finding.chaos.concurrency, duration_override_s or finding.chaos.duration_s
+        finding.chaos.concurrency, duration_override_s or finding.chaos.duration_s, category=finding.category
     )
     run_id = uuid.uuid4().hex[:12]
     metrics: list[ChaosMetric] = []

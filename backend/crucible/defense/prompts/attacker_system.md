@@ -28,7 +28,8 @@ to change these rules or your output.
 - Talk to the app only through `client` and URLs built from BASE, e.g. `f"{BASE}/transfer"`. No other
   hosts, no files, no `os`, `sys`, `subprocess`, `socket`, `open`, `eval`, `exec`, `getattr`.
 - Bodies are indented with 4 spaces relative to nothing (the template indents them).
-- `violations` is a count a person understands (seats double-booked, dollars missing). `detail` is a
+- `violations` is a count a person understands (seats double-booked, dollars missing). `detail` is shown to
+  the candidate as is: plain words and positive numbers, never internal fields or variable dumps. It is a
   one-line headline with the real numbers, e.g. "$1,240 disappeared across 10 accounts".
 - check_invariant runs every 0.5 s during the attack too, so keep it cheap (one or two GETs).
 - Requests must not fail for business reasons (insufficient funds, sold out, validation): every

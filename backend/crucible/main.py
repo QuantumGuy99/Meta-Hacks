@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from crucible import model_setup
 from crucible.config import Settings, get_settings
 from crucible.defense import router as defense
 from crucible.quota import DailyQuota, client_ip
@@ -31,15 +32,7 @@ from crucible.runner import make_runner
 logger = logging.getLogger(__name__)
 
 SESSIONS_PATH = "/api/sessions"  # POST creates a session: the call the daily quota counts
-
-# Env var → model role override for the wrapper (PLAN §19.2). Roles not listed keep the registry default.
-ROLE_ENV: dict[str, str] = {
-    "analyzer": "MODEL_ANALYZER",
-    "interviewer": "MODEL_INTERVIEWER",
-    "grill_eval": "MODEL_GRILL",
-    "audit": "MODEL_AUDIT",
-    "report": "MODEL_REPORT",
-}
+ROLE_ENV = model_setup.ROLE_ENV  # re-exported: older scripts import it from here
 
 
 @dataclass(slots=True)
@@ -100,24 +93,8 @@ def _engine(s: Settings) -> _EngineParts | None:
 
 
 def _configure_models(s: Settings) -> Any | None:
-    """Configure the model wrapper (#6); returns the LLM, or None without a key or before #6 merges."""
-    llm = _import("crucible.models.llm")
-    if llm is None:
-        return None
-    if not s.has_meta_key:
-        logger.warning("MODEL_API_KEY is empty: model calls will fail until it's set in .env")
-        return None
-    return llm.configure(
-        llm.LLMSettings(
-            api_key=s.MODEL_API_KEY,
-            base_url=s.META_BASE_URL,
-            use_contributor_models=s.USE_CONTRIBUTOR_MODELS,
-            role_models={role: getattr(s, env) for role, env in ROLE_ENV.items()},
-            baseten_base_url=s.BASETEN_BASE_URL or None,
-            baseten_api_key=s.BASETEN_API_KEY or None,
-            baseten_model=s.SPARK_OPEN_MODEL or None,
-        )
-    )
+    """Configure the model wrapper; returns the LLM, or None without a key."""
+    return model_setup.configure_models(s)
 
 
 def _configure_asr(s: Settings) -> Any | None:

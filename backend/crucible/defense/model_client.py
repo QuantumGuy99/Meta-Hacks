@@ -22,7 +22,7 @@ class WrapperModelClient:
         try:
             model = self._llm or llm_mod.default_llm()
         except llm_mod.LLMNotConfigured as exc:
-            raise ModelUnavailable("model wrapper not configured (MODEL_API_KEY unset)") from exc
+            raise ModelUnavailable("model wrapper not configured") from exc
         try:
             return await model.complete_json(role, messages, schema, timeout_s=timeout_s)
         except llm_mod.AllModelsFailed as exc:

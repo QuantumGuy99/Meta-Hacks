@@ -15,6 +15,8 @@ from crucible.defense.prompts import PROMPTS
 GRILL_EVAL_TIMEOUT_S = 20  # Spark medium took 4-15 s live (#22); at 10 s answers fell back to keywords
 SAM_BONUS = 1
 KEYWORD_HIT_RATIO = 0.4
+# Keywords alone shouldn't fail a correct explanation on the root cause (#35): point 0 needs fewer words.
+KEYWORD_ROOT_RATIO = 0.25
 MAX_ANSWER_CHARS = 4_000  # about 3 minutes of speech; longer answers are cut before they reach the model
 SAFE_FEEDBACK = "Think about what another request could be doing while this one waits. What could change?"
 _STOPWORDS = frozenset(
@@ -96,13 +98,14 @@ def score_answer(
 
 def keyword_eval(points: list[str], answer: str) -> GrillEval:
     """Deterministic fallback when no model answers: a point is hit when ≥ 40% of its content words (by
-    5-letter stem) appear in the answer. Cruder than the model; always logged as a fallback."""
+    5-letter stem) appear in the answer (25% for point 0, the root cause). Cruder than the model; always
+    logged as a fallback."""
     answer_stems = {w[:5] for w in _words(answer)}
     hit, missed = [], []
     for i, point in enumerate(points):
         stems = {w[:5] for w in _words(point)}
         ratio = len(stems & answer_stems) / len(stems) if stems else 0.0
-        (hit if ratio >= KEYWORD_HIT_RATIO else missed).append(i)
+        (hit if ratio >= (KEYWORD_ROOT_RATIO if i == 0 else KEYWORD_HIT_RATIO) else missed).append(i)
     return GrillEval(points_hit=hit, points_missed=missed, needs_follow_up=0 not in hit, feedback="")
 
 

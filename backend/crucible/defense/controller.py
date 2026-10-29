@@ -12,6 +12,7 @@ at a time; a message that arrives meanwhile gets a retryable `busy` error.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import Callable, Mapping
 
@@ -24,6 +25,7 @@ from crucible.contracts.events import (
     Intervention,
     InterventionLevel,
     InterventionTrigger,
+    PhaseChange,
     TimelineEvent,
     TimelineKind,
     TranscriptTurn,
@@ -217,6 +219,13 @@ class DefenseController:
         return False  # defense.circle (DEF-9) and anything else: unsupported for now
 
     async def on_timeline(self, rt: SessionRuntime, event: TimelineEvent) -> None:
+        if (
+            event.kind == TimelineKind.PHASE
+            and PhaseChange.model_validate(event.payload).to_phase == Phase.ENDED
+        ):
+            # An attack mid-run must not keep writing after the session ended (#22).
+            await self._cancel_tasks()
+            return
         if event.kind != TimelineKind.TRANSCRIPT or rt.session.phase != Phase.GRILL or self._current is None:
             return
         turn = TranscriptTurn.model_validate(event.payload)
@@ -415,6 +424,19 @@ class DefenseController:
             )
             self.pipeline.state.phase = rt.session.phase
         return self.pipeline
+
+    async def on_close(self, rt: SessionRuntime) -> None:
+        """Hub hook (PLAN §9.1): the runtime is closing, so stop every stage still running."""
+        await self._cancel_tasks()
+
+    async def _cancel_tasks(self) -> None:
+        current = asyncio.current_task()  # the stage that ended the session finishes on its own
+        tasks = [t for t in self._tasks if t is not current]
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
     def _spawn(self, rt: SessionRuntime, coro) -> None:
         task = asyncio.create_task(self._guard(rt, coro), name=f"defense-{rt.session.id}")

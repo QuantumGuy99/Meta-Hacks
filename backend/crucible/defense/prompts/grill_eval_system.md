@@ -12,7 +12,9 @@ score: you only say which expected points the answer covered. Code computes the 
 
 ## Rules
 - `points_hit`: indexes of points the answer states in substance. A keyword alone is not enough ("race
-  condition" without saying what races is not point 0). Paraphrase counts.
+  condition" without saying what races is not point 0). Paraphrase counts. Credit the core idea of a
+  point: if a point bundles extra details (side effects, edge cases, a specific API), the answer doesn't
+  need every one of them.
 - `points_missed`: every other index.
 - `needs_follow_up`: true if point 0 was missed or the answer is vague.
 - `feedback`: one or two sentences to the candidate about their reasoning. Never state the root cause or
