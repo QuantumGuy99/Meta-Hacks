@@ -1,0 +1,518 @@
+{
+  "slug": "fastest-delivery",
+  "title": "Fastest Delivery",
+  "difficulty": "hard",
+  "topics": [
+    "graphs",
+    "shortest paths",
+    "heaps"
+  ],
+  "function": {
+    "name": "fastest_delivery",
+    "params": [
+      {
+        "name": "n",
+        "type": "int"
+      },
+      {
+        "name": "roads",
+        "type": "list[list[int]]"
+      }
+    ],
+    "returns": "int"
+  },
+  "starter_code": "def fastest_delivery(n: int, roads: list[list[int]]) -> int:\n    pass\n",
+  "examples": [
+    {
+      "input": "n = 4, roads = [[0, 1, 4], [0, 2, 1], [2, 1, 2], [1, 3, 1]]",
+      "output": "4",
+      "explanation": "0 \u2192 2 \u2192 1 \u2192 3 takes 1 + 2 + 1 = 4 minutes, faster than 0 \u2192 1 \u2192 3 at 5."
+    },
+    {
+      "input": "n = 3, roads = [[0, 1, 5]]",
+      "output": "-1",
+      "explanation": "No road leads to stop 2."
+    }
+  ],
+  "constraints": [
+    "1 <= n <= 10^4",
+    "0 <= len(roads) <= 5 * 10^4",
+    "roads[i] = [from, to, minutes], 0 <= from, to < n",
+    "0 <= minutes <= 10^4",
+    "roads are one-way"
+  ],
+  "tests_visible": [
+    {
+      "id": "v1",
+      "args": [
+        4,
+        [
+          [
+            0,
+            1,
+            4
+          ],
+          [
+            0,
+            2,
+            1
+          ],
+          [
+            2,
+            1,
+            2
+          ],
+          [
+            1,
+            3,
+            1
+          ]
+        ]
+      ],
+      "expected": 4,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v2",
+      "args": [
+        3,
+        [
+          [
+            0,
+            1,
+            5
+          ]
+        ]
+      ],
+      "expected": -1,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v3",
+      "args": [
+        2,
+        [
+          [
+            0,
+            1,
+            3
+          ],
+          [
+            0,
+            1,
+            1
+          ]
+        ]
+      ],
+      "expected": 1,
+      "comparator": "exact",
+      "edge_case_id": null
+    }
+  ],
+  "tests_hidden": [
+    {
+      "id": "h1",
+      "args": [
+        1,
+        []
+      ],
+      "expected": 0,
+      "comparator": "exact",
+      "edge_case_id": "e1"
+    },
+    {
+      "id": "h2",
+      "args": [
+        2,
+        []
+      ],
+      "expected": -1,
+      "comparator": "exact",
+      "edge_case_id": "e2"
+    },
+    {
+      "id": "h3",
+      "args": [
+        3,
+        [
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            2,
+            1,
+            1
+          ]
+        ]
+      ],
+      "expected": -1,
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    },
+    {
+      "id": "h4",
+      "args": [
+        3,
+        [
+          [
+            0,
+            1,
+            0
+          ],
+          [
+            1,
+            2,
+            0
+          ]
+        ]
+      ],
+      "expected": 0,
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    },
+    {
+      "id": "h5",
+      "args": [
+        4,
+        [
+          [
+            0,
+            1,
+            1
+          ],
+          [
+            1,
+            2,
+            1
+          ],
+          [
+            2,
+            0,
+            1
+          ],
+          [
+            2,
+            3,
+            5
+          ]
+        ]
+      ],
+      "expected": 7,
+      "comparator": "exact",
+      "edge_case_id": "e5"
+    },
+    {
+      "id": "h6",
+      "args": [
+        5,
+        [
+          [
+            0,
+            1,
+            10
+          ],
+          [
+            0,
+            2,
+            1
+          ],
+          [
+            2,
+            3,
+            1
+          ],
+          [
+            3,
+            1,
+            1
+          ],
+          [
+            1,
+            4,
+            1
+          ]
+        ]
+      ],
+      "expected": 4,
+      "comparator": "exact",
+      "edge_case_id": "e6"
+    },
+    {
+      "id": "h7",
+      "args": [
+        3,
+        [
+          [
+            0,
+            2,
+            10
+          ],
+          [
+            0,
+            1,
+            2
+          ],
+          [
+            1,
+            2,
+            2
+          ],
+          [
+            0,
+            1,
+            1
+          ]
+        ]
+      ],
+      "expected": 3,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h8",
+      "args": [
+        4,
+        [
+          [
+            0,
+            1,
+            1
+          ],
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            2,
+            3,
+            1
+          ]
+        ]
+      ],
+      "expected": -1,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h9",
+      "args": [
+        6,
+        [
+          [
+            0,
+            1,
+            7
+          ],
+          [
+            0,
+            2,
+            9
+          ],
+          [
+            0,
+            5,
+            14
+          ],
+          [
+            1,
+            2,
+            10
+          ],
+          [
+            1,
+            3,
+            15
+          ],
+          [
+            2,
+            3,
+            11
+          ],
+          [
+            2,
+            5,
+            2
+          ],
+          [
+            5,
+            4,
+            9
+          ],
+          [
+            3,
+            4,
+            6
+          ],
+          [
+            4,
+            5,
+            1
+          ]
+        ]
+      ],
+      "expected": 11,
+      "comparator": "exact",
+      "edge_case_id": null
+    }
+  ],
+  "rubric": {
+    "approaches": [
+      {
+        "name": "Dijkstra's algorithm with a min-heap",
+        "time": "O((V + E) log V)",
+        "space": "O(V + E)",
+        "acceptable": true
+      },
+      {
+        "name": "Bellman-Ford",
+        "time": "O(V * E)",
+        "space": "O(V)",
+        "acceptable": false
+      },
+      {
+        "name": "breadth-first search by number of roads",
+        "time": "O(V + E)",
+        "space": "O(V)",
+        "acceptable": false
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "title": "Clarify the input",
+        "required": true,
+        "order": 1,
+        "description": "Confirms roads are one-way, asks about unreachable stops, parallel roads and zero-minute roads.",
+        "look_for": [
+          "asks whether roads are one-way",
+          "asks what to return if stop n - 1 is unreachable",
+          "asks about 0-minute or duplicate roads"
+        ],
+        "hints": [
+          "Before you start, is there anything about the roads you'd want to confirm?",
+          "Can you drive a road in both directions, and what if the last stop can't be reached?",
+          "Settle one-way roads, unreachable stops and duplicate or zero-minute roads first."
+        ]
+      },
+      {
+        "id": "s2",
+        "title": "Build an adjacency list",
+        "required": true,
+        "order": 2,
+        "description": "Turns the road list into, for each stop, the roads leaving it.",
+        "look_for": [
+          "builds a list or dict of outgoing roads",
+          "only adds the from \u2192 to direction"
+        ],
+        "hints": [
+          "Look at how you find the roads leaving a stop.",
+          "Would scanning every road each time be fast enough?",
+          "Group the roads by their starting stop in an adjacency list."
+        ]
+      },
+      {
+        "id": "s3",
+        "title": "Always expand the fastest-known stop",
+        "required": true,
+        "order": 3,
+        "description": "Uses a priority queue keyed by travel time so each stop is settled at its fastest time.",
+        "look_for": [
+          "uses heapq",
+          "explains why fewest roads isn't fastest"
+        ],
+        "hints": [
+          "Look at the order in which your search visits stops.",
+          "Is the route with the fewest roads always the fastest one?",
+          "Use Dijkstra's algorithm: a min-heap of times and stops, always expanding the smallest time."
+        ]
+      },
+      {
+        "id": "s4",
+        "title": "Skip outdated heap entries",
+        "required": true,
+        "order": 4,
+        "description": "Ignores a popped entry when a faster time for that stop was already found.",
+        "look_for": [
+          "compares the popped time with the best time",
+          "continues past stale entries"
+        ],
+        "hints": [
+          "Check what happens when the same stop is pushed twice with different times.",
+          "When you pop a stop with a slower time than you already know, should you expand it?",
+          "If the popped time is worse than the stored best, skip it."
+        ]
+      },
+      {
+        "id": "s5",
+        "title": "Handle unreachable and trivial cases",
+        "required": true,
+        "order": 5,
+        "description": "Returns -1 when stop n - 1 is never reached and 0 when n is 1.",
+        "look_for": [
+          "returns -1 after the heap empties",
+          "tests n = 1"
+        ],
+        "hints": [
+          "Try your code where the last stop has no roads into it.",
+          "What does your function give back if the heap empties first, or if there's only one stop?",
+          "Return -1 if the last stop is never reached; with one stop the answer is 0."
+        ]
+      }
+    ],
+    "edge_cases": [
+      {
+        "id": "e1",
+        "description": "a single stop"
+      },
+      {
+        "id": "e2",
+        "description": "no roads"
+      },
+      {
+        "id": "e3",
+        "description": "roads that only point the wrong way"
+      },
+      {
+        "id": "e4",
+        "description": "zero-minute roads"
+      },
+      {
+        "id": "e5",
+        "description": "a cycle"
+      },
+      {
+        "id": "e6",
+        "description": "the fastest route uses more roads"
+      }
+    ],
+    "common_mistakes": [
+      {
+        "id": "m1",
+        "description": "uses breadth-first search by number of roads",
+        "symptom": "returns 5 instead of 4 on the first example"
+      },
+      {
+        "id": "m2",
+        "description": "treats roads as two-way",
+        "symptom": "finds routes that don't exist, failing when roads point the wrong way"
+      },
+      {
+        "id": "m3",
+        "description": "marks a stop finished when it's first pushed",
+        "symptom": "can lock in a slower time before a faster route is found"
+      }
+    ],
+    "wrap_up_questions": [
+      "What are the time and space complexity?",
+      "What breaks if some roads had negative minutes, and what would you use instead?"
+    ]
+  },
+  "time_limit_min": 40,
+  "illustration": null,
+  "origin_note": "Original. Pattern: Dijkstra's algorithm with a min-heap."
+}

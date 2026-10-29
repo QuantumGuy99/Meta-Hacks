@@ -20,15 +20,26 @@ from crucible.contracts.defense import (
     Verdict,
 )
 from crucible.contracts.events import (
+    MAX_FILE_CHARS,
+    MAX_PATH_CHARS,
     CodeSnapshot,
     EditorEvent,
     IntegrityFlag,
     Intervention,
+    ModelActivity,
     RunResult,
     TranscriptTurn,
 )
 
 MAX_CIRCLE_IMAGE_B64 = 1_400_000  # a 1 MB image, base64-encoded (§8.2 defense.circle)
+MAX_CHAT_CHARS = 4_000  # the grill answer cap too (§11.5)
+MAX_EVENTS_PER_BATCH = 500  # the editor sends a batch every 500 ms (§14.3)
+MAX_ID_CHARS = 64
+MAX_PROJECT_FILES = 60  # §11.1
+
+SourceText = Annotated[str, Field(max_length=MAX_FILE_CHARS)]
+FilePath = Annotated[str, Field(max_length=MAX_PATH_CHARS)]
+Id = Annotated[str, Field(max_length=MAX_ID_CHARS)]
 
 # --- client → server ---------------------------------------------------------------------------------------
 
@@ -40,7 +51,7 @@ class Hello(Strict):
 
 class EditorEvents(Strict):
     type: Literal["editor.events"]
-    events: list[EditorEvent]
+    events: list[EditorEvent] = Field(max_length=MAX_EVENTS_PER_BATCH)
 
 
 class EditorSnapshot(Strict):
@@ -50,24 +61,24 @@ class EditorSnapshot(Strict):
 
 class CodeRun(Strict):
     type: Literal["code.run"]
-    file: str
-    code: str
+    file: FilePath
+    code: SourceText
 
 
 class CodeSubmit(Strict):
     type: Literal["code.submit"]
-    file: str
-    code: str
+    file: FilePath
+    code: SourceText
 
 
 class ChatSend(Strict):
     type: Literal["chat.send"]
-    text: str
+    text: str = Field(max_length=MAX_CHAT_CHARS)
 
 
 class HintRequest(Strict):
     type: Literal["hint.request"]
-    step_id: str | None = None
+    step_id: Id | None = None
 
 
 class PhaseAdvance(Strict):
@@ -77,18 +88,18 @@ class PhaseAdvance(Strict):
 
 class DefenseRunChaos(Strict):
     type: Literal["defense.run_chaos"]
-    finding_id: str
+    finding_id: Id
 
 
 class DefenseVerify(Strict):
     type: Literal["defense.verify"]
-    finding_id: str
-    files: dict[str, str]  # path → edited code
+    finding_id: Id
+    files: dict[FilePath, SourceText] = Field(max_length=MAX_PROJECT_FILES)  # path → edited code
 
 
 class DefenseCircle(Strict):  # P1 (§11.7)
     type: Literal["defense.circle"]
-    finding_id: str
+    finding_id: Id
     source: Literal["canvas", "webcam"]
     image_b64: str = Field(max_length=MAX_CIRCLE_IMAGE_B64)
     node_boxes: dict[str, list[float]] | None = None  # canvas only: node_id → [x1, y1, x2, y2]
@@ -183,6 +194,11 @@ class DefenseVerdict(Strict):
     verdict: Verdict
 
 
+class ModelActivityMsg(Strict):
+    type: Literal["model.activity"]
+    activity: ModelActivity
+
+
 class ReportReady(Strict):
     type: Literal["report.ready"]
     session_id: str
@@ -208,6 +224,7 @@ ServerMessage = Annotated[
     | DefenseGrillEval
     | DefenseSamHighlight
     | DefenseVerdict
+    | ModelActivityMsg
     | ReportReady
     | ErrorMsg,
     Field(discriminator="type"),

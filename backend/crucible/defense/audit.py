@@ -102,11 +102,34 @@ def check_audit(a: AuditResult, files: dict[str, str]) -> AuditResult:
             )
         )
     findings.sort(key=lambda f: SEVERITY_ORDER[f.severity])
-    findings = findings[:MAX_FINDINGS]
+    findings = _without_load_test(_distinct(findings))[:MAX_FINDINGS]
     flagged = {f.node_id for f in findings if f.node_id}
     nodes = [n.model_copy(update={"flagged": n.id in flagged}) for n in a.nodes]
     edges = [e for e in a.edges if e.source in node_ids and e.target in node_ids]
     return AuditResult(summary=public_summary(len(findings)), nodes=nodes, edges=edges, findings=findings)
+
+
+def _distinct(findings: list[Finding]) -> list[Finding]:
+    """One finding per bug: the audit once reported one race three times, so the candidate was attacked,
+    grilled and verified three times on it (#50 review). Same file, same category and overlapping lines
+    count as the same bug; the most severe one (findings come sorted) is kept."""
+    kept: list[Finding] = []
+    for f in findings:
+        if not any(
+            k.file == f.file
+            and k.category == f.category
+            and f.line_start <= k.line_end
+            and k.line_start <= f.line_end
+            for k in kept
+        ):
+            kept.append(f)
+    return kept
+
+
+def _without_load_test(findings: list[Finding]) -> list[Finding]:
+    """Leaks aren't load-tested: in a short attack, "old records are still there" breaks any app that keeps
+    history on purpose, and verify then fails a correct fix (#11). They stay in the audit and the report."""
+    return [f.model_copy(update={"chaos": None}) if f.category == "resource_leak" else f for f in findings]
 
 
 def neutral_title(title: str, file: str) -> str:

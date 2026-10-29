@@ -207,8 +207,8 @@ REFERENCE_LINE_SLACK = 5  # a model's line range may start or end a few lines of
 
 def reference_target(findings: list[Finding], flaws: list[dict], flaw_id: str | None) -> str | None:
     """The finding a sample's reference attack belongs to. A live audit names its own ids, so match the
-    flaw in flaws.json by id, then by file and overlapping lines, then fall back to the first finding with
-    a chaos plan (#35): one attacker failure must not leave the session with nothing to attack."""
+    flaw in flaws.json by id, then by file and overlapping lines (#35). Without a match, fall back only when
+    it can't be the wrong bug: the one chaos finding, or the one with the flaw's category (#50 review)."""
     chaos = [f for f in findings if f.chaos is not None]
     if not chaos:
         return None
@@ -221,7 +221,10 @@ def reference_target(findings: list[Finding], flaws: list[dict], flaw_id: str | 
         for f in chaos:
             if f.file == flaw.get("file") and _overlaps(f, flaw):
                 return f.id
-    return chaos[0].id
+        same_category = [f for f in chaos if f.category == flaw.get("category")]
+        if len(same_category) == 1:
+            return same_category[0].id
+    return chaos[0].id if len(chaos) == 1 else None
 
 
 def _overlaps(f: Finding, flaw: dict) -> bool:

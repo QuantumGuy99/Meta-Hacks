@@ -10,7 +10,7 @@ from crucible.contracts.defense import AuditResult
 from crucible.contracts.events import PhaseChange, TimelineEvent, TimelineKind
 from crucible.defense import audit as audit_mod
 from crucible.defense.attack_writer import RACE_MIN_CONCURRENCY, clamp_load
-from crucible.defense.audit import audit_from_flaws, derive_topology, run_audit
+from crucible.defense.audit import audit_from_flaws, check_audit, derive_topology, run_audit
 from crucible.defense.chaos import ChaosDone, decide_verdict
 from crucible.defense.controller import DefenseController
 from crucible.defense.grill import keyword_eval
@@ -125,3 +125,29 @@ def test_fallback_topology_sees_package_style_imports():
     files = {"app/main.py": "from app import ledger, store\n", "app/ledger.py": "x = 1\n", "app/store.py": ""}
     _, edges = derive_topology(files)
     assert {(e.source, e.target) for e in edges} == {("app.main", "app.ledger"), ("app.main", "app.store")}
+
+
+def test_reference_attack_is_not_guessed_between_unrelated_findings(bank):
+    a = _model_finding(bank, file="app/other.py")
+    b = _model_finding(bank, id="slow-report", file="app/reports.py", category="blocking_io")
+    assert reference_target([a, b], bank.flaws, "f1") == "balance-race"  # the only race_condition finding
+    c = _model_finding(bank, id="other-race", file="app/third.py")
+    assert reference_target([a, c], bank.flaws, "f1") is None  # two races, neither matches: don't guess
+
+
+def test_duplicate_findings_of_one_bug_are_merged(bank):
+    result = audit_from_flaws(bank)
+    one = result.findings[0]
+    dupes = [
+        one,
+        one.model_copy(update={"id": "dup-2", "severity": "high", "line_start": one.line_start + 1}),
+    ]
+    checked = check_audit(result.model_copy(update={"findings": dupes}), bank.files)
+    assert [f.id for f in checked.findings] == [one.id]
+
+
+def test_resource_leaks_are_listed_but_not_load_tested(bank):
+    result = audit_from_flaws(bank)
+    leak = result.findings[0].model_copy(update={"id": "leak", "category": "resource_leak"})
+    checked = check_audit(result.model_copy(update={"findings": [leak]}), bank.files)
+    assert checked.findings[0].id == "leak" and checked.findings[0].chaos is None

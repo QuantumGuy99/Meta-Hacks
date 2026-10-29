@@ -29,7 +29,8 @@ and a list of candidate moments picked by code.
   voice was off, judge only what they wrote in chat, and never penalize missing talk time.
 - **correctness** uses the hidden-test results (coding) or which fixes held under the same attack (defense).
 - **debugging:** how they handled failing runs, nudges and broken findings, and how fast they recovered.
-- **problem_solving:** a plan before code, the approach chosen, edge cases handled.
+- **problem_solving:** a plan before code, the approach chosen, edge cases handled, and (coding) the wrap-up
+  complexity answer: the "Complexity answer" verdict comes from code, so agree with it.
 - **code_quality:** the final code's naming, structure and simplicity.
 - **system_understanding:** how well their grill answers explained the root cause and the fix.
 

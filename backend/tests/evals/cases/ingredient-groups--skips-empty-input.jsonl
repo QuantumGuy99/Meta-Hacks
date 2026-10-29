@@ -1,0 +1,10 @@
+{"meta": {"problem_slug": "ingredient-groups", "feedback": "active", "voice": true, "about": "codes a working solution but never asks about an empty list, an empty code or duplicates"}}
+{"t": 5000, "do": "say", "text": "So codes with the same letters belong to the same group, and I count the groups."}
+{"t": 12000, "do": "say", "text": "I'll sort each code's letters to get a key, put the keys in a set, and return its size."}
+{"t": 20000, "do": "snapshot", "code": "def count_ingredient_groups(codes: list[str]) -> int:\n    signatures = set()\n"}
+{"t": 28000, "do": "snapshot", "code": "def count_ingredient_groups(codes: list[str]) -> int:\n    signatures = set()\n    for code in codes:\n"}
+{"t": 36000, "do": "snapshot", "code": "def count_ingredient_groups(codes: list[str]) -> int:\n    signatures = set()\n    for code in codes:\n        signatures.add(\"\".join(sorted(code)))\n"}
+{"t": 44000, "do": "snapshot", "code": "def count_ingredient_groups(codes: list[str]) -> int:\n    signatures = set()\n    for code in codes:\n        signatures.add(\"\".join(sorted(code)))\n    return len(signatures)\n"}
+{"t": 62000, "do": "say", "text": "Sorting gives the same key for anagrams, so the set counts each group once."}
+{"t": 82000, "do": "say", "text": "That's linear in the number of codes times the sort, which is fine."}
+{"expect": {"fires": [{"trigger": "missed_step", "step_id": ["s1", "s5"], "by_t": 112000}], "saw": [{"step_id": "s1", "status": ["not_started", "skipped"], "by_t": 92000}], "never": ["bug_suspected"], "max_shown": 3, "no_leak": true}}

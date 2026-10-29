@@ -1,0 +1,12 @@
+{"meta": {"problem_slug": "battery-budget", "feedback": "active", "voice": true, "about": "never asks about an empty list or a budget no hour fits, and starts the best length at 1"}}
+{"t": 4000, "do": "say", "text": "I'll use a sliding window. I grow it to the right, and when the total goes over the budget I shrink it from the left."}
+{"t": 20000, "do": "snapshot", "code": "def longest_within_budget(usage: list[int], budget: int) -> int:\n    best = 1\n    total = 0\n    left = 0\n"}
+{"t": 38000, "do": "snapshot", "code": "def longest_within_budget(usage: list[int], budget: int) -> int:\n    best = 1\n    total = 0\n    left = 0\n    for right in range(len(usage)):\n        total += usage[right]\n"}
+{"t": 41000, "do": "say", "text": "Now I add each hour to the running total."}
+{"t": 58000, "do": "snapshot", "code": "def longest_within_budget(usage: list[int], budget: int) -> int:\n    best = 1\n    total = 0\n    left = 0\n    for right in range(len(usage)):\n        total += usage[right]\n        while total > budget:\n            total -= usage[left]\n            left += 1\n"}
+{"t": 61000, "do": "say", "text": "While it's over budget I drop hours from the left."}
+{"t": 78000, "do": "snapshot", "code": "def longest_within_budget(usage: list[int], budget: int) -> int:\n    best = 1\n    total = 0\n    left = 0\n    for right in range(len(usage)):\n        total += usage[right]\n        while total > budget:\n            total -= usage[left]\n            left += 1\n        best = max(best, right - left + 1)\n    return best\n"}
+{"t": 81000, "do": "say", "text": "Best starts at one, since there's always at least one hour to use."}
+{"t": 90000, "do": "run"}
+{"t": 175000, "do": "submit"}
+{"expect": {"fires": [{"trigger": "missed_step", "step_id": "s1", "by_t": 170000}], "never": ["paste", "plan_mismatch"], "max_shown": 3, "no_leak": true, "flags": []}}
