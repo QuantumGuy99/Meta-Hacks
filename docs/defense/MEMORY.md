@@ -58,6 +58,7 @@ session. Update it before you finish any session that changed code, decisions or
 
 ## Session log (keep the last 10, newest first)
 - 2026-10-27 [claude] Merged #13–#15; opened #17, #18; docs refreshed (README status, role plan, spec).
+- 2026-10-29 [claude] RUN-2 + RUN-3 gaps: warm Modal sandbox per coding session, requirements.txt baked into per-project images (network is blocked at run time), images prebuilt at startup, asyncio timeouts on every Modal call. All 3 sample apps break and hold on real Modal.
 - 2026-10-27 [claude] SG approved #13–#15. Attack containment in 3 layers (validator bans, loopback hook, Modal block_network); V7 done; samples load once.
 - 2026-10-27 [claude] Day 0 + Day 1 checklist complete; RUN-1 "done when" checked on a real problem.
 - 2026-10-27 [claude] DEF-6, RUN-1, OPS-2 built; Modal verified; deploy config PR #14; Glimmer dropped PR #13; folders consolidated.
