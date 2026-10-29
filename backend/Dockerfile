@@ -18,5 +18,8 @@ COPY data/ /app/data/
 
 # SQLite lives on the mounted volume (Railway: /data). One instance only: live sessions are in memory.
 ENV DATABASE_URL=sqlite:////data/crucible.db
+# The host's proxy adds the client IP to X-Forwarded-For; the daily session quota reads it (config.py).
+ENV BEHIND_PROXY=1
 EXPOSE 8000
-CMD ["sh", "-c", "uv run --no-sync uvicorn crucible.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]
+# --ws-max-size: the largest client message is a 1 MB image (base64 ≈ 1.4 MB, defense.circle); 2 MiB caps the rest.
+CMD ["sh", "-c", "uv run --no-sync uvicorn crucible.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*' --ws-max-size 2097152"]
