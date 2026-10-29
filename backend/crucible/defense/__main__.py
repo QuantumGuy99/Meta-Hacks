@@ -17,6 +17,7 @@ from crucible.defense.model_client import WrapperModelClient
 from crucible.defense.pipeline import DefensePipeline, run_scripted
 from crucible.defense.ports import MemorySink
 from crucible.defense.projects import load_samples
+from crucible.model_setup import configure_models
 from crucible.runner import RunnerError, make_runner
 
 
@@ -34,6 +35,7 @@ def main() -> int:
     s = get_settings()
     if args.runner:
         s = s.model_copy(update={"RUNNER": args.runner, "ALLOW_LOCAL_RUNNER": args.runner == "local"})
+    configure_models(s)  # without this the harness always ran model-free (#35)
     samples = load_samples(s.DEFENSE_APPS_DIR, s.DEFENSE_EXTRA_APPS_DIR, args.apps_dir)
     sample = samples.get(args.project)
     if sample is None:
