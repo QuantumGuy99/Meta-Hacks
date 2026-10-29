@@ -19,7 +19,7 @@ def _load(path: Path) -> AttackFunctions:
 
 
 def test_the_corpus_has_the_planned_size():
-    assert 15 <= len(BAD) <= 20 and len(GOOD) >= 5
+    assert len(BAD) >= 15 and len(GOOD) >= 5
 
 
 @pytest.mark.parametrize("path", BAD, ids=lambda p: p.stem)

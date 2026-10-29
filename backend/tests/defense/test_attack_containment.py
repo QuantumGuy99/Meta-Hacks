@@ -34,3 +34,24 @@ async def test_runtime_built_outside_url_is_blocked_by_the_template(local_settin
     done = json.loads(next(x for x in lines if x.startswith('{"done"')))
     # ...but the template's hook refuses every request before it is sent: all of them count as errors.
     assert done["requests"] > 0 and done["errors"] == done["requests"]
+
+
+async def test_a_client_the_bodies_build_themselves_is_still_loopback_only():
+    """Layer 2 holds even if the validator misses a way to make a client: the check is on the class."""
+    import httpx
+
+    from crucible.runner.harness import HARNESS_DIR
+
+    src = (HARNESS_DIR / "chaos_template.py").read_text()
+    ns: dict = {"httpx": httpx}
+    original = httpx.AsyncClient.send
+    try:
+        exec(src[src.index("_LOOPBACK") : src.index("def _pct")], ns)
+        hooked = ns["_client"]()
+        for client in (type(hooked)(), hooked):
+            client.event_hooks = {"request": []}
+            with pytest.raises(RuntimeError, match="blocked"):
+                await client.get("http://169.254.169.254/latest/meta-data")
+            await client.aclose()
+    finally:
+        httpx.AsyncClient.send = original
