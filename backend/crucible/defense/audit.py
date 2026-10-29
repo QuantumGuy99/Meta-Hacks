@@ -46,6 +46,10 @@ class AuditFailed(Exception):
 _CACHE: dict[str, AuditResult] = {}  # content_hash → result; store/ persists this later (DEF-2)
 
 
+def is_cached(sample: Sample) -> bool:
+    return sample.project.content_hash in _CACHE
+
+
 async def run_audit(
     sample: Sample, llm: ModelClient, sink: EventSink, *, use_cache: bool = True
 ) -> AuditResult:

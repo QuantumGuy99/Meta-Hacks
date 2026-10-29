@@ -25,6 +25,7 @@ from crucible.contracts.events import (
     Intervention,
     InterventionLevel,
     InterventionTrigger,
+    ModelActivity,
     PhaseChange,
     TimelineEvent,
     TimelineKind,
@@ -144,6 +145,10 @@ class HubSink:
         self.rt = rt
 
     async def emit(self, kind: TimelineKind, payload: BaseModel, *, public: BaseModel | None = None) -> None:
+        if kind == TimelineKind.MODEL_ACTIVITY and isinstance(payload, ModelActivity):
+            # The strip's own path records and broadcasts it, stamped with the session clock.
+            await self.rt.show_activity(payload.model_copy(update={"t": self.rt.now_ms()}))
+            return
         await self.rt.record(kind, payload)
         message: BaseModel | None = None
         if kind == TimelineKind.AUDIT and isinstance(payload, AuditResult):
@@ -414,10 +419,12 @@ class DefenseController:
     def _pipeline(self, rt: SessionRuntime) -> DefensePipeline:
         if self.pipeline is None:
             sample = self.mode.samples[rt.session.project_id or ""]
+            # Bound to this session, so its model calls light up its "Under the hood" strip (#39).
+            bind = getattr(self.mode.llm, "for_session", None)
             self.pipeline = DefensePipeline(
                 sample,
                 self.mode.runner,
-                self.mode.llm,
+                bind(rt.session.id) if bind else self.mode.llm,
                 HubSink(rt),
                 duration_override_s=self.mode.duration_override_s,
                 phase_setter=rt.set_phase,

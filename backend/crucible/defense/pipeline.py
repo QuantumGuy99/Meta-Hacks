@@ -7,6 +7,7 @@ client messages to these methods. Standalone, the dev API and the CLI drive it d
 from __future__ import annotations
 
 import logging
+import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
@@ -19,7 +20,7 @@ from crucible.contracts.defense import (
     GrillTurn,
     Verdict,
 )
-from crucible.contracts.events import PhaseChange, TimelineKind
+from crucible.contracts.events import ModelActivity, PhaseChange, TimelineKind
 from crucible.defense import audit as audit_mod
 from crucible.defense import grill as grill_mod
 from crucible.defense import verdict as verdict_mod
@@ -28,6 +29,7 @@ from crucible.defense.chaos import run_attack
 from crucible.defense.ports import EventSink, ModelClient, note
 from crucible.defense.projects import Sample
 from crucible.defense.validator import AttackRejected
+from crucible.engine.activity import TASKS
 from crucible.engine.timeline import public_audit
 from crucible.runner.base import Runner
 
@@ -96,7 +98,10 @@ class DefensePipeline:
 
     async def run_audit(self) -> AuditResult:
         await self.set_phase(Phase.AUDIT, "session started")
+        cached = audit_mod.is_cached(self.sample)
         result = await audit_mod.run_audit(self.sample, self.llm, self.sink)
+        if cached:  # no model call was made, but the strip should still say who read the project
+            await self.sink.emit(TimelineKind.MODEL_ACTIVITY, cached_audit_activity())
         self.state.audit = result
         await self.sink.emit(TimelineKind.AUDIT, result, public=public_audit(result))
         return result
@@ -200,6 +205,18 @@ class DefensePipeline:
             return None
         target = reference_target(self.state.audit.findings, self.sample.flaws, ref.flaw_id)
         return ref.functions if target == f.id else None
+
+
+def cached_audit_activity() -> ModelActivity:
+    """Muse Wonder's audit came from the cache: "cached" on the strip (STORY.md). `t` is set by the sink."""
+    return ModelActivity(
+        call_id=uuid.uuid4().hex[:12],
+        t=0,
+        model_name="Muse Wonder",
+        task=TASKS["audit"],
+        status="cached",
+        latency_ms=0,
+    )
 
 
 REFERENCE_LINE_SLACK = 5  # a model's line range may start or end a few lines off the flaw's
