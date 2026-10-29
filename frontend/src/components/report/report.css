@@ -85,6 +85,13 @@
   border-top: 1px solid var(--ui-line);
   border-bottom: 1px solid var(--ui-line);
 }
+.rp-metrics .rp-tile-note {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--muted-ink);
+}
 
 /* replay */
 .rp-replay {

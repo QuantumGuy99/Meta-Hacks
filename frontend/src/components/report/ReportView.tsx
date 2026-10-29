@@ -9,7 +9,7 @@ import { Slider } from "@/components/ui/slider";
 import { HeadlineReveal } from "@/components/motion/HeadlineReveal";
 import { CodeEditor } from "@/components/room/CodeEditor";
 import { UnderTheHood } from "@/components/room/UnderTheHood";
-import { clock, dimensionLabel } from "@/lib/fixtures";
+import { clock, dimensionLabel, levelLabel } from "@/lib/fixtures";
 import { codeAt } from "@/lib/replay";
 import type { Moment, Report, TimelineEvent } from "@/types/contracts";
 import type { ActivityEvent } from "@/lib/session";
@@ -23,6 +23,13 @@ export type ReportMark = { t: number; kind: Moment["kind"] | "run"; title: strin
 
 const chartConfig = { score: { label: "Score", color: "#2f6bff" } } satisfies ChartConfig;
 const SPEEDS = [1, 4, 16];
+
+/** One metric tile; `value` null shows a dash (that moment never came, e.g. no run at all). */
+type Tile = { label: string; value: number | null; suffix: string; note?: string };
+const tile = (label: string, value: number | null, suffix = ""): Tile => ({ label, value, suffix });
+/** A length of time: seconds under two minutes, whole minutes from there (40 s isn't "1 min"). */
+const timeTile = (label: string, s: number | null): Tile =>
+  s === null ? tile(label, null) : s < 120 ? tile(label, Math.round(s), " s") : tile(label, Math.round(s / 60), " min");
 
 export function ReportView({
   title,
@@ -54,17 +61,29 @@ export function ReportView({
     () => report.dimensions.map((d) => ({ name: dimensionLabel(d.name), score: d.score, evidence: d.evidence })),
     [report],
   );
-  const tiles: [label: string, value: number, suffix: string][] = [
-    ["Duration", Math.round(metrics.duration_s / 60), " min"],
+  // Every metric the report carries. Help given counts only help (warm-up, replies and check-ins aren't), with
+  // its levels underneath; typing and pasting are shown as plain facts, like the integrity notes.
+  const helpLevels = Object.entries(metrics.hints_by_level)
+    .filter(([, n]) => n > 0)
+    .map(([level, n]) => `${n} ${levelLabel(level).toLowerCase()}${n === 1 ? "" : "s"}`)
+    .join(" · ");
+  const tiles: Tile[] = [
+    timeTile("Duration", metrics.duration_s),
     ...(report.mode === "coding"
-      ? ([
-          ["Runs", metrics.runs, ""],
-          ["Hidden tests", metrics.hidden_passed ?? 0, ` of ${metrics.hidden_total ?? 0}`],
-        ] as [string, number, string][])
-      : ([["Attacks", report.defense?.chaos_runs.length ?? 0, ""]] as [string, number, string][])),
-    ["Nudges", metrics.interventions_shown, ""],
-    ["Talk time", Math.round(metrics.talk_time_s / 60), " min"],
-    ["Longest silence", Math.round(metrics.longest_silence_s / 60), " min"],
+      ? [
+          tile("Runs", metrics.runs),
+          tile("Submits", metrics.submits),
+          tile("Hidden tests", metrics.hidden_passed ?? 0, ` of ${metrics.hidden_total ?? 0}`),
+          timeTile("First run", metrics.time_to_first_run_s),
+        ]
+      : [tile("Attacks", report.defense?.chaos_runs.length ?? 0)]),
+    { ...tile("Help given", metrics.interventions_shown), note: helpLevels || undefined },
+    timeTile("First edit", metrics.time_to_first_edit_s),
+    timeTile("Talk time", metrics.talk_time_s),
+    timeTile("Longest silence", metrics.longest_silence_s),
+    tile("Typed", metrics.chars_typed, " chars"),
+    tile("Pasted", metrics.chars_pasted, " chars"),
+    timeTile("Away from the tab", metrics.tab_hidden_s),
   ];
 
   const [overall, setOverall] = useState(0);
@@ -188,12 +207,11 @@ export function ReportView({
         </section>
 
         <dl className="rp-metrics fr-metrics">
-          {tiles.map(([label, value, suffix]) => (
+          {tiles.map(({ label, value, suffix, note }) => (
             <div key={label}>
               <dt>{label}</dt>
-              <dd>
-                <NumberFlow value={value} suffix={suffix} />
-              </dd>
+              <dd>{value === null ? "—" : <NumberFlow value={value} suffix={suffix} />}</dd>
+              {note && <dd className="rp-tile-note">{note}</dd>}
             </div>
           ))}
         </dl>

@@ -58,7 +58,9 @@ export type LiveState = {
   audit: AuditPublic | null;
   metrics: ChaosMetric[];
   chaosRuns: ChaosRun[];
-  grill: { turn: GrillTurn; finding: Finding }[];
+  /** Final grill results. `finding` is null for one restored after a reload: the live timeline holds only the
+   * turn, and the finding's points, explanation and fix steps arrive with defense.grill.eval or the report. */
+  grill: { turn: GrillTurn; finding: Finding | null }[];
   highlight: SamHighlight | null;
   verdict: Verdict | null;
   reportReady: boolean;
@@ -137,6 +139,15 @@ function addHistory(state: LiveState, events: TimelineEvent[]): LiveState {
       case "verdict":
         next = { ...next, verdict: p as Verdict };
         break;
+      case "grill": {
+        // Recorded at every grading, so a turn still waiting on its follow-up isn't the result yet (the
+        // backend's needs_follow_up). A live result's finding is kept.
+        const turn = p as GrillTurn;
+        if (turn.eval.needs_follow_up && !turn.follow_up_asked) break;
+        const known = next.grill.find((g) => g.turn.finding_id === turn.finding_id);
+        next = { ...next, grill: upsert(next.grill, { turn, finding: known?.finding ?? null }, (x) => x.turn.finding_id) };
+        break;
+      }
     }
   }
   return next;

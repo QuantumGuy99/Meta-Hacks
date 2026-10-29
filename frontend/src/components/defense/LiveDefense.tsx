@@ -3,6 +3,7 @@
 import NumberFlow from "@number-flow/react";
 import { AnimatePresence, m } from "motion/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CodeEditor } from "@/components/room/CodeEditor";
@@ -82,11 +83,19 @@ export function LiveDefense({ id }: { id: string }) {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [verifying, setVerifying] = useState<{ runs: number; at: number; wall: number } | null>(null);
   const capture = useRef<EditorCapture | null>(null);
+  const [endingAt, setEndingAt] = useState<number | null>(null); // performance.now() of the End click
+  const router = useRouter();
 
   const phase = state.phase;
   const audit = state.audit;
   // Follow the server's stage unless the candidate went back to look at an earlier one.
   const finished = isFinished(phase); // ended, reporting, reported or failed (#47)
+  // End goes to the report once the server has ended the session, as in the coding room. A session that ends
+  // on its own stays on its verdict, with See Report.
+  const ending = endingAt !== null && !(state.error && state.error.at > endingAt); // an error gives End back
+  useEffect(() => {
+    if (ending && finished) router.push(`/report/${id}`);
+  }, [ending, finished, id, router]);
   const current: Phase = finished ? "verdict" : phase && ORDER.includes(phase) ? phase : "audit";
   const view = picked && picked.at === phase ? picked.stage : current;
   const reached = ORDER.indexOf(current);
@@ -98,8 +107,12 @@ export function LiveDefense({ id }: { id: string }) {
   // the server only re-runs a baseline attack that finished with an error (defense.run_chaos)
   const baselineErrored = state.chaosRuns.find((r) => r.kind === "baseline" && r.verdict === "error") ?? null;
   const brokenIds = state.chaosRuns.filter((r) => r.kind === "baseline" && r.verdict === "broke").map((r) => r.finding_id);
-  const target = state.grill.at(-1)?.finding ?? null;
-  const targetId = target?.id ?? brokenIds[0] ?? audit?.findings[0]?.id ?? null;
+  const lastGrilled = state.grill.at(-1) ?? null;
+  const targetId = lastGrilled?.turn.finding_id ?? brokenIds[0] ?? audit?.findings[0]?.id ?? null;
+  // The full finding (fix steps, points, explanation) comes with the grill result; after a reload only the
+  // audit's public fields (title, file, lines) are back until the report.
+  const target = lastGrilled?.finding ?? null;
+  const shownTarget = target ?? audit?.findings.find((f) => f.id === targetId) ?? null;
   const flags = useMemo(
     () => Object.fromEntries((audit?.findings ?? []).filter((f) => f.node_id).map((f) => [f.node_id!, f.title])),
     [audit],
@@ -128,7 +141,7 @@ export function LiveDefense({ id }: { id: string }) {
     };
   }, [projectId]);
   const paths = useMemo(() => Object.keys(files ?? {}).sort(), [files]);
-  const findingFile = target?.file ?? audit?.findings.find((f) => f.id === targetId)?.file ?? null;
+  const findingFile = shownTarget?.file ?? null;
   const preview = audit?.findings.find((f) => f.id === previewId) ?? null;
   const previewLines = useMemo(
     () =>
@@ -277,8 +290,16 @@ export function LiveDefense({ id }: { id: string }) {
             See Report
           </Link>
         ) : (
-          <button type="button" className="ui-btn" onClick={() => send({ type: "session.end" })} disabled={!state.session}>
-            End
+          <button
+            type="button"
+            className="ui-btn"
+            onClick={() => {
+              setEndingAt(performance.now());
+              send({ type: "session.end" });
+            }}
+            disabled={!state.session || ending}
+          >
+            {ending ? "Ending…" : "End"}
           </button>
         )}
       </header>
@@ -510,21 +531,31 @@ export function LiveDefense({ id }: { id: string }) {
                     <p>
                       Scored <strong>{grilled.turn.score}</strong> of 10. {grilled.turn.eval.feedback}
                     </p>
-                    <ul className="df-points" aria-live="polite">
-                      {grilled.finding.grill.expected_points.map((p, i) => {
-                        const hit = grilled.turn.eval.points_hit.includes(i);
-                        return (
-                          <li key={p} className={hit ? "is-hit" : "is-miss"}>
-                            <span>{hit ? "Hit" : "Missed"}</span>
-                            {p}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                    <div className="df-reveal">
-                      <span className="df-muted">Finding revealed</span>
-                      <p>{grilled.finding.explanation}</p>
-                    </div>
+                    {grilled.finding ? (
+                      <>
+                        <ul className="df-points" aria-live="polite">
+                          {grilled.finding.grill.expected_points.map((p, i) => {
+                            const hit = grilled.turn.eval.points_hit.includes(i);
+                            return (
+                              <li key={p} className={hit ? "is-hit" : "is-miss"}>
+                                <span>{hit ? "Hit" : "Missed"}</span>
+                                {p}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                        <div className="df-reveal">
+                          <span className="df-muted">Finding revealed</span>
+                          <p>{grilled.finding.explanation}</p>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="df-muted">
+                        You hit {grilled.turn.eval.points_hit.length} of{" "}
+                        {grilled.turn.eval.points_hit.length + grilled.turn.eval.points_missed.length} points. Each point
+                        and the full explanation are in your report.
+                      </p>
+                    )}
                   </>
                 )}
               </div>
@@ -564,10 +595,10 @@ export function LiveDefense({ id }: { id: string }) {
                   </div>
                 </div>
                 <aside className="df-side">
-                  <h2>{target?.title ?? "Fix what broke"}</h2>
-                  {target && (
+                  <h2>{shownTarget?.title ?? "Fix what broke"}</h2>
+                  {shownTarget && (
                     <p className="df-muted" translate="no">
-                      {target.file}:{target.line_start}–{target.line_end}
+                      {shownTarget.file}:{shownTarget.line_start}–{shownTarget.line_end}
                     </p>
                   )}
                   {target?.fix_steps.map((s) => (
