@@ -57,7 +57,10 @@ def _two_flaw_sample(root: Path) -> Path:
     """The fixture app with a second flaw, and reference_attack.json as a list (one attack per flaw)."""
     d = _copy_sample(root, "two")
     flaws = json.loads((d / "flaws.json").read_text())
-    flaws.append({**flaws[0], "id": "f2", "chaos": {"concurrency": 40, "duration_s": 5}})
+    # A different category, like ticket-drop's O(n²) loop: a same-category overlap would be merged as one bug.
+    flaws.append(
+        {**flaws[0], "id": "f2", "category": "complexity", "chaos": {"concurrency": 40, "duration_s": 5}}
+    )
     (d / "flaws.json").write_text(json.dumps(flaws))
     ref = json.loads((d / "reference_attack.json").read_text())
     second = {**ref, "flaw_id": "f2", "concurrency": 50, "duration_s": 7}

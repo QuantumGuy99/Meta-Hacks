@@ -20,7 +20,7 @@ from crucible.config import REPO_ROOT, get_settings
 from crucible.contracts.defense import Finding
 from crucible.defense.audit import audit_with_model
 from crucible.defense.model_client import WrapperModelClient
-from crucible.defense.ports import ModelClient, ModelUnavailable
+from crucible.defense.ports import MemorySink, ModelClient, ModelUnavailable
 from crucible.defense.projects import Sample, load_samples
 
 EVALS_DIR = REPO_ROOT / "data" / "evals" / "defense"
@@ -66,7 +66,7 @@ async def audit_recall(
     report = RecallReport(sample.project.id, runs, hits={e.flaw_id: 0 for e in expected})
     for i in range(runs):
         try:
-            audit = await audit_with_model(sample, llm)
+            audit = await audit_with_model(sample, llm, MemorySink())
         except ModelUnavailable as exc:
             report.failed_runs.append(f"run {i + 1}: {exc}")
             continue

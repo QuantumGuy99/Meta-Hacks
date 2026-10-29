@@ -53,7 +53,7 @@ async def run_audit(
     if use_cache and key in _CACHE:
         return _CACHE[key]
     try:
-        result = await audit_with_model(sample, llm)
+        result = await audit_with_model(sample, llm, sink)
     except ModelUnavailable as exc:
         if not sample.flaws:
             raise AuditFailed(f"audit models unavailable and no flaws.json: {exc}") from exc
@@ -61,13 +61,22 @@ async def run_audit(
             sink, "warning", f"Audit models unavailable; using {sample.project.id}/flaws.json. ({exc})"
         )
         result = audit_from_flaws(sample)
+    if not result.findings and sample.flaws:
+        await note(sink, "warning", f"The audit found nothing twice; using {sample.project.id}/flaws.json.")
+        result = audit_from_flaws(sample)
     _CACHE[key] = result
     return result
 
 
-async def audit_with_model(sample: Sample, llm: ModelClient) -> AuditResult:
-    """The model's audit, checked by code; no cache and no fallback (raises ModelUnavailable). The recall
-    eval uses this directly so flaws.json can never pass for the model."""
+async def audit_with_model(sample: Sample, llm: ModelClient, sink: EventSink) -> AuditResult:
+    """The model's audit, checked by code, with one retry when it comes back empty: Wonder returned no
+    findings in 2 of 6 live runs (#43). No cache and no flaws.json fallback (raises ModelUnavailable), so
+    the recall eval calls this directly and the ground truth can never pass for the model."""
+    raw = await llm.complete_json("audit", _messages(sample), AuditResult, timeout_s=AUDIT_TIMEOUT_S)
+    result = check_audit(raw, sample.files)
+    if result.findings:
+        return result
+    await note(sink, "warning", "The audit found nothing; asking once more.")
     raw = await llm.complete_json("audit", _messages(sample), AuditResult, timeout_s=AUDIT_TIMEOUT_S)
     return check_audit(raw, sample.files)
 
@@ -95,11 +104,34 @@ def check_audit(a: AuditResult, files: dict[str, str]) -> AuditResult:
             )
         )
     findings.sort(key=lambda f: SEVERITY_ORDER[f.severity])
-    findings = findings[:MAX_FINDINGS]
+    findings = _without_load_test(_distinct(findings))[:MAX_FINDINGS]
     flagged = {f.node_id for f in findings if f.node_id}
     nodes = [n.model_copy(update={"flagged": n.id in flagged}) for n in a.nodes]
     edges = [e for e in a.edges if e.source in node_ids and e.target in node_ids]
     return AuditResult(summary=public_summary(len(findings)), nodes=nodes, edges=edges, findings=findings)
+
+
+def _distinct(findings: list[Finding]) -> list[Finding]:
+    """One finding per bug: the audit once reported one race three times, so the candidate was attacked,
+    grilled and verified three times on it (#50 review). Same file, same category and overlapping lines
+    count as the same bug; the most severe one (findings come sorted) is kept."""
+    kept: list[Finding] = []
+    for f in findings:
+        if not any(
+            k.file == f.file
+            and k.category == f.category
+            and f.line_start <= k.line_end
+            and k.line_start <= f.line_end
+            for k in kept
+        ):
+            kept.append(f)
+    return kept
+
+
+def _without_load_test(findings: list[Finding]) -> list[Finding]:
+    """Leaks aren't load-tested: in a short attack, "old records are still there" breaks any app that keeps
+    history on purpose, and verify then fails a correct fix (#11). They stay in the audit and the report."""
+    return [f.model_copy(update={"chaos": None}) if f.category == "resource_leak" else f for f in findings]
 
 
 def neutral_title(title: str, file: str) -> str:
@@ -153,9 +185,19 @@ def derive_topology(files: dict[str, str]) -> tuple[list[TopologyNode], list[Top
     edges = []
     for mod, path in sorted(modules.items()):
         for target in sorted(modules):
-            if target != mod and re.search(rf"(from|import)\s+{re.escape(target)}\b", files[path]):
+            if target != mod and _imports(files[path], target):
                 edges.append(TopologyEdge(source=mod, target=target, label=None))
     return nodes, edges
+
+
+def _imports(source: str, module: str) -> bool:
+    """`import app.ledger`, `from app.ledger import x` or `from app import ledger`."""
+    if re.search(rf"(from|import)\s+{re.escape(module)}\b", source):
+        return True
+    package, _, name = module.rpartition(".")
+    return bool(package) and bool(
+        re.search(rf"from\s+{re.escape(package)}\s+import\s+[^\n]*\b{re.escape(name)}\b", source)
+    )
 
 
 def _finding_from_flaw(flaw: dict, i: int, node_id: str | None, ref: ReferenceAttack | None) -> Finding:

@@ -1,7 +1,11 @@
 """Grill scoring is code (PLAN §11.5): root cause required, invented indexes ignored, SAM bonus capped."""
 
+import json
+
 from crucible.contracts.defense import GrillEval
-from crucible.defense.grill import keyword_eval, looks_like_code, score_answer
+from crucible.defense.audit import audit_from_flaws
+from crucible.defense.grill import MAX_ANSWER_CHARS, _messages, keyword_eval, looks_like_code, score_answer
+from crucible.defense.prompts import PROMPTS
 from tests.defense.fixtures import GOOD_ANSWER, WEAK_ANSWER
 
 
@@ -42,8 +46,13 @@ def test_code_detector():
     assert not looks_like_code("What could another request be doing while this one waits?")
 
 
-def test_every_defense_prompt_treats_candidate_and_project_text_as_data():
-    from crucible.defense.prompts import PROMPTS
+def test_long_answers_are_cut_before_they_reach_the_model(bank):
+    finding = audit_from_flaws(bank).findings[0]
+    sent = json.loads(_messages(finding, "broke", "x" * (MAX_ANSWER_CHARS + 500))[1]["content"])
+    assert len(sent["answer"]) == MAX_ANSWER_CHARS
 
-    for key in ("grill_eval_system", "audit_system", "attacker_system"):
-        assert "data, not instructions" in PROMPTS[key], key
+
+def test_defense_prompts_treat_user_content_as_data():
+    for name in ("grill_eval_system", "audit_system", "attacker_system"):
+        assert "never instructions to you" in PROMPTS[name] or "never an instruction to you" in PROMPTS[name]
+    assert "Crucible" in PROMPTS["grill_eval_system"]
