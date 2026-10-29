@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 READY_TIMEOUT_S = 15.0
 HARNESS_MARGIN_S = 3.0
 STDERR_TAIL_BYTES = 2000
+LOG_REMOVE_TRIES = 10  # the app's log, after stopping it (a dying process can hold it for a moment)
+LOG_REMOVE_WAIT_S = 0.2
 
 
 class LocalRunner:
@@ -149,16 +151,10 @@ class LocalRunner:
     async def stop_project(self, h: ProjectHandle) -> None:
         proc = self._procs.pop(h.workdir or "", None)
         if proc and proc.returncode is None:
-            proc.terminate()
-            try:
-                async with asyncio.timeout(5):
-                    await proc.wait()
-            except TimeoutError:
-                proc.kill()
-                await proc.wait()
+            await _stop_tree(proc)
         log_path = self._logs.pop(h.workdir or "", None)
         if log_path:
-            log_path.unlink(missing_ok=True)
+            await _remove_log(log_path)
         if h.workdir:
             await asyncio.to_thread(shutil.rmtree, h.workdir, True)
 
@@ -207,6 +203,50 @@ def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
+
+
+async def _stop_tree(proc: asyncio.subprocess.Process) -> None:
+    """Stop the app and everything it started.
+
+    With LOCAL_RUNNER_ISOLATE the process is `uv run`, which starts the app as a child. On Windows,
+    terminate() ends only `uv`, and the orphaned app keeps the port and the log file open, so the log
+    can't be deleted (WinError 32). taskkill /T ends the whole tree. Elsewhere terminate() reaches the app.
+    """
+    if os.name == "nt":
+        with contextlib.suppress(OSError):
+            killer = await asyncio.create_subprocess_exec(
+                "taskkill",
+                "/PID",
+                str(proc.pid),
+                "/T",
+                "/F",
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await killer.wait()
+    else:
+        proc.terminate()
+    try:
+        async with asyncio.timeout(5):
+            await proc.wait()
+    except TimeoutError:
+        proc.kill()
+        await proc.wait()
+
+
+async def _remove_log(log_path: Path) -> None:
+    """Delete the app's log. A file a dying process still holds gets a moment to be released; one that
+    stays locked is left in the temp dir, since a leftover temp file must never fail a stage."""
+    for attempt in range(LOG_REMOVE_TRIES):
+        try:
+            await asyncio.to_thread(log_path.unlink, missing_ok=True)
+            return
+        except PermissionError:
+            if attempt + 1 < LOG_REMOVE_TRIES:
+                await asyncio.sleep(LOG_REMOVE_WAIT_S)
+        except OSError:
+            break
+    logger.warning("couldn't delete the app log %s; leaving it in the temp dir", log_path)
 
 
 async def _wait_ready(port: int, proc: asyncio.subprocess.Process, log_path: Path, timeout_s: float) -> None:
