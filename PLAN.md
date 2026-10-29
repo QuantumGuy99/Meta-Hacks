@@ -1489,6 +1489,44 @@ the AI wrote.
 
 ---
 
+### 11.10 P1: Any vibe-coded project, not only web apps (DEF-12, after IC2)
+Decided by Shreyas on 2026-10-29. Not every project a candidate brings is a web app: many are scripts, CLIs or
+small libraries. Defense audits the **whole project** and proves what it can.
+
+**1. Project kinds** (`projects.py`): `web_app` when `crucible.json` has a uvicorn `entrypoint` or a FastAPI/Flask
+app is auto-detected (§11.1); otherwise `python_project` (any Python files; same size limits). A
+`python_project` sandbox gets the files and its `requirements.txt` image but starts no server.
+
+**2. The audit is project-level** (`audit.py`, Muse Wonder): up to 5 ranked weaknesses across correctness,
+security, error handling, concurrency, performance and structure, not only load bugs. **If it finds none, the
+audit says so and lists 3 future improvements instead** (code shows improvements only when there are no
+findings). Each finding carries at most one proof plan:
+- `chaos` (load test, §11.4): web apps only, as today.
+- `probe` (targeted test): any project. What to call, with what input, and what must hold.
+- neither: reported, graded in the report, but not attacked or grilled.
+
+**3. Proof by test** (`probe_writer.py`, `harness/probe_template.py`, Muse Spark): the same idea as the attack
+template. The model fills `setup_body` and `probe_body` (returns `(ok, violations, detail)`) in a fixed
+template that imports the project's modules from `/work/app`, runs the probe (with threads for concurrency
+claims) and prints the same `{"done": ...}` line as a chaos run, so `chaos.py` parsing and `decide_verdict`
+are reused. The validator allows imports of the project's own top-level modules plus a stdlib allowlist; it
+still bans network, subprocess, `os`, files outside `/work` and dunder access. Verify re-runs the same probe on
+the candidate's fix. `ChaosRun` gains `method: "load" | "test"`.
+
+**4. Flow and verdict**: audit → proofs (load or test) → grill on what broke → fix → verify → verdict, as §11.2.
+New outcome **clean**: the audit found no weaknesses, so there is nothing to defend. The verdict shows the
+improvements and no merge gate. (Weaknesses found but none proven stays FAIL, "nothing was proven".)
+
+**5. Contract changes** (SG + SS): `Project.kind`; `Finding.probe: ProbePlan | None`;
+`AuditResult.improvements` and `AuditPublic.improvements: list[Improvement {title, why}]`; `FindingCategory`
+gains `correctness` and `design`; `ChaosRun.method`; `ProbeFunctions` (LLM output); `Verdict.outcome:
+"pass" | "fail" | "clean"`; `DefenseExtra.improvements`.
+
+**6. Work**: SS backend Sat Oct 31 (with OPS-1); SG approves the contracts; LG shows the improvements, a test
+proof (the failing check and its detail instead of a load chart) and the "clean" verdict, Sun Nov 1; ST adds
+one non-app sample (a vibe-coded CLI or library with `flaws.json` probe plans and `fixed/`) by Sat Oct 31.
+The demo still uses `bank-transfer`; this widens what judges can bring.
+
 ## 12. Runner
 
 Owner: **SS**. Shared by both modes.

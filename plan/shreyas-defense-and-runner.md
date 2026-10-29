@@ -320,6 +320,10 @@ proves `defense.audit` never carries an explanation.
   reject; the report and verdict reasons show the AI share. Only in fix/verify, max 20 asks per session.
   Needs the contract additions (SG + SS), the `assistant` role and `chars_ai` (Srinithin), and the side panel
   (Likhil).
+- **DEF-12 — Any vibe-coded project** (P1 · Sat, with OPS-1): PLAN §11.10. Project kinds (`web_app`,
+  `python_project`), a project-level audit with weaknesses or else 3 future improvements, proof by a targeted
+  test (`probe_writer.py`, `harness/probe_template.py`, validator allowlist for the project's own modules), and
+  the "clean" verdict. Needs SG's OK on the contract changes and ST's non-app sample.
 
 ---
 
