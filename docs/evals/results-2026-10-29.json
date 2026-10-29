@@ -1,0 +1,866 @@
+[
+ {
+  "area": "Setup",
+  "scope": "backend",
+  "check": "Backend health",
+  "status": "pass",
+  "detail": "{\"ok\": true, \"version\": \"0.1.0\", \"mock\": false}",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Create session",
+  "status": "pass",
+  "detail": "201, session 7d1871e0bba8",
+  "ms": 11,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Problem API hides the answer",
+  "status": "pass",
+  "detail": "no hidden tests, rubric or reference in GET /api/problems/{slug}",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Socket hello → session.state",
+  "status": "pass",
+  "detail": "phase intro",
+  "ms": 155,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Warm-up greeting before the problem",
+  "status": "pass",
+  "detail": "Hi, I'm Ares, and I'll be your interviewer today. Before we get to the…",
+  "ms": 0,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Clock holds during the warm-up",
+  "status": "pass",
+  "detail": "1200 s left, still 1200 s 3 s later, phase intro",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Skip Intro → clarify",
+  "status": "pass",
+  "detail": "clarify with 1200 s left",
+  "ms": 56,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Clock runs once the problem is presented",
+  "status": "pass",
+  "detail": "1200 s, then 1197 s 3 s later",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Chat → transcript turn",
+  "status": "pass",
+  "detail": "candidate turn recorded",
+  "ms": 65,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Interviewer answers a question",
+  "status": "blocked",
+  "detail": "no answer: needs MODEL_API_KEY",
+  "ms": null,
+  "cause": "Needs a Meta model key"
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Start coding (clarify → coding)",
+  "status": "pass",
+  "detail": "phase coding",
+  "ms": 55,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Refuses going back (coding → clarify)",
+  "status": "pass",
+  "detail": "error bad_phase",
+  "ms": 58,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Hint button",
+  "status": "blocked",
+  "detail": "server: hints aren't available right now (the live engine needs MODEL_API_KEY)",
+  "ms": 65,
+  "cause": "Needs a Meta model key"
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Typing raises no integrity note",
+  "status": "pass",
+  "detail": "0 notes while typing line by line",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "A paste becomes a neutral note",
+  "status": "pass",
+  "detail": "pasted 14 lines at 00:17",
+  "ms": 65,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "An infinite loop times out",
+  "status": "pass",
+  "detail": "timed_out=True, timed out after 2 s",
+  "ms": 6336,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Run the reference solution",
+  "status": "pass",
+  "detail": "3 of 3 tests passed",
+  "ms": 291,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Submit the reference solution",
+  "status": "pass",
+  "detail": "14 of 14 tests passed",
+  "ms": 261,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Live timeline hides analyses and notes",
+  "status": "pass",
+  "detail": "31 events, kinds ['editor', 'integrity', 'intervention', 'phase', 'run', 'snapshot', 'transcript']",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Edits reach the timeline",
+  "status": "pass",
+  "detail": "9 edit events, last snapshot matches the typed code",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "No report while live",
+  "status": "pass",
+  "detail": "HTTP 409",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Reconnect keeps the session",
+  "status": "pass",
+  "detail": "back in wrap_up (was wrap_up)",
+  "ms": 52,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Wrap-up asks its questions",
+  "status": "pass",
+  "detail": "after the passing submit: What are the time and space complexity?",
+  "ms": 0,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Report after End",
+  "status": "pass",
+  "detail": "2 dimensions, 5 moments, model template",
+  "ms": 1019,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "Written review in the report",
+  "status": "blocked",
+  "detail": "metrics only: needs MODEL_API_KEY",
+  "ms": null,
+  "cause": "Needs a Meta model key"
+ },
+ {
+  "area": "Coding",
+  "scope": "thermostat-swings",
+  "check": "No false 'replaced the edits' note",
+  "status": "pass",
+  "detail": "none",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Create session",
+  "status": "pass",
+  "detail": "201, session ed5a4d240861",
+  "ms": 3,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Problem API hides the answer",
+  "status": "pass",
+  "detail": "no hidden tests, rubric or reference in GET /api/problems/{slug}",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Socket hello → session.state",
+  "status": "pass",
+  "detail": "phase intro",
+  "ms": 70,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Warm-up greeting before the problem",
+  "status": "pass",
+  "detail": "Hi, I'm Ares, and I'll be your interviewer today. Before we get to the…",
+  "ms": 0,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Clock holds during the warm-up",
+  "status": "pass",
+  "detail": "1800 s left, still 1800 s 3 s later, phase intro",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Skip Intro → clarify",
+  "status": "pass",
+  "detail": "clarify with 1800 s left",
+  "ms": 58,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Clock runs once the problem is presented",
+  "status": "pass",
+  "detail": "1800 s, then 1797 s 3 s later",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Chat → transcript turn",
+  "status": "pass",
+  "detail": "candidate turn recorded",
+  "ms": 57,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Interviewer answers a question",
+  "status": "blocked",
+  "detail": "no answer: needs MODEL_API_KEY",
+  "ms": null,
+  "cause": "Needs a Meta model key"
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Start coding (clarify → coding)",
+  "status": "pass",
+  "detail": "phase coding",
+  "ms": 56,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Refuses going back (coding → clarify)",
+  "status": "pass",
+  "detail": "error bad_phase",
+  "ms": 58,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Hint button",
+  "status": "blocked",
+  "detail": "server: hints aren't available right now (the live engine needs MODEL_API_KEY)",
+  "ms": 65,
+  "cause": "Needs a Meta model key"
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Typing raises no integrity note",
+  "status": "pass",
+  "detail": "0 notes while typing line by line",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "A paste becomes a neutral note",
+  "status": "pass",
+  "detail": "pasted 14 lines at 00:16",
+  "ms": 56,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "An infinite loop times out",
+  "status": "pass",
+  "detail": "timed_out=True, timed out after 2 s",
+  "ms": 6414,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Run the reference solution",
+  "status": "pass",
+  "detail": "3 of 3 tests passed",
+  "ms": 294,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Submit the reference solution",
+  "status": "pass",
+  "detail": "15 of 15 tests passed",
+  "ms": 345,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Live timeline hides analyses and notes",
+  "status": "pass",
+  "detail": "30 events, kinds ['editor', 'integrity', 'intervention', 'phase', 'run', 'snapshot', 'transcript']",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Edits reach the timeline",
+  "status": "pass",
+  "detail": "8 edit events, last snapshot matches the typed code",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "No report while live",
+  "status": "pass",
+  "detail": "HTTP 409",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Reconnect keeps the session",
+  "status": "pass",
+  "detail": "back in wrap_up (was wrap_up)",
+  "ms": 54,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Wrap-up asks its questions",
+  "status": "pass",
+  "detail": "after the passing submit: What are the time and space complexity?",
+  "ms": 0,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Report after End",
+  "status": "pass",
+  "detail": "2 dimensions, 5 moments, model template",
+  "ms": 1006,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "Written review in the report",
+  "status": "blocked",
+  "detail": "metrics only: needs MODEL_API_KEY",
+  "ms": null,
+  "cause": "Needs a Meta model key"
+ },
+ {
+  "area": "Coding",
+  "scope": "ingredient-groups",
+  "check": "No false 'replaced the edits' note",
+  "status": "pass",
+  "detail": "none",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Create session",
+  "status": "pass",
+  "detail": "201, session 49fdf0d7d8af",
+  "ms": 3,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Problem API hides the answer",
+  "status": "pass",
+  "detail": "no hidden tests, rubric or reference in GET /api/problems/{slug}",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Socket hello → session.state",
+  "status": "pass",
+  "detail": "phase intro",
+  "ms": 50,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Warm-up greeting before the problem",
+  "status": "pass",
+  "detail": "Hi, I'm Ares, and I'll be your interviewer today. Before we get to the…",
+  "ms": 0,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Clock holds during the warm-up",
+  "status": "pass",
+  "detail": "2400 s left, still 2400 s 3 s later, phase intro",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Skip Intro → clarify",
+  "status": "pass",
+  "detail": "clarify with 2400 s left",
+  "ms": 65,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Clock runs once the problem is presented",
+  "status": "pass",
+  "detail": "2400 s, then 2397 s 3 s later",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Chat → transcript turn",
+  "status": "pass",
+  "detail": "candidate turn recorded",
+  "ms": 65,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Interviewer answers a question",
+  "status": "blocked",
+  "detail": "no answer: needs MODEL_API_KEY",
+  "ms": null,
+  "cause": "Needs a Meta model key"
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Start coding (clarify → coding)",
+  "status": "pass",
+  "detail": "phase coding",
+  "ms": 57,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Refuses going back (coding → clarify)",
+  "status": "pass",
+  "detail": "error bad_phase",
+  "ms": 58,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Hint button",
+  "status": "blocked",
+  "detail": "server: hints aren't available right now (the live engine needs MODEL_API_KEY)",
+  "ms": 58,
+  "cause": "Needs a Meta model key"
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Typing raises no integrity note",
+  "status": "pass",
+  "detail": "0 notes while typing line by line",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "A paste becomes a neutral note",
+  "status": "pass",
+  "detail": "pasted 14 lines at 00:22",
+  "ms": 64,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "An infinite loop times out",
+  "status": "pass",
+  "detail": "timed_out=True, timed out after 2 s",
+  "ms": 6359,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Run the reference solution",
+  "status": "pass",
+  "detail": "3 of 3 tests passed",
+  "ms": 281,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Submit the reference solution",
+  "status": "pass",
+  "detail": "17 of 17 tests passed",
+  "ms": 605,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Live timeline hides analyses and notes",
+  "status": "pass",
+  "detail": "53 events, kinds ['editor', 'integrity', 'intervention', 'phase', 'run', 'snapshot', 'transcript']",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Edits reach the timeline",
+  "status": "pass",
+  "detail": "31 edit events, last snapshot matches the typed code",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "No report while live",
+  "status": "pass",
+  "detail": "HTTP 409",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Reconnect keeps the session",
+  "status": "pass",
+  "detail": "back in wrap_up (was wrap_up)",
+  "ms": 68,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Wrap-up asks its questions",
+  "status": "pass",
+  "detail": "after the passing submit: What are the time and space complexity?",
+  "ms": 0,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Report after End",
+  "status": "pass",
+  "detail": "2 dimensions, 5 moments, model template",
+  "ms": 1027,
+  "cause": ""
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "Written review in the report",
+  "status": "blocked",
+  "detail": "metrics only: needs MODEL_API_KEY",
+  "ms": null,
+  "cause": "Needs a Meta model key"
+ },
+ {
+  "area": "Coding",
+  "scope": "genre-sampler",
+  "check": "No false 'replaced the edits' note",
+  "status": "pass",
+  "detail": "none",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Defense",
+  "scope": "live on this machine",
+  "check": "Create session",
+  "status": "pass",
+  "detail": "201, session a01d48a31177",
+  "ms": 8,
+  "cause": ""
+ },
+ {
+  "area": "Defense",
+  "scope": "live on this machine",
+  "check": "Audit arrives",
+  "status": "pass",
+  "detail": "1 finding(s), 1 node(s); without a key it uses the sample's flaws.json",
+  "ms": 55,
+  "cause": ""
+ },
+ {
+  "area": "Defense",
+  "scope": "live on this machine",
+  "check": "Attack starts and streams metrics",
+  "status": "pass",
+  "detail": "first metric received",
+  "ms": 6904,
+  "cause": ""
+ },
+ {
+  "area": "Defense",
+  "scope": "live on this machine",
+  "check": "Attack finishes with a verdict",
+  "status": "pass",
+  "detail": "broke: $20,699 disappeared across 10 accounts (6,064 requests at 20",
+  "ms": 10412,
+  "cause": ""
+ },
+ {
+  "area": "Defense",
+  "scope": "live on this machine",
+  "check": "Session moves on after the attack",
+  "status": "pass",
+  "detail": "reached grill",
+  "ms": 65,
+  "cause": ""
+ },
+ {
+  "area": "Defense",
+  "scope": "recorded run (MOCK)",
+  "check": "Create session",
+  "status": "pass",
+  "detail": "201, scenario defense-bank-transfer",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Defense",
+  "scope": "recorded run (MOCK)",
+  "check": "Stages in order",
+  "status": "pass",
+  "detail": "audit → chaos → grill → fix → verify → verdict → ended",
+  "ms": 4288,
+  "cause": ""
+ },
+ {
+  "area": "Defense",
+  "scope": "recorded run (MOCK)",
+  "check": "Audit hides explanations",
+  "status": "pass",
+  "detail": "1 findings, no explanation field",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Defense",
+  "scope": "recorded run (MOCK)",
+  "check": "Live attack metrics stream",
+  "status": "pass",
+  "detail": "24 metric messages",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Defense",
+  "scope": "recorded run (MOCK)",
+  "check": "Baseline breaks, verify holds",
+  "status": "pass",
+  "detail": "baseline: broke; verify: held",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Defense",
+  "scope": "recorded run (MOCK)",
+  "check": "Grill graded with the finding revealed",
+  "status": "pass",
+  "detail": "score 10/10",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Defense",
+  "scope": "recorded run (MOCK)",
+  "check": "Merge gate verdict",
+  "status": "pass",
+  "detail": "PASS",
+  "ms": null,
+  "cause": ""
+ },
+ {
+  "area": "Frontend",
+  "scope": "pages",
+  "check": "GET /",
+  "status": "pass",
+  "detail": "HTTP 200, 72 KB",
+  "ms": 171,
+  "cause": ""
+ },
+ {
+  "area": "Frontend",
+  "scope": "pages",
+  "check": "GET /coding",
+  "status": "pass",
+  "detail": "HTTP 200, 16 KB",
+  "ms": 72,
+  "cause": ""
+ },
+ {
+  "area": "Frontend",
+  "scope": "pages",
+  "check": "GET /defense",
+  "status": "pass",
+  "detail": "HTTP 200, 15 KB",
+  "ms": 64,
+  "cause": ""
+ },
+ {
+  "area": "Frontend",
+  "scope": "pages",
+  "check": "GET /coding/demo",
+  "status": "pass",
+  "detail": "HTTP 200, 30 KB",
+  "ms": 106,
+  "cause": ""
+ },
+ {
+  "area": "Frontend",
+  "scope": "pages",
+  "check": "GET /defense/demo",
+  "status": "pass",
+  "detail": "HTTP 200, 26 KB",
+  "ms": 70,
+  "cause": ""
+ },
+ {
+  "area": "Frontend",
+  "scope": "pages",
+  "check": "GET /report/demo",
+  "status": "pass",
+  "detail": "HTTP 200, 39 KB",
+  "ms": 802,
+  "cause": ""
+ },
+ {
+  "area": "Frontend",
+  "scope": "pages",
+  "check": "GET /coding/7d1871e0bba8",
+  "status": "pass",
+  "detail": "HTTP 200, 30 KB",
+  "ms": 74,
+  "cause": ""
+ },
+ {
+  "area": "Frontend",
+  "scope": "pages",
+  "check": "GET /report/7d1871e0bba8",
+  "status": "pass",
+  "detail": "HTTP 200, 22 KB",
+  "ms": 606,
+  "cause": ""
+ }
+]
