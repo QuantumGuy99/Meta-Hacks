@@ -5,10 +5,10 @@ sections your task needs (§6 layout and ownership, §7 contracts, §22 agent ru
 Your own build order, handoff dates and interfaces are in `plan/<your-name>.md`.
 
 ## Area rules
-Each area can keep its own rules in a nested `CLAUDE.md`, which Claude Code loads when you work in that
-folder. They add to this file and never loosen it. So far:
-- Project Defense + Runner (Shreyas): `backend/crucible/defense/CLAUDE.md` (also loaded from `runner/`).
-- Backend code style (everyone): `backend/CLAUDE.md`. File templates: the `crucible-code` skill.
+Each area can keep its own rules in a nested `AGENTS.md`, which coding agents (Muse Code included) load when
+you work in that folder. They add to this file and never loosen it. So far:
+- Project Defense + Runner (Shreyas): `backend/crucible/defense/AGENTS.md` (also loaded from `runner/`).
+- Backend code style (everyone): `backend/AGENTS.md`. File templates: `docs/agents/code-templates.md`.
 
 ## Source of truth
 `PLAN.md` is the spec; `plan/*.md` are each person's slice of it (PLAN wins; fix the role plan in the same
@@ -34,16 +34,16 @@ PR, §22 rule 15). If PLAN and the code disagree, or a task is ambiguous, stop a
 9. **No license headers in source files.** The repo's `LICENSE` file and the README's License section
    stay as they are; just don't add license comments to code.
 10. **No AI attribution lines** in commits or PR descriptions (no `Co-Authored-By:` an AI tool, no
-   "Generated with ..." footer). `.claude/settings.json` turns them off for Claude Code.
+   "Generated with ..." footer). Turn them off in your coding agent's own (local) settings.
 
-## Model roles (Claude Code subagents: pass `model` to the Agent tool)
-- **Architect (Opus 5.5, the main session):** owns blueprints, contracts, guardrails and error-recovery
+## Agent roles (when one agent hands work to others)
+- **Architect (the main session, the strongest model):** owns blueprints, contracts, guardrails and error-recovery
   policy. Breaks work into tasks with explicit file lists and "done when" criteria, reviews every diff
   before commit, and is the only role that changes contracts, PLAN.md, area specs or these rules.
-- **Builder (`model: "sonnet"`):** implements feature logic inside the files the task names, following
-  `backend/CLAUDE.md` and the `crucible-code` skill. Doesn't invent architecture: if the task needs a new
+- **Builder (a capable, faster model):** implements feature logic inside the files the task names, following
+  `backend/AGENTS.md` and `docs/agents/code-templates.md`. Doesn't invent architecture: if the task needs a new
   contract, file or dependency, stop and report back.
-- **Operator (`model: "haiku"`):** runs tests, `ruff format`/`ruff check --fix`, boilerplate (fixtures,
+- **Operator (the fastest model):** runs tests, `ruff format`/`ruff check --fix`, boilerplate (fixtures,
   test scaffolds, empty modules from templates) and short scripts. Reports output verbatim and never
   changes logic to make a check pass.
 - Every task brief names: files allowed, PLAN sections to read, the checks to run, done-when. If your
@@ -61,7 +61,7 @@ PR, §22 rule 15). If PLAN and the code disagree, or a task is ambiguous, stop a
 - **Lint autofix changes behaviour** (or ruff can't fix it) → Builder, not Operator.
 - **Context running out or a task stalls** (3+ rounds without progress): write a handoff (your area's
   memory file, or the PR description), end the subagent, and restart it fresh from that handoff.
-- **A model is unavailable or too weak for the task:** escalate up (Haiku → Sonnet → Opus), never down
+- **A model is unavailable or too weak for the task:** escalate to a stronger model (Operator → Builder → Architect), never down
   for design decisions or reviews.
 - **Main moved:** `git fetch` and compare with `origin/main` before starting and before pushing.
 

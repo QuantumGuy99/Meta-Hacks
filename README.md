@@ -139,7 +139,7 @@ All Meta Model API calls go through `https://api.meta.ai/v1` with the OpenAI-com
 ```
 .
 ├── README.md · PLAN.md · LICENSE · Makefile · .env.example
-├── CLAUDE.md · .muse/       # rules for coding agents (Claude Code, Muse Code); areas add nested CLAUDE.md files
+├── AGENTS.md               # rules for coding agents (Muse Code reads it); areas add nested AGENTS.md files
 ├── plan/                    # one plan per teammate: owned paths, handoffs, build order
 ├── docs/defense/            # Project Defense briefing and its shared working memory
 ├── frontend-schematic/      # detailed frontend plan + UI rules
@@ -210,9 +210,9 @@ Coming soon: `make validate` (checks every problem and sample app in `data/`) an
 sessions through the real models; costs credits). Deploying: see [docs/DEPLOY.md](docs/DEPLOY.md). It stays
 on free tiers and credits.
 
-**Working with coding agents:** Claude Code and Muse Code read [CLAUDE.md](CLAUDE.md) (team rules) and
-[.muse/instructions.md](.muse/instructions.md). Areas can add their own rules in a nested `CLAUDE.md`, as
-Project Defense does in `backend/crucible/defense/CLAUDE.md`.
+**Working with coding agents:** Muse Code reads [AGENTS.md](AGENTS.md) (team rules). Areas can add their own
+rules in a nested `AGENTS.md`, as Project Defense does in `backend/crucible/defense/AGENTS.md`. File templates
+are in [docs/agents/code-templates.md](docs/agents/code-templates.md).
 
 ---
 
