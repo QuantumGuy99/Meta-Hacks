@@ -58,7 +58,7 @@ session. Update it before you finish any session that changed code, decisions or
 
 ## Session log (keep the last 10, newest first)
 - 2026-10-27 [claude] Merged #13–#15; opened #17, #18; docs refreshed (README status, role plan, spec).
-- 2026-10-29 [claude] RUN-2 + RUN-3 gaps: warm Modal sandbox per coding session, requirements.txt baked into per-project images (network is blocked at run time), images prebuilt at startup, asyncio timeouts on every Modal call. All 3 sample apps break and hold on real Modal.
+- 2026-10-29 [agent] RUN-2 + RUN-3 gaps: warm Modal sandbox per coding session, requirements.txt baked into per-project images (network is blocked at run time), images prebuilt at startup, asyncio timeouts on every Modal call. All 3 sample apps break and hold on real Modal.
 - 2026-10-28 [claude] #35 + #43 Defense fixes (reference attack matched by file/lines, keyword root-cause floor, p95 0 = no check, race load floor 50, empty-audit retry, harness configures models, stages cancelled on end). Live run on bank-transfer-min: attacker timed out twice (pre-#43 registry) → reference attack matched → broke $11,249 → grill 10/10 → held → PASS.
 - 2026-10-27 [claude] SG approved #13–#15. Attack containment in 3 layers (validator bans, loopback hook, Modal block_network); V7 done; samples load once.
 - 2026-10-27 [claude] Day 0 + Day 1 checklist complete; RUN-1 "done when" checked on a real problem.
