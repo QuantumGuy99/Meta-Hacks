@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     MOCK_SPEED: float = 1.0  # MOCK replays at this speed (2 = twice as fast)
     CORS_ORIGINS: str = "http://localhost:3000"
     MAX_SESSIONS_PER_IP_PER_DAY: int = 10
+    BEHIND_PROXY: bool = False  # trust the proxy's X-Forwarded-For for the client IP (the Dockerfile sets it)
+
+    # Deployment: production is APP_ENV=prod, or any Railway environment (Railway sets this variable).
+    APP_ENV: Literal["dev", "prod"] = "dev"
+    RAILWAY_ENVIRONMENT_NAME: str = ""
 
     # Defense
     DEFENSE_APPS_DIR: Path = REPO_ROOT / "data" / "defense_apps"
@@ -75,6 +80,24 @@ class Settings(BaseSettings):
     @property
     def has_meta_key(self) -> bool:
         return bool(self.MODEL_API_KEY)
+
+    @property
+    def is_production(self) -> bool:
+        return self.APP_ENV == "prod" or bool(self.RAILWAY_ENVIRONMENT_NAME)
+
+    def production_problems(self) -> list[str]:
+        """Dev-only settings that must never reach a deployed backend (main.py refuses to start on any)."""
+        checks = {
+            "DEFENSE_DEV_API must be off": self.DEFENSE_DEV_API,
+            "ALLOW_LOCAL_RUNNER must be off": self.ALLOW_LOCAL_RUNNER,
+            "RUNNER must be modal": self.RUNNER != "modal",
+            "USE_CONTRIBUTOR_MODELS must be off (their content may be used for training)": (
+                self.USE_CONTRIBUTOR_MODELS
+            ),
+            "CORS_ORIGINS must list only the deployed frontend": not self.cors_origins
+            or any(o == "*" or "localhost" in o or "127.0.0.1" in o for o in self.cors_origins),
+        }
+        return [problem for problem, bad in checks.items() if bad]
 
     @property
     def has_modal(self) -> bool:
