@@ -35,7 +35,7 @@ TICK_S = 0.5
 TRANSCRIPT_WINDOW_MS = 90_000
 RUNS_SHOWN = 3
 
-Reason = Literal["ask", "run", "turn", "pause", "steady_change"]
+Reason = Literal["ask", "run", "turn", "pause", "steady_change", "final"]  # final: the report (§9.8)
 
 
 class StructuredModel(Protocol):
@@ -43,7 +43,7 @@ class StructuredModel(Protocol):
 
     async def complete_json[T: BaseModel](
         self,
-        role: Literal["analyzer", "interviewer"],
+        role: Literal["analyzer", "interviewer", "classifier", "complexity"],
         messages: Sequence[Mapping[str, Any]],
         schema: type[T],
         *,
@@ -101,6 +101,7 @@ class AnalysisInput:
     transcript: list[TranscriptTurn]
     previous: Analysis | None
     interventions: list[Intervention]
+    plan: str | None = None  # the plan they stated earlier, which may be older than the transcript window
 
 
 def build_messages(context: RubricContext, view: AnalysisInput) -> list[dict[str, str]]:
@@ -124,6 +125,9 @@ class Analyzer:
     ) -> None:
         self.state = SchedulerState()
         self.previous: Analysis | None = None
+        self.plan: str | None = (
+            None  # the latest stated plan, shown again once it leaves the transcript window
+        )
         self._rt = rt
         self._context = context
         self._model = model
@@ -172,6 +176,10 @@ class Analyzer:
                 analysis = await self._model.complete_json(
                     "analyzer", messages, Analysis, session_id=rt.session.id
                 )
+        except asyncio.CancelledError:
+            # Stopped mid-call (the engine detached, e.g. at wrap-up): these changes were never analyzed.
+            rt.code.code_at_last_analysis = analyzed_before
+            raise
         except Exception:  # task boundary: any model failure skips this tick (§9.4)
             logger.exception("analysis failed for %s (%s)", rt.session.id, reason)
             rt.code.code_at_last_analysis = analyzed_before  # look again at the same changes next time
@@ -179,6 +187,8 @@ class Analyzer:
             return None
         await rt.record(TimelineKind.ANALYSIS, analysis)
         self.previous = analysis
+        if analysis.stated_plan:
+            self.plan = analysis.stated_plan
         await self._on_analysis(analysis)
         return analysis
 
@@ -217,6 +227,7 @@ class Analyzer:
                 if e.payload["final"]
             ],
             previous=self.previous,
+            plan=self.plan,
             interventions=[
                 Intervention.model_validate(e.payload)
                 for e in rt.timeline.tail([TimelineKind.INTERVENTION])
@@ -273,6 +284,8 @@ def _state_block(view: AnalysisInput) -> str:
             or "Nothing."
         )
     )
+    if view.plan:
+        parts.append(f"## The plan they stated earlier\n{view.plan}")
     if view.previous is not None:
         parts.append(
             "## Your previous step statuses\n"

@@ -8,7 +8,6 @@ import sys
 from collections.abc import Mapping
 from typing import get_args
 
-from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 from crucible.models import llm
@@ -92,9 +91,6 @@ def main() -> None:
         records.append(record)
 
     wrapper = llm.LLM(settings, on_call=collect)
-    if env.get("GLIMMER_BASE_URL") and env.get("GLIMMER_API_KEY") and env.get("GLIMMER_MODEL"):
-        glimmer = AsyncOpenAI(base_url=env["GLIMMER_BASE_URL"], api_key=env["GLIMMER_API_KEY"], max_retries=0)
-        wrapper.register_provider("glimmer", glimmer, env["GLIMMER_MODEL"])
     roles: list[ModelRole] = args.role or list(ROLES)
     sys.exit(0 if asyncio.run(smoke(wrapper, roles, records)) else 1)
 

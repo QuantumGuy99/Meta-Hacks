@@ -24,5 +24,6 @@
   {"seq": 7, "t": 520000, "kind": "integrity", "payload": {
     "id": "ig1", "t": 520000, "kind": "tab_hidden", "detail": "switched away for 14 s at 08:40", "chars": null, "duration_ms": 14000
   }},
-  {"seq": 8, "t": 530000, "kind": "system", "payload": {"level": "warning", "message": "analyzer timed out; skipped this tick"}}
+  {"seq": 8, "t": 530000, "kind": "system", "payload": {"level": "warning", "message": "analyzer timed out; skipped this tick"}},
+  {"seq": 9, "t": 531000, "kind": "model_activity", "payload": {"call_id": "c9b2", "t": 531000, "model_name": "Muse Wonder", "task": "writing your report", "status": "started", "latency_ms": null}}
 ]

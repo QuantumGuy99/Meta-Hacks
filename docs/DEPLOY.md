@@ -27,7 +27,8 @@ Then, in the Railway dashboard for the service:
    - `MODEL_API_KEY`: your Meta key.
    - `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`: copy them from `~/.modal.toml` (written by `modal token new`).
    - `CORS_ORIGINS`: the Vercel URL, e.g. `https://crucible.vercel.app`.
-   - `RUNNER=modal`, `MOCK=0`, `MAX_SESSIONS_PER_IP_PER_DAY=10`.
+   - `RUNNER=modal`, `MOCK=0`, `MAX_SESSIONS_PER_IP_PER_DAY=200`. The cap counts per public IP, and judges
+     on one venue network share an IP, so 10 (the dev default) is far too low on judging day.
 
    On Railway (or with `APP_ENV=prod`) the backend **refuses to start** if a dev-only setting is on:
    `DEFENSE_DEV_API`, `ALLOW_LOCAL_RUNNER`, `USE_CONTRIBUTOR_MODELS`, a runner other than Modal, or a

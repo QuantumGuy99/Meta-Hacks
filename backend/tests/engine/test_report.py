@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from crucible.coding.problems import ProblemBank
 from crucible.coding.session import CodingMode
-from crucible.contracts.coding import Analysis
+from crucible.contracts.coding import Analysis, ProblemSpec
 from crucible.contracts.common import Mode, Phase, Session, SessionConfig
 from crucible.contracts.defense import AuditResult
 from crucible.contracts.events import (
@@ -33,10 +33,12 @@ from crucible.contracts.events import (
 )
 from crucible.contracts.report import CodingExtra, DefenseExtra, Metrics, Report, ReportDraft
 from crucible.engine.api import router
+from crucible.engine.context import RubricContext
 from crucible.engine.hub import SessionHub
 from crucible.engine.report import (
     MAX_MOMENTS,
     TEMPLATE_MODEL,
+    build_report,
     compute_metrics,
     draft_messages,
     longest_silence,
@@ -45,7 +47,15 @@ from crucible.engine.report import (
     template_draft,
 )
 from crucible.engine.store import MemoryStore
-from tests.factories import FAKE_MODEL_ID, FIXTURES, FakeModel, analysis, runtime, write_quiet_streak
+from tests.factories import (
+    FAKE_MODEL_ID,
+    FIXTURES,
+    FakeModel,
+    analysis,
+    problem_json,
+    runtime,
+    write_quiet_streak,
+)
 
 DRAFT = json.loads((FIXTURES / "report_draft.json").read_text())
 DEFENSE = DefenseExtra.model_validate(json.loads((FIXTURES / "report_defense.json").read_text())["defense"])
@@ -252,11 +262,20 @@ def test_moments_are_capped_keeping_the_most_important() -> None:
             said(10_000 + i * 1_000, InterventionLevel.NUDGE, InterventionTrigger.IDLE, step_id=None)
             for i in range(20)
         ),
+        run(80_000, visible=(2, 2)),
         run(90_000, "submit", hidden=(3, 3)),
     )
     picks = pick_moments(timeline, 100_000, {})
     assert len(picks) == MAX_MOMENTS
     assert {"Started coding", "Submitted", "First passing run"} <= {p.title for p in picks}
+
+
+def test_a_final_submit_that_first_passes_is_one_moment() -> None:
+    timeline = events(
+        phase(0, Phase.CODING), run(10_000, visible=(1, 2)), run(20_000, "submit", hidden=(3, 3))
+    )
+    titles = [p.title for p in pick_moments(timeline, 30_000, {})]
+    assert titles.count("Submitted") == 1 and "First passing run" not in titles
 
 
 def test_defense_moments_cover_chaos_grill_and_verdict() -> None:
@@ -394,6 +413,49 @@ def test_the_prompt_carries_metrics_moments_and_the_conversation() -> None:
     assert "candidate: Can the list be empty?" in prompt
     assert "return 0" in prompt and "Voice: on" in prompt
     assert "Walk the list once" in prompt  # step history from the analyses
+
+
+@pytest.mark.parametrize(
+    ("ok", "verdict"),
+    [(True, "matched an acceptable"), (False, "did not match"), (None, "not graded")],
+)
+def test_the_prompt_carries_the_complexity_verdict_code_decided(ok: bool | None, verdict: str) -> None:
+    extra = CODING.model_copy(update={"approach": "single pass", "complexity_answer_ok": ok})
+    messages = draft_messages(
+        runtime(), SESSION, 700_000, compute_metrics(SESSION, 700_000), [], extra, QUIET_STREAK
+    )
+    prompt = messages[1]["content"]
+    assert "Approach: single pass" in prompt and f"Complexity answer: {verdict}" in prompt
+
+
+# --- the final analysis -----------------------------------------------------------------------------------------
+
+
+QUIET_STREAK = RubricContext.from_problem(ProblemSpec.model_validate(problem_json()))
+
+
+@pytest.mark.asyncio
+async def test_code_changed_since_the_last_analysis_is_analyzed_before_the_report() -> None:
+    model = ReportingModel(DRAFT)
+    model.replies = [analysis(s1="done", s2="done", proposal=False)]
+    rt = runtime(model)
+    rt.last_context = QUIET_STREAK
+    rt.code.code_by_file["solution.py"] = "def longest_quiet_streak(readings, threshold):\n    return 0\n"
+    await build_report(rt, model)
+    analyses = await rt.timeline.read({TimelineKind.ANALYSIS})
+    assert len(analyses) == 1 and [s["status"] for s in analyses[0].payload["steps"]] == ["done", "done"]
+    assert "Phase: clarify" in model.calls[0][-1]["content"]  # the analyzer's own prompt, on the final code
+
+
+@pytest.mark.asyncio
+async def test_unchanged_code_isnt_analyzed_again() -> None:
+    model = ReportingModel(DRAFT)
+    rt = runtime(model)
+    rt.last_context = QUIET_STREAK
+    rt.code.code_by_file["solution.py"] = "def f():\n    return 0\n"
+    rt.code.mark_analyzed()
+    await build_report(rt, model)
+    assert model.calls == [] and await rt.timeline.read({TimelineKind.ANALYSIS}) == []
 
 
 # --- end to end through the API ---------------------------------------------------------------------------------

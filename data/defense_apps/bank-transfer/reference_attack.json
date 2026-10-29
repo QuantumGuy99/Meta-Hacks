@@ -1,0 +1,11 @@
+{
+  "flaw_id": "f1",
+  "concurrency": 200,
+  "duration_s": 10,
+  "functions": {
+    "setup_body": "    resp = await client.get(BASE + \"/accounts\")\n    accounts = resp.json()\n    ids = [a[\"id\"] for a in accounts]\n    return {\n        \"senders\": ids[:-1],\n        \"receiver\": ids[-1],\n        \"start_total\": sum(a[\"balance_cents\"] for a in accounts),\n    }\n",
+    "request_body": "    senders = ctx[\"senders\"]\n    body = {\n        \"from_account\": senders[i % len(senders)],\n        \"to_account\": ctx[\"receiver\"],\n        \"amount_cents\": 100,\n        \"memo\": \"load test \" + str(i),\n    }\n    return await client.post(BASE + \"/transfer\", json=body)\n",
+    "invariant_body": "    resp = await client.get(BASE + \"/accounts\")\n    total = sum(a[\"balance_cents\"] for a in resp.json())\n    missing_cents = ctx[\"start_total\"] - total\n    if missing_cents == 0:\n        return True, 0, f\"Total balance held at ${total // 100:,} across all accounts\"\n    dollars = (abs(missing_cents) + 99) // 100\n    if missing_cents > 0:\n        return False, dollars, f\"Under {CONCURRENCY} concurrent transfers, ${dollars:,} disappeared\"\n    return False, dollars, f\"Under {CONCURRENCY} concurrent transfers, ${dollars:,} appeared from nowhere\"\n",
+    "rationale": "Nine accounts each send $1 at a time into one receiving account. Each transfer reads the receiver's balance, awaits the 30 ms fraud screen, then writes the stale balance plus the amount, so overlapping credits to the receiver overwrite each other and the total across all accounts only goes down. The receiver never sends and the senders never receive, so no lost update can add money back. With $100,000 per account, the senders can't run dry even at full speed for 30 s."
+  }
+}

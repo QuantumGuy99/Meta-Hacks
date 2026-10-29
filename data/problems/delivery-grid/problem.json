@@ -1,0 +1,337 @@
+{
+  "slug": "delivery-grid",
+  "title": "Delivery Grid",
+  "difficulty": "medium",
+  "topics": [
+    "graphs",
+    "bfs",
+    "grids"
+  ],
+  "function": {
+    "name": "shortest_route",
+    "params": [
+      {
+        "name": "grid",
+        "type": "list[str]"
+      }
+    ],
+    "returns": "int"
+  },
+  "starter_code": "def shortest_route(grid: list[str]) -> int:\n    pass\n",
+  "examples": [
+    {
+      "input": "grid = [\"..#\", \".#.\", \"...\"]",
+      "output": "4",
+      "explanation": "Down, down, right, right reaches the bottom-right corner in 4 steps."
+    },
+    {
+      "input": "grid = [\".#\", \"#.\"]",
+      "output": "-1",
+      "explanation": "The robot is walled in at the start."
+    }
+  ],
+  "constraints": [
+    "1 <= len(grid) <= 200",
+    "1 <= len(grid[i]) <= 200",
+    "every row has the same length",
+    "grid[i][j] is '.' (open) or '#' (blocked)"
+  ],
+  "tests_visible": [
+    {
+      "id": "v1",
+      "args": [
+        [
+          "..#",
+          ".#.",
+          "..."
+        ]
+      ],
+      "expected": 4,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v2",
+      "args": [
+        [
+          ".#",
+          "#."
+        ]
+      ],
+      "expected": -1,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v3",
+      "args": [
+        [
+          "#.",
+          ".."
+        ]
+      ],
+      "expected": -1,
+      "comparator": "exact",
+      "edge_case_id": null
+    }
+  ],
+  "tests_hidden": [
+    {
+      "id": "h1",
+      "args": [
+        [
+          "."
+        ]
+      ],
+      "expected": 0,
+      "comparator": "exact",
+      "edge_case_id": "e1"
+    },
+    {
+      "id": "h2",
+      "args": [
+        [
+          "#"
+        ]
+      ],
+      "expected": -1,
+      "comparator": "exact",
+      "edge_case_id": "e2"
+    },
+    {
+      "id": "h3",
+      "args": [
+        [
+          "..",
+          ".#"
+        ]
+      ],
+      "expected": -1,
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    },
+    {
+      "id": "h4",
+      "args": [
+        [
+          "....."
+        ]
+      ],
+      "expected": 4,
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    },
+    {
+      "id": "h5",
+      "args": [
+        [
+          ".",
+          ".",
+          "."
+        ]
+      ],
+      "expected": 2,
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    },
+    {
+      "id": "h6",
+      "args": [
+        [
+          ".....",
+          "####.",
+          ".....",
+          ".####",
+          "....."
+        ]
+      ],
+      "expected": 16,
+      "comparator": "exact",
+      "edge_case_id": "e5"
+    },
+    {
+      "id": "h7",
+      "args": [
+        [
+          "...",
+          "...",
+          "..."
+        ]
+      ],
+      "expected": 4,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h8",
+      "args": [
+        [
+          ".#...",
+          ".#.#.",
+          "...#."
+        ]
+      ],
+      "expected": 10,
+      "comparator": "exact",
+      "edge_case_id": "e5"
+    },
+    {
+      "id": "h9",
+      "args": [
+        [
+          "..",
+          ".."
+        ]
+      ],
+      "expected": 2,
+      "comparator": "exact",
+      "edge_case_id": null
+    }
+  ],
+  "rubric": {
+    "approaches": [
+      {
+        "name": "breadth-first search from the start",
+        "time": "O(rows * cols)",
+        "space": "O(rows * cols)",
+        "acceptable": true
+      },
+      {
+        "name": "depth-first search over every path",
+        "time": "exponential",
+        "space": "O(rows * cols)",
+        "acceptable": false
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "title": "Clarify the input",
+        "required": true,
+        "order": 1,
+        "description": "Asks which moves are allowed and what to return when the start or destination is blocked or unreachable.",
+        "look_for": [
+          "asks about diagonal moves",
+          "asks about a blocked start or end",
+          "mentions a 1x1 grid"
+        ],
+        "hints": [
+          "Before you start, is there anything about how the robot moves that you'd want to confirm?",
+          "Can the robot move diagonally, and what if the start square itself is blocked?",
+          "Confirm 4-direction moves, and settle blocked and unreachable cases before you code."
+        ]
+      },
+      {
+        "id": "s2",
+        "title": "Search outward level by level",
+        "required": true,
+        "order": 2,
+        "description": "Uses a queue so squares are explored in order of distance from the start.",
+        "look_for": [
+          "uses a queue or deque",
+          "says breadth-first search finds the fewest steps"
+        ],
+        "hints": [
+          "Look at the order in which you explore squares.",
+          "Which search order guarantees the first time you reach a square is by the shortest route?",
+          "Breadth-first search with a queue explores squares in order of distance."
+        ]
+      },
+      {
+        "id": "s3",
+        "title": "Mark squares when you add them",
+        "required": true,
+        "order": 3,
+        "description": "Records a square as visited when it's added to the queue, so it's never queued twice.",
+        "look_for": [
+          "marks visited before or when enqueuing",
+          "stores the distance per square"
+        ],
+        "hints": [
+          "Check how many times the same square can end up in your queue.",
+          "If two neighbors both find the same square, does it get added twice?",
+          "Mark a square visited at the moment you enqueue it."
+        ]
+      },
+      {
+        "id": "s4",
+        "title": "Stay inside the grid and off walls",
+        "required": true,
+        "order": 4,
+        "description": "Checks bounds and blocked squares before moving to a neighbor.",
+        "look_for": [
+          "checks row and column bounds",
+          "skips '#' squares"
+        ],
+        "hints": [
+          "Look at what happens at the edge of the grid.",
+          "What does your code do with a neighbor that's off the grid or blocked?",
+          "Check bounds and skip '#' squares before enqueuing a neighbor."
+        ]
+      },
+      {
+        "id": "s5",
+        "title": "Handle the impossible cases",
+        "required": true,
+        "order": 5,
+        "description": "Returns -1 when the start or destination is blocked or the queue empties first, and 0 for a 1x1 open grid.",
+        "look_for": [
+          "checks the start square",
+          "returns -1 after the search",
+          "tests a 1x1 grid"
+        ],
+        "hints": [
+          "Try your code where there's no way through.",
+          "What happens if the start square is blocked, or the queue runs out?",
+          "Return -1 for a blocked start or end, or when the search finishes without reaching it."
+        ]
+      }
+    ],
+    "edge_cases": [
+      {
+        "id": "e1",
+        "description": "a single open cell"
+      },
+      {
+        "id": "e2",
+        "description": "the start is blocked"
+      },
+      {
+        "id": "e3",
+        "description": "the destination is blocked"
+      },
+      {
+        "id": "e4",
+        "description": "a single row or column"
+      },
+      {
+        "id": "e5",
+        "description": "a long winding route"
+      }
+    ],
+    "common_mistakes": [
+      {
+        "id": "m1",
+        "description": "uses depth-first search and returns the first path found",
+        "symptom": "the first path found is not always the shortest"
+      },
+      {
+        "id": "m2",
+        "description": "marks squares visited only when taking them off the queue",
+        "symptom": "squares get queued many times; slow on open grids"
+      },
+      {
+        "id": "m3",
+        "description": "doesn't check whether the start square is blocked",
+        "symptom": "returns 0 or a path for a grid like [\"#\"]"
+      }
+    ],
+    "wrap_up_questions": [
+      "What are the time and space complexity?",
+      "How would you change this if some squares took longer to cross than others?"
+    ]
+  },
+  "time_limit_min": 30,
+  "illustration": null,
+  "origin_note": "Original. Pattern: breadth-first search from the start."
+}

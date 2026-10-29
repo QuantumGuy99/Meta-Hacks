@@ -146,38 +146,41 @@ async def test_bad_requests_and_refusals_fall_back_without_retrying() -> None:
 
 @pytest.mark.asyncio
 async def test_raises_all_models_failed_when_every_model_fails() -> None:
-    meta = FakeClient({SPARK: [http_error(openai.InternalServerError, 502)] * 2})
+    meta = FakeClient(
+        {SPARK: [http_error(openai.InternalServerError, 502)] * 4}
+    )  # medium, then low, each retried
     baseten = FakeClient({SPARK_OPEN: [invalid_output()]})
     wrapper, _, _ = make_llm({"meta": meta, "baseten": baseten})
 
     with pytest.raises(AllModelsFailed) as failure:
         await wrapper.complete_json("grill_eval", MESSAGES, Verdict)
     assert failure.value.role == "grill_eval"
-    assert failure.value.errors == [f"{SPARK}: HTTP 502", f"{SPARK_OPEN}: ValidationError"]
+    assert failure.value.errors == [
+        f"{SPARK}: HTTP 502",
+        f"{SPARK}: HTTP 502",
+        f"{SPARK_OPEN}: ValidationError",
+    ]
+    assert sent(meta) == [(SPARK, "medium")] * 2 + [(SPARK, "low")] * 2
     assert sent(baseten) == [(SPARK_OPEN, None)]  # Spark Open never gets reasoning_effort
 
 
 @pytest.mark.asyncio
 async def test_skips_providers_that_are_not_configured() -> None:
-    meta = FakeClient({SPARK: [OK, http_error(openai.BadRequestError, 400)]})
-    wrapper, _, _ = make_llm({"meta": meta})
+    meta = FakeClient({SPARK: [http_error(openai.BadRequestError, 400)] * 2})
+    wrapper, _, _ = make_llm({"meta": meta})  # no Baseten client
 
-    assert await wrapper.complete_json("attacker", MESSAGES, Verdict) == OK  # no Glimmer yet: Spark answers
     with pytest.raises(AllModelsFailed) as failure:
         await wrapper.complete_json("grill_eval", MESSAGES, Verdict)
-    assert failure.value.errors == [f"{SPARK}: HTTP 400", "baseten: not configured"]
+    assert failure.value.errors == [f"{SPARK}: HTTP 400", f"{SPARK}: HTTP 400", "baseten: not configured"]
 
 
 @pytest.mark.asyncio
-async def test_registered_glimmer_becomes_the_attacker_primary() -> None:
-    meta = FakeClient({})
-    glimmer = FakeClient({"glimmer-test": [OK]})
+async def test_the_attacker_starts_at_low_effort_and_falls_back_to_medium() -> None:
+    meta = FakeClient({SPARK: [http_error(openai.BadRequestError, 400), OK]})
     wrapper, _, _ = make_llm({"meta": meta})
-    wrapper.register_provider("glimmer", glimmer, "glimmer-test")
 
     assert await wrapper.complete_json("attacker", MESSAGES, Verdict) == OK
-    assert sent(glimmer) == [("glimmer-test", None)]
-    assert meta.calls == []
+    assert sent(meta) == [(SPARK, "low"), (SPARK, "medium")]  # low: 6.6 s typical; high timed out at 30 s
 
 
 @pytest.mark.asyncio

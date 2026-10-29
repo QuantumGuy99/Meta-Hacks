@@ -1,0 +1,58 @@
+diff --git a/app/checkout.py b/app/checkout.py
+index b72ebb6..df8f7eb 100644
+--- a/app/checkout.py
++++ b/app/checkout.py
+@@ -24,13 +24,19 @@ class CheckoutService:
+         if not self.venue.has_section(req.section):
+             raise CheckoutError(f"Unknown section {req.section}", status_code=404)
+ 
++        # Find and hold the seat with no await in between, so two checkouts
++        # can never be handed the same seat.
+         seat = await self.venue.first_available(req.section)
+         if seat is None:
+             raise CheckoutError("Section is sold out", status_code=409)
++        seat.status = "held"
++        await self.venue.save_seat(seat)
+ 
+         try:
+             payment_id = await self.payments.authorize(req.buyer_email, seat.price_cents)
+         except PaymentDeclined as exc:
++            seat.status = "available"
++            await self.venue.save_seat(seat)
+             raise CheckoutError(str(exc), status_code=402)
+ 
+         seat.status = "sold"
+@@ -51,26 +57,23 @@ class CheckoutService:
+ 
+ def find_adjacent_blocks(seats: list[Seat], party_size: int, limit: int = 5) -> list[SeatBlock]:
+     """Blocks of `party_size` open seats next to each other in the same row."""
+-    available = [s for s in seats if s.status == "available"]
++    open_seats = {(s.row, s.number): s for s in seats if s.status == "available"}
+     blocks: list[SeatBlock] = []
+-    for seat in available:
++    for (row, number), seat in sorted(open_seats.items()):
+         block = [seat]
+         while len(block) < party_size:
+-            neighbour = None
+-            for other in available:
+-                if other.row == block[-1].row and other.number == block[-1].number + 1:
+-                    neighbour = other
+-                    break
++            neighbour = open_seats.get((row, block[-1].number + 1))
+             if neighbour is None:
+                 break
+             block.append(neighbour)
+         if len(block) == party_size:
+             blocks.append(
+                 SeatBlock(
+-                    row=seat.row,
++                    row=row,
+                     seat_ids=[s.id for s in block],
+                     total_cents=sum(s.price_cents for s in block),
+                 )
+             )
+-    blocks.sort(key=lambda b: (b.row, b.seat_ids[0]))
+-    return blocks[:limit]
++            if len(blocks) == limit:
++                break
++    return blocks
