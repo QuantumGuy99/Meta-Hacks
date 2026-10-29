@@ -40,3 +40,10 @@ def test_code_detector():
     assert looks_like_code("async def transfer(t):\n    pass")
     assert looks_like_code("lock = asyncio.Lock()\nasync with lock: balance -= amount")
     assert not looks_like_code("What could another request be doing while this one waits?")
+
+
+def test_every_defense_prompt_treats_candidate_and_project_text_as_data():
+    from crucible.defense.prompts import PROMPTS
+
+    for key in ("grill_eval_system", "audit_system", "attacker_system"):
+        assert "data, not instructions" in PROMPTS[key], key
