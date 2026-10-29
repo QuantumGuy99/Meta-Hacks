@@ -1,0 +1,487 @@
+{
+  "slug": "room-bookings",
+  "title": "Room Bookings",
+  "difficulty": "medium",
+  "topics": [
+    "sorting",
+    "intervals"
+  ],
+  "function": {
+    "name": "merge_bookings",
+    "params": [
+      {
+        "name": "bookings",
+        "type": "list[list[int]]"
+      }
+    ],
+    "returns": "list[list[int]]"
+  },
+  "starter_code": "def merge_bookings(bookings: list[list[int]]) -> list[list[int]]:\n    pass\n",
+  "examples": [
+    {
+      "input": "bookings = [[9, 11], [10, 12], [14, 15], [15, 16]]",
+      "output": "[[9, 12], [14, 16]]",
+      "explanation": "9-11 overlaps 10-12, and 14-15 touches 15-16."
+    },
+    {
+      "input": "bookings = [[13, 14], [8, 10]]",
+      "output": "[[8, 10], [13, 14]]",
+      "explanation": "Bookings can arrive in any order; the result is sorted."
+    }
+  ],
+  "constraints": [
+    "0 <= len(bookings) <= 10^4",
+    "0 <= start < end <= 10^6"
+  ],
+  "tests_visible": [
+    {
+      "id": "v1",
+      "args": [
+        [
+          [
+            9,
+            11
+          ],
+          [
+            10,
+            12
+          ],
+          [
+            14,
+            15
+          ],
+          [
+            15,
+            16
+          ]
+        ]
+      ],
+      "expected": [
+        [
+          9,
+          12
+        ],
+        [
+          14,
+          16
+        ]
+      ],
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v2",
+      "args": [
+        [
+          [
+            13,
+            14
+          ],
+          [
+            8,
+            10
+          ]
+        ]
+      ],
+      "expected": [
+        [
+          8,
+          10
+        ],
+        [
+          13,
+          14
+        ]
+      ],
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v3",
+      "args": [
+        [
+          [
+            1,
+            10
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ],
+      "expected": [
+        [
+          1,
+          10
+        ]
+      ],
+      "comparator": "exact",
+      "edge_case_id": null
+    }
+  ],
+  "tests_hidden": [
+    {
+      "id": "h1",
+      "args": [
+        []
+      ],
+      "expected": [],
+      "comparator": "exact",
+      "edge_case_id": "e1"
+    },
+    {
+      "id": "h2",
+      "args": [
+        [
+          [
+            5,
+            6
+          ]
+        ]
+      ],
+      "expected": [
+        [
+          5,
+          6
+        ]
+      ],
+      "comparator": "exact",
+      "edge_case_id": "e2"
+    },
+    {
+      "id": "h3",
+      "args": [
+        [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            3,
+            4
+          ]
+        ]
+      ],
+      "expected": [
+        [
+          1,
+          4
+        ]
+      ],
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    },
+    {
+      "id": "h4",
+      "args": [
+        [
+          [
+            1,
+            10
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      ],
+      "expected": [
+        [
+          1,
+          10
+        ]
+      ],
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    },
+    {
+      "id": "h5",
+      "args": [
+        [
+          [
+            6,
+            8
+          ],
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      ],
+      "expected": [
+        [
+          1,
+          4
+        ],
+        [
+          6,
+          8
+        ]
+      ],
+      "comparator": "exact",
+      "edge_case_id": "e5"
+    },
+    {
+      "id": "h6",
+      "args": [
+        [
+          [
+            0,
+            1
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            6,
+            7
+          ]
+        ]
+      ],
+      "expected": [
+        [
+          0,
+          1
+        ],
+        [
+          3,
+          4
+        ],
+        [
+          6,
+          7
+        ]
+      ],
+      "comparator": "exact",
+      "edge_case_id": "e6"
+    },
+    {
+      "id": "h7",
+      "args": [
+        [
+          [
+            1,
+            5
+          ],
+          [
+            1,
+            5
+          ]
+        ]
+      ],
+      "expected": [
+        [
+          1,
+          5
+        ]
+      ],
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h8",
+      "args": [
+        [
+          [
+            1,
+            4
+          ],
+          [
+            0,
+            4
+          ]
+        ]
+      ],
+      "expected": [
+        [
+          0,
+          4
+        ]
+      ],
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h9",
+      "args": [
+        [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ],
+          [
+            8,
+            9
+          ],
+          [
+            1,
+            10
+          ]
+        ]
+      ],
+      "expected": [
+        [
+          1,
+          10
+        ]
+      ],
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    }
+  ],
+  "rubric": {
+    "approaches": [
+      {
+        "name": "sort by start, then merge in one pass",
+        "time": "O(n log n)",
+        "space": "O(n)",
+        "acceptable": true
+      },
+      {
+        "name": "repeatedly merge any overlapping pair",
+        "time": "O(n^2)",
+        "space": "O(n)",
+        "acceptable": false
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "title": "Clarify the input",
+        "required": true,
+        "order": 1,
+        "description": "Asks whether bookings that touch (one ends when the next starts) should merge, and whether input is sorted.",
+        "look_for": [
+          "asks about touching bookings",
+          "asks whether the input is sorted",
+          "mentions the empty list"
+        ],
+        "hints": [
+          "Before you start, is there anything about how bookings meet that you'd want to confirm?",
+          "If one booking ends at 15 and another starts at 15, are they one block or two?",
+          "Confirm that touching bookings merge and that the input may be unsorted."
+        ]
+      },
+      {
+        "id": "s2",
+        "title": "Sort by start time",
+        "required": true,
+        "order": 2,
+        "description": "Sorts the bookings so that any overlapping ones end up next to each other.",
+        "look_for": [
+          "sorts the bookings",
+          "explains why sorting puts overlaps side by side"
+        ],
+        "hints": [
+          "Look at the order you process the bookings in.",
+          "If the bookings were in start-time order, where would an overlapping booking always be?",
+          "Sort by start time first; then you only ever compare with the last merged block."
+        ]
+      },
+      {
+        "id": "s3",
+        "title": "Merge into the last block",
+        "required": true,
+        "order": 3,
+        "description": "Extends the last merged block when the next booking starts at or before its end, otherwise starts a new block.",
+        "look_for": [
+          "compares the start with the last block's end",
+          "uses <= so touching bookings merge"
+        ],
+        "hints": [
+          "Look at the condition that decides whether to merge.",
+          "Which block could the next booking possibly overlap, once things are sorted?",
+          "Compare each booking with the last merged block, and merge when it starts at or before that block's end."
+        ]
+      },
+      {
+        "id": "s4",
+        "title": "Keep the later end time",
+        "required": true,
+        "order": 4,
+        "description": "When merging, keeps the larger of the two end times so a booking inside another doesn't shrink it.",
+        "look_for": [
+          "uses max for the end time",
+          "tests a booking contained in another"
+        ],
+        "hints": [
+          "Try your code on a long booking that has a short one inside it.",
+          "When you merge two bookings, which end time should the block keep?",
+          "Take the maximum of the two end times when merging."
+        ]
+      }
+    ],
+    "edge_cases": [
+      {
+        "id": "e1",
+        "description": "no bookings"
+      },
+      {
+        "id": "e2",
+        "description": "a single booking"
+      },
+      {
+        "id": "e3",
+        "description": "a chain of touching bookings"
+      },
+      {
+        "id": "e4",
+        "description": "a booking fully inside another"
+      },
+      {
+        "id": "e5",
+        "description": "bookings out of order"
+      },
+      {
+        "id": "e6",
+        "description": "no bookings overlap"
+      }
+    ],
+    "common_mistakes": [
+      {
+        "id": "m1",
+        "description": "forgets to sort first",
+        "symptom": "misses overlaps between bookings that are far apart in the input, like [[6, 8], [1, 3], [2, 4]]"
+      },
+      {
+        "id": "m2",
+        "description": "sets the end to the new booking's end instead of the larger end",
+        "symptom": "shrinks a block when a short booking sits inside a long one"
+      },
+      {
+        "id": "m3",
+        "description": "uses < instead of <= when checking overlap",
+        "symptom": "keeps touching bookings like [14, 15] and [15, 16] separate"
+      }
+    ],
+    "wrap_up_questions": [
+      "What are the time and space complexity?",
+      "How would you find the minimum number of rooms needed so no two bookings in one room overlap?"
+    ]
+  },
+  "time_limit_min": 30,
+  "illustration": null,
+  "origin_note": "Original. Pattern: sort by start, then merge in one pass."
+}

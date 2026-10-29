@@ -110,6 +110,10 @@ class InterventionText(Strict):  # LLM output of Interviewer.phrase()
     text: str
 
 
+class TurnLabel(Strict):  # LLM output of the voice classifier (COD-6, §9.7)
+    label: Literal["question_to_interviewer", "thinking_aloud"]
+
+
 class IntegrityFlag(Strict):
     id: str
     t: int
@@ -130,6 +134,19 @@ class SystemNote(Strict):  # timeline payload for kind=system: fallbacks, warnin
     message: str
 
 
+ModelName = Literal["Muse Spark", "Muse Wonder", "Muse Spark Open", "Muse Voice", "SAM 3.1", "Muse Image"]
+
+
+class ModelActivity(Strict):  # the "Under the hood" strip (docs/STORY.md): which model did what kind of task
+    call_id: str  # pairs a call's "started" with how it ended
+    t: int
+    model_name: ModelName
+    task: str  # a plain verb phrase ("reading your project"); never content, prompts or ids
+    # fallback: a backup model answered; stopped: cancelled mid-call (e.g. the session moved on)
+    status: Literal["started", "done", "fallback", "cached", "failed", "stopped"]
+    latency_ms: int | None  # None while started
+
+
 class TimelineKind(StrEnum):
     PHASE = "phase"
     EDITOR = "editor"
@@ -146,6 +163,7 @@ class TimelineKind(StrEnum):
     SAM_HIGHLIGHT = "sam_highlight"
     VERDICT = "verdict"
     SYSTEM = "system"
+    MODEL_ACTIVITY = "model_activity"
 
 
 class TimelineEvent(Strict):

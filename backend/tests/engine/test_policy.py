@@ -286,6 +286,16 @@ def test_no_approach_question_with_a_plan_few_lines_or_voice_off(
     assert decide(seen(state_analysis), facts(**changes)) is None
 
 
+def test_a_plan_stated_earlier_still_counts_after_it_leaves_the_analyzers_window() -> None:
+    # COD-6: the analyzer sees 90 s of transcript; a plan stated before that must not trigger the question.
+    assert decide(seen(CLEAN, NO_PLAN), facts(lines_written=5)) is None
+
+
+def test_the_policy_remembers_the_latest_stated_plan() -> None:
+    state = seen(CLEAN, NO_PLAN, NO_PLAN)
+    assert state.plan == CLEAN["stated_plan"]
+
+
 # --- RUN_FAILED ------------------------------------------------------------------------------------------------
 
 
@@ -414,6 +424,18 @@ def test_code_off_plan_in_two_analyses_gets_a_question() -> None:
 
 def test_code_off_plan_once_is_left_alone() -> None:
     assert decide(seen(CLEAN, MISMATCH), facts()) is None
+
+
+def test_code_off_an_earlier_plan_still_gets_a_question() -> None:
+    # The latest analyses no longer quote the plan, but still judge the code against the one shown to them.
+    drifted = MISMATCH | {"stated_plan": None}
+    decision = decide(seen(CLEAN, drifted, drifted), facts())
+    assert what(decision) == (Trigger.PLAN_MISMATCH, Level.QUESTION, None)
+
+
+def test_no_plan_ever_means_no_mismatch() -> None:
+    never = NO_PLAN | {"plan_matches_code": False}
+    assert decide(seen(never, never), facts(lines_written=1)) is None
 
 
 # --- SILENT ----------------------------------------------------------------------------------------------------

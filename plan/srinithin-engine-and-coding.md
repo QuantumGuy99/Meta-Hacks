@@ -353,9 +353,13 @@ with Wonder disabled, Spark 1.3 in 14.9 s.
   `programmatic()` after an accepted `assistant.apply`; independence scoring (§9.8) that accounts for the AI
   share; and review of the proposed contract additions with Shreyas.
 - **COD-5 — Coding report extras** (P1 · Sun): final step statuses, approach, whether the complexity answer
-  matched an acceptable approach. Step statuses and approach came with ENG-8 (from the latest analyses);
-  grading the complexity answer is left.
-- **COD-6 — Classifier, `PLAN_MISMATCH`, `CODED_BEFORE_PLAN`** (P1 · Sun · needs ENG-7).
+  matched an acceptable approach. Step statuses and approach came with ENG-8 (from the latest analyses).
+  **Built Oct 28**: the complexity answer is graded at report time (Spark writes down the stated bounds, code
+  matches them against the rubric's acceptable approaches; PLAN §10.5).
+- **COD-6 — Classifier, `PLAN_MISMATCH`, `CODED_BEFORE_PLAN`** (P1 · Sun · needs ENG-7). **Built Oct 28**: the voice
+  classifier (spoken questions without Ask are answered), and plan memory (the policy and the analyzer keep the
+  stated plan past the 90 s window, which fixed a false "what's your approach?"). Evals: coded-before-plan,
+  states-plan-early, plan-mismatch, spoken-question, all 3/3.
 - **VIS-1 — SAM sketch + proctor** (P2): only after both P0 paths pass the demo script twice in a row on the
   deployed build. Check V9 first.
 
@@ -384,7 +388,8 @@ analyzer for yourself.
 - **IC1 (Wed):** the coding room on LocalRunner. Typing triggers the analyzer, a nudge appears, and Run returns
   results.
 - **IC2 (Fri):** Run on a warm Modal sandbox in under 2 s; voice transcripts appear in the room; the latency
-  budget (PLAN §18) measured and written down.
+  budget (PLAN §18) measured and written down. **Latency budget measured Oct 28** (PLAN §18): pause → nudge
+  p50 5.0 s; voice transcripts appear in Likhil's room in a real browser. Modal waits on RUN-2.
 - **IC3 (Sun):** a full coding session on the deployed build, including the report and replay; the defense fix
   stage runs on your engine.
 

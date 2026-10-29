@@ -5,7 +5,11 @@ async so it can be swapped for a real database later without touching the
 routes or the service layer.
 """
 
+from collections import deque
+
 from .models import Account, Transfer
+
+MAX_HISTORY = 1_000  # recent transfers kept in memory
 
 STARTING_BALANCE_CENTS = 10_000_000  # $100,000.00
 
@@ -30,7 +34,8 @@ class AccountNotFound(Exception):
 class AccountStore:
     def __init__(self) -> None:
         self._accounts: dict[str, Account] = {}
-        self._transfers: list[Transfer] = []
+        self._transfers: deque[Transfer] = deque()
+        self._transfers_by_id: dict[str, Transfer] = {}
 
     def seed(self) -> None:
         """Load the demo accounts, each starting with $100,000."""
@@ -54,12 +59,15 @@ class AccountStore:
 
     async def record_transfer(self, transfer: Transfer) -> None:
         self._transfers.append(transfer)
+        self._transfers_by_id[transfer.id] = transfer
+        # Keep only the most recent transfers so memory stays bounded.
+        while len(self._transfers) > MAX_HISTORY:
+            oldest = self._transfers.popleft()
+            del self._transfers_by_id[oldest.id]
 
     async def list_transfers(self, limit: int = 50) -> list[Transfer]:
-        return list(reversed(self._transfers[-limit:]))
+        recent = list(self._transfers)[-limit:]
+        return list(reversed(recent))
 
     async def get_transfer(self, transfer_id: str) -> Transfer | None:
-        for transfer in self._transfers:
-            if transfer.id == transfer_id:
-                return transfer
-        return None
+        return self._transfers_by_id.get(transfer_id)

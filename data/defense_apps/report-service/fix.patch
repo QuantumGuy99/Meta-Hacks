@@ -1,0 +1,24 @@
+diff --git a/app/reports.py b/app/reports.py
+index 81bcf57..fa2b9ac 100644
+--- a/app/reports.py
++++ b/app/reports.py
+@@ -2,6 +2,8 @@
+ 
+ from datetime import datetime, timezone
+ 
++from fastapi.concurrency import run_in_threadpool
++
+ from .models import CategoryTotal, MonthComparison, MonthlyReport, Transaction
+ from .warehouse import MONTHS, WarehouseClient
+ 
+@@ -20,7 +22,9 @@ class ReportService:
+     async def monthly_report(self, month: str) -> MonthlyReport:
+         if month not in MONTHS:
+             raise UnknownMonth(month)
+-        rows = self.warehouse.fetch_transactions(month)
++        # The warehouse SDK is synchronous; run it in a worker thread so the
++        # event loop keeps serving other requests while the query runs.
++        rows = await run_in_threadpool(self.warehouse.fetch_transactions, month)
+         return self._summarize(month, rows)
+ 
+     @staticmethod
