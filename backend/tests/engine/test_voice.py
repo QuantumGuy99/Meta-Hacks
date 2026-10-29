@@ -144,7 +144,7 @@ class Setup:
         self.sleeps: list[float] = []
         self.asked: list[str] = []
         self.heard = 0
-        self.rt.asked = self.asked.append  # type: ignore[method-assign]
+        self.rt.asked = lambda text, turn_id=None: self.asked.append(text)  # type: ignore[method-assign]
         self.rt.heard_speech = self._heard  # type: ignore[method-assign]
 
         async def sleep(delay_s: float) -> None:

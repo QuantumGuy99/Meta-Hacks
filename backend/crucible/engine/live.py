@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from collections import deque
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
@@ -24,6 +25,7 @@ from crucible.contracts.events import (
 )
 from crucible.contracts.ws import NotesUpdate
 from crucible.engine.analyzer import TICK_S, Analyzer, StructuredModel
+from crucible.engine.classifier import CONTEXT_TURNS, is_question_for_interviewer
 from crucible.engine.codestate import TEXT_KINDS
 from crucible.engine.context import RubricContext
 from crucible.engine.interviewer import answer, deliver
@@ -45,6 +47,10 @@ class LiveEngine:
         self.analyzer = Analyzer(rt, context, model, self._on_analysis)
         self._model = model
         self._last_question: str | None = None  # what the candidate asked, not yet answered (ASKED)
+        # Spoken turns already asked (Ask held, or the classifier said so), and the last few, for its context.
+        self._asked_turns: set[str] = set()
+        self._said: deque[str] = deque(maxlen=CONTEXT_TURNS)
+        self._classifying: set[asyncio.Task[None]] = set()
         self._rt = rt
         self._context = context
         self._main = context.files[0] if context.files else "solution.py"
@@ -63,6 +69,9 @@ class LiveEngine:
             self._task = asyncio.create_task(self._loop(), name=f"policy-{self._rt.session.id}")
 
     async def stop(self) -> None:
+        for task in list(self._classifying):
+            task.cancel()
+        self._classifying.clear()
         await self.analyzer.stop()
         if self._task is not None:
             self._task.cancel()
@@ -78,11 +87,17 @@ class LiveEngine:
         self.policy.request_hint(step_id)
         self._wake.set()
 
-    def ask(self, question: str) -> None:
-        """A question to the interviewer: typed in chat, or spoken while holding Ask (§9.7). ASKED answers it.
+    def ask(self, question: str, turn_id: str | None = None) -> None:
+        """A question to the interviewer: typed in chat, spoken while holding Ask, or a spoken turn the classifier
+        calls a question (§9.7). ASKED answers it.
 
-        Questions asked before the reply are answered together: a spoken question often arrives as two turns.
+        Questions asked before the reply are answered together: a spoken question often arrives as two turns. A
+        spoken turn is asked at most once (the Ask button and the classifier can both flag it).
         """
+        if turn_id is not None:
+            if turn_id in self._asked_turns:
+                return
+            self._asked_turns.add(turn_id)
         if self._last_question:
             self._last_question = f"{self._last_question} {question}"  # one answer is already on its way
         else:
@@ -144,9 +159,32 @@ class LiveEngine:
                 self._last_speech_ms = now
                 if turn.source == "text" and is_question(turn.text):
                     self.ask(turn.text)
+                elif turn.source == "voice":
+                    self._classify(turn)
             case TimelineKind.RUN:
                 self.policy.observe_run(RunResult.model_validate(event.payload))
                 self._wake.set()
+
+    def _classify(self, turn: TranscriptTurn) -> None:
+        """Ask the classifier about a spoken turn in the background, so the transcript never waits on it."""
+        earlier = list(self._said)
+        self._said.append(turn.text)
+        task = asyncio.create_task(self._classify_turn(turn, earlier), name=f"classify-{turn.turn_id}")
+        self._classifying.add(task)
+        task.add_done_callback(self._classifying.discard)
+
+    async def _classify_turn(self, turn: TranscriptTurn, earlier: list[str]) -> None:
+        if turn.turn_id in self._asked_turns:
+            return  # held on Ask: already a question
+        verdict = await is_question_for_interviewer(
+            self._model, turn.text, earlier, session_id=self._rt.session.id
+        )
+        if verdict is None:
+            await self._rt.note(
+                "warning", "the voice classifier didn't answer; treated the turn as thinking aloud"
+            )
+        elif verdict:
+            self.ask(turn.text, turn.turn_id)
 
     def _facts(self) -> Facts:
         rt = self._rt

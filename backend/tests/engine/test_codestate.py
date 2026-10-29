@@ -101,6 +101,15 @@ def test_disagreeing_snapshot_wins_and_reports_it() -> None:
     assert state.code() == "xyz" and state.version_by_file["solution.py"] == 3
 
 
+def test_a_files_first_snapshot_is_not_a_disagreement() -> None:
+    state = CodeState()
+    assert (
+        state.apply_snapshot(CodeSnapshot(t=0, file="solution.py", version=1, code="def f():\n    pass\n"))
+        is False
+    )
+    assert state.code() == "def f():\n    pass\n"
+
+
 def test_files_are_tracked_separately() -> None:
     state = state_with("main")
     state.apply(edit("change", (0, 0, "notes"), version=1).model_copy(update={"file": "notes.py"}))

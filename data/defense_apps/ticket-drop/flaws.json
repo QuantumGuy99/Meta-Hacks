@@ -1,0 +1,158 @@
+[
+  {
+    "id": "f1",
+    "title": "Seat assignment during checkout",
+    "category": "race_condition",
+    "severity": "critical",
+    "file": "app/checkout.py",
+    "line_start": 27,
+    "line_end": 37,
+    "explanation": "CheckoutService.checkout finds the best open seat (line 27), then awaits the payment provider (line 32, about 30 ms), and only marks the seat sold afterwards (lines 36-37). While it waits, other checkouts in the same section call first_available and get the same seat, because it still looks open. Each of them is charged and gets an order for that one seat, so seats are double-booked.",
+    "expected_fix": "Claim the seat before any await: find it and mark it held in one step with nothing that yields in between (or use a lock or a database transaction with a conditional update), then authorize the payment, and release the hold if the payment is declined.",
+    "grill_expected_points": [
+      "The seat is checked for availability before the await on the payment call but only marked sold after it (check-then-act).",
+      "Concurrent checkouts in the same section see the same seat as open during that window and all buy it.",
+      "Fix it by holding the seat atomically before awaiting payment, and releasing it if the payment fails."
+    ],
+    "chaos_invariant": "Every order has its own seat: orders equal seats sold",
+    "grill_question": "The attack ran 200 concurrent checkouts and ended up with more orders than seats sold. How can two people end up holding a ticket for the same seat?",
+    "grill_follow_up": "Between the moment a seat is chosen and the moment it's marked sold, what can another checkout in the same section do?",
+    "fix_steps": [
+      {
+        "id": "s1",
+        "title": "Locate the check-then-act gap",
+        "required": true,
+        "order": 1,
+        "description": "Identifies that the seat is chosen before the payment await and marked sold after it.",
+        "look_for": [
+          "points at first_available before the payment call",
+          "mentions the await on authorize",
+          "says the seat still looks open meanwhile"
+        ],
+        "hints": [
+          "Look at when a seat is chosen compared with when it's marked sold.",
+          "What can another checkout see while this one is waiting on the payment provider?",
+          "The seat is checked before an await and claimed after it, which is a check-then-act race."
+        ]
+      },
+      {
+        "id": "s2",
+        "title": "Claim the seat before awaiting",
+        "required": true,
+        "order": 2,
+        "description": "Marks the seat held at the same moment it's chosen, with nothing that yields in between.",
+        "look_for": [
+          "sets a held status right after choosing",
+          "no await that suspends between choosing and holding"
+        ],
+        "hints": [
+          "Check what state the seat is in while the payment is being authorized.",
+          "How could a second checkout know this seat is already taken before the payment finishes?",
+          "Mark the seat as held as soon as you pick it, before awaiting the payment."
+        ]
+      },
+      {
+        "id": "s3",
+        "title": "Release the hold on failure",
+        "required": false,
+        "order": 3,
+        "description": "Puts the seat back on sale if the payment is declined.",
+        "look_for": [
+          "handles PaymentDeclined",
+          "sets the seat back to available"
+        ],
+        "hints": [
+          "Look at what happens to a held seat when the payment fails.",
+          "If a card is declined, does that seat ever go back on sale?",
+          "On a declined payment, release the hold so the seat is available again."
+        ]
+      }
+    ],
+    "chaos": {
+      "endpoint": "/checkout",
+      "method": "POST",
+      "body_example": "{\"section\": \"S001\", \"buyer_email\": \"fan1@example.com\"}",
+      "concurrency": 200,
+      "duration_s": 10,
+      "invariant": "orders equal seats sold (no seat sold twice)",
+      "p95_threshold_ms": null
+    }
+  },
+  {
+    "id": "f2",
+    "title": "Seat recommendations for groups",
+    "category": "complexity",
+    "severity": "medium",
+    "file": "app/checkout.py",
+    "line_start": 52,
+    "line_end": 76,
+    "explanation": "find_adjacent_blocks looks for each seat's right-hand neighbour by scanning the whole list of open seats (line 60), so finding blocks in a 1,000-seat section is O(n^2). It also builds every block before keeping only the first five. It's CPU work inside an async route, so while it runs the event loop can't serve anything else, and under concurrent requests latency climbs for every endpoint.",
+    "expected_fix": "Index the open seats by (row, number) in a dict or set so each neighbour lookup is O(1), making the search O(n), and stop once enough blocks are found.",
+    "grill_expected_points": [
+      "Each neighbour lookup scans every open seat in the section, so the search is O(n^2).",
+      "It runs on the event loop, so concurrent recommendation requests queue up and slow every endpoint.",
+      "Index open seats by row and number so each lookup is constant time, and stop after the first few blocks."
+    ],
+    "chaos_invariant": "/sections/{section}/recommendations p95 stays under 1,000 ms at 50 concurrent requests",
+    "grill_question": "Under 50 concurrent requests, seat recommendations got slower and slower. What in that code makes it expensive?",
+    "grill_follow_up": "For a section with 1,000 seats, roughly how many comparisons does finding one block of four take?",
+    "fix_steps": [
+      {
+        "id": "s1",
+        "title": "Find the nested scan",
+        "required": true,
+        "order": 1,
+        "description": "Identifies that each neighbour lookup loops over every open seat.",
+        "look_for": [
+          "points at the inner loop over available",
+          "says the work grows with the square of the seats"
+        ],
+        "hints": [
+          "Look at how the code finds the seat to the right of a given seat.",
+          "How many seats does it look at to find one neighbour?",
+          "Each neighbour lookup scans the whole section, so the search is quadratic."
+        ]
+      },
+      {
+        "id": "s2",
+        "title": "Index the open seats",
+        "required": true,
+        "order": 2,
+        "description": "Builds a dict or set keyed by row and seat number for constant-time lookups.",
+        "look_for": [
+          "builds a dict keyed by row and number",
+          "replaces the inner loop with a lookup"
+        ],
+        "hints": [
+          "Check what you'd need to find a neighbour in one step.",
+          "If you knew a seat's row and number, how could you jump straight to the seat next to it?",
+          "Index open seats by row and number so each neighbour is a single lookup."
+        ]
+      },
+      {
+        "id": "s3",
+        "title": "Stop early",
+        "required": false,
+        "order": 3,
+        "description": "Stops searching once enough blocks are found instead of building them all.",
+        "look_for": [
+          "breaks when the limit is reached"
+        ],
+        "hints": [
+          "Look at how many blocks the code builds compared with how many it returns.",
+          "Do you need every block in the section if you only return five?",
+          "Stop as soon as you have enough blocks."
+        ]
+      }
+    ],
+    "chaos": {
+      "endpoint": "/sections/S001/recommendations?party_size=4",
+      "method": "GET",
+      "body_example": null,
+      "concurrency": 50,
+      "duration_s": 10,
+      "invariant": "p95 latency under 1,000 ms",
+      "p95_threshold_ms": 1000
+    }
+  }
+]

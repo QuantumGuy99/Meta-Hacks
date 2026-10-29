@@ -44,6 +44,7 @@ from crucible.contracts.report import (
     Report,
     ReportDraft,
 )
+from crucible.engine.analyzer import Analyzer
 from crucible.engine.prompts import PROMPTS
 
 if TYPE_CHECKING:
@@ -53,7 +54,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-REPORT_DEADLINE_S = 150  # Wonder's 90 s (§21) plus most of a Spark fallback; then the template
+REPORT_DEADLINE_S = 100  # Wonder's 45 s (§21), then Spark's 45 s, with margin; then the template
 TEMPLATE_MODEL = "template"
 MAX_MOMENTS = 14
 LONG_SILENCE_MS = 60_000  # a quieter stretch than this becomes a moment
@@ -110,6 +111,8 @@ class Pick:
 
 async def build_report(rt: SessionRuntime, model: StructuredModel | None) -> Report:
     """Build the report from the stored timeline; any model failure falls back to the template report."""
+    if model is not None:
+        await final_analysis(rt, model)
     events = await rt.timeline.read()
     end_ms = ended_at_ms(events, default=rt.now_ms())
     extra = await rt.controller.report_extra(rt)
@@ -133,6 +136,23 @@ async def build_report(rt: SessionRuntime, model: StructuredModel | None) -> Rep
     if draft is None:
         draft = template_draft(metrics, picks, extra, events)
     return merge(rt.session.id, mode, draft, metrics, picks, extra, model_name, rt.wall_now())
+
+
+async def final_analysis(rt: SessionRuntime, model: StructuredModel) -> None:
+    """Analyze the final code once if it changed since the last analysis, so the step statuses in the report
+    match it. The live analyzer stops when the engine detaches, often right after the passing submit."""
+    context = rt.last_context
+    if context is None or not rt.code.changed_since_analysis():
+        return
+    analyzer = Analyzer(rt, context, model, _ignore_analysis)
+    earlier = rt.timeline.tail([TimelineKind.ANALYSIS])
+    if earlier:
+        analyzer.previous = Analysis.model_validate(earlier[-1].payload)
+    await analyzer.run("final")  # a failure leaves a note; the report uses the earlier statuses
+
+
+async def _ignore_analysis(analysis: Analysis) -> None:
+    return None  # the session is over: no notes panel or policy to update
 
 
 # --- metrics (§7.5: computed in code, never by the LLM) ----------------------------------------------------
@@ -232,11 +252,12 @@ def _coding_picks(events: Sequence[TimelineEvent]) -> list[Pick]:
     if plan is not None:
         picks.append(Pick(plan[0], "good", "Stated a plan", f"Plan stated: {plan[1].stated_plan}", 2))
     runs = payloads(events, TimelineKind.RUN, RunResult)
+    submits = [r for r in runs if r.kind == "submit"]
     passing = next((r for r in runs if r.total and r.passed == r.total), None)
-    if passing is not None:
+    # When the first passing run is the final submit, the "Submitted" moment already says so.
+    if passing is not None and not (submits and passing.run_id == submits[-1].run_id):
         facts = f"First {passing.kind} with every test passing ({passing.total} tests) at {clock(passing.t)}."
         picks.append(Pick(passing.t, "good", "First passing run", facts, 2))
-    submits = [r for r in runs if r.kind == "submit"]
     if submits:
         last = submits[-1]
         kind: MomentKind = "good" if last.total and last.passed == last.total else "issue"
@@ -385,11 +406,24 @@ def _problem_section(context: RubricContext | None, extra: CodingExtra | Defense
             f"# Grill\n{grill or '(none)'}\n\n# Verdict\n{verdict}"
         )
     if context is None:
-        return f"# Problem\n{extra.problem_slug}"
+        return f"# Problem\n{extra.problem_slug}\n\n{_wrap_up_section(extra)}"
     steps = "\n".join(
         f"- {s.id} {s.title}{' (required)' if s.required else ''}: {s.description}" for s in context.steps
     )
-    return f"# Problem: {context.title}\n{context.brief_md}\n\n## Rubric steps\n{steps}"
+    return (
+        f"# Problem: {context.title}\n{context.brief_md}\n\n## Rubric steps\n{steps}\n\n"
+        f"{_wrap_up_section(extra)}"
+    )
+
+
+def _wrap_up_section(extra: CodingExtra) -> str:
+    """The approach and the complexity verdict, both decided by code (COD-5), so the review agrees with them."""
+    verdict = {
+        True: "matched an acceptable approach in the rubric",
+        False: "did not match an acceptable approach in the rubric",
+        None: "not graded (not asked, not answered, or grading failed); don't comment on it",
+    }[extra.complexity_answer_ok]
+    return f"# Wrap-up\nApproach: {extra.approach or '(not stated)'}\nComplexity answer: {verdict}"
 
 
 def _code_section(rt: SessionRuntime, context: RubricContext | None) -> str:

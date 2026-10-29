@@ -17,6 +17,7 @@ from collections import Counter
 from collections.abc import Callable, Coroutine, Mapping
 from typing import Any
 
+from crucible.coding.complexity import complexity_answer, complexity_question, grade_complexity_answer
 from crucible.coding.integrity import IntegrityDetector
 from crucible.coding.problems import ProblemBank
 from crucible.coding.prompts import PHASE_LINES
@@ -194,18 +195,36 @@ class CodingController:
                 self._spawn(rt, self._next_wrap_up_question(rt))
 
     async def report_extra(self, rt: SessionRuntime) -> CodingExtra:
-        """The latest analysis's step statuses and approach (PLAN §7.5)."""
+        """The latest analysis's step statuses; the approach: the one the analyzer named, else the plan the
+        candidate stated (the analyzer often leaves `chosen_approach` empty, PLAN §7.5); and whether the
+        complexity answer matched an acceptable approach (§10.5)."""
         events = await rt.timeline.read({TimelineKind.ANALYSIS})
         analyses = [Analysis.model_validate(e.payload) for e in events]
         latest = analyses[-1] if analyses else None
-        approach = next((a.chosen_approach for a in reversed(analyses) if a.chosen_approach), None)
-        # TODO(COD-5): grade the complexity wrap-up answer.
+        approach = next((a.chosen_approach for a in reversed(analyses) if a.chosen_approach), None) or next(
+            (a.stated_plan for a in reversed(analyses) if a.stated_plan), None
+        )
         return CodingExtra(
             problem_slug=rt.session.problem_slug or "",
             steps=latest.steps if latest else [],
             approach=approach,
-            complexity_answer_ok=None,
+            complexity_answer_ok=await self._grade_complexity(rt),
         )
+
+    async def _grade_complexity(self, rt: SessionRuntime) -> bool | None:
+        """None when there's nothing to grade (never asked, no answer, no model) or the grading call failed."""
+        spec = self._spec(rt)
+        index = complexity_question(spec.rubric.wrap_up_questions) if spec else None
+        if spec is None or index is None or rt.model is None:
+            return None
+        events = await rt.timeline.read({TimelineKind.INTERVENTION, TimelineKind.TRANSCRIPT})
+        answer = complexity_answer(events, index)
+        if answer is None:
+            return None
+        ok = await grade_complexity_answer(rt.model, spec, answer, session_id=rt.session.id)
+        if ok is None:
+            await rt.note("warning", "the complexity answer couldn't be graded; the report leaves it out")
+        return ok
 
     # --- edits: integrity notes and "started coding" -------------------------------------------------------
 

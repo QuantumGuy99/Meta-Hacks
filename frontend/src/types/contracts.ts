@@ -60,6 +60,7 @@ export type ServerMessage =
   | DefenseGrillEval
   | DefenseSamHighlight
   | DefenseVerdict
+  | ModelActivityMsg
   | ReportReady
   | ErrorMsg;
 /**
@@ -121,7 +122,8 @@ export type TimelineKind =
   | "grill"
   | "sam_highlight"
   | "verdict"
-  | "system";
+  | "system"
+  | "model_activity";
 /**
  * This interface was referenced by `CrucibleContracts`'s JSON-Schema
  * via the `definition` "FeedbackLevel".
@@ -161,6 +163,9 @@ export interface Hello {
  */
 export interface EditorEvents {
   type: "editor.events";
+  /**
+   * @maxItems 500
+   */
   events: EditorEvent[];
 }
 /**
@@ -172,6 +177,9 @@ export interface EditorEvent {
   file?: string;
   version: number;
   kind: "change" | "paste" | "undo" | "redo" | "focus" | "blur" | "hidden" | "visible";
+  /**
+   * @maxItems 100
+   */
   changes?: EditorChange[];
   pasted_chars?: number | null;
 }
@@ -676,6 +684,26 @@ export interface Verdict {
   findings_fixed: string[];
   findings_unfixed: string[];
   avg_grill_score: number;
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "ModelActivityMsg".
+ */
+export interface ModelActivityMsg {
+  type: "model.activity";
+  activity: ModelActivity;
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "ModelActivity".
+ */
+export interface ModelActivity {
+  call_id: string;
+  t: number;
+  model_name: "Muse Spark" | "Muse Wonder" | "Muse Spark Open" | "Muse Voice" | "SAM 3.1" | "Muse Image";
+  task: string;
+  status: "started" | "done" | "fallback" | "cached" | "failed" | "stopped";
+  latency_ms: number | null;
 }
 /**
  * This interface was referenced by `CrucibleContracts`'s JSON-Schema

@@ -1,0 +1,345 @@
+{
+  "slug": "undo-editor",
+  "title": "Undo Editor",
+  "difficulty": "medium",
+  "topics": [
+    "stacks",
+    "strings"
+  ],
+  "function": {
+    "name": "final_text",
+    "params": [
+      {
+        "name": "commands",
+        "type": "list[str]"
+      }
+    ],
+    "returns": "str"
+  },
+  "starter_code": "def final_text(commands: list[str]) -> str:\n    pass\n",
+  "examples": [
+    {
+      "input": "commands = [\"type a\", \"type bc\", \"undo\", \"type d\"]",
+      "output": "\"ad\"",
+      "explanation": "The undo removes \"bc\", the most recent typing."
+    },
+    {
+      "input": "commands = [\"type x\", \"undo\", \"undo\"]",
+      "output": "\"\"",
+      "explanation": "The second undo has nothing left to undo, so it does nothing."
+    }
+  ],
+  "constraints": [
+    "0 <= len(commands) <= 10^5",
+    "each command is \"undo\" or \"type \" followed by at least one character",
+    "typed text may contain spaces"
+  ],
+  "tests_visible": [
+    {
+      "id": "v1",
+      "args": [
+        [
+          "type a",
+          "type bc",
+          "undo",
+          "type d"
+        ]
+      ],
+      "expected": "ad",
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v2",
+      "args": [
+        [
+          "undo",
+          "type hi"
+        ]
+      ],
+      "expected": "hi",
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v3",
+      "args": [
+        [
+          "type x",
+          "undo",
+          "undo"
+        ]
+      ],
+      "expected": "",
+      "comparator": "exact",
+      "edge_case_id": null
+    }
+  ],
+  "tests_hidden": [
+    {
+      "id": "h1",
+      "args": [
+        []
+      ],
+      "expected": "",
+      "comparator": "exact",
+      "edge_case_id": "e1"
+    },
+    {
+      "id": "h2",
+      "args": [
+        [
+          "undo",
+          "undo"
+        ]
+      ],
+      "expected": "",
+      "comparator": "exact",
+      "edge_case_id": "e2"
+    },
+    {
+      "id": "h3",
+      "args": [
+        [
+          "type hello world"
+        ]
+      ],
+      "expected": "hello world",
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    },
+    {
+      "id": "h4",
+      "args": [
+        [
+          "type a",
+          "type b",
+          "type c",
+          "undo",
+          "type d",
+          "undo",
+          "undo"
+        ]
+      ],
+      "expected": "a",
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    },
+    {
+      "id": "h5",
+      "args": [
+        [
+          "type abc",
+          "type def",
+          "undo",
+          "undo",
+          "type g"
+        ]
+      ],
+      "expected": "g",
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    },
+    {
+      "id": "h6",
+      "args": [
+        [
+          "type x",
+          "type x",
+          "type x",
+          "type x",
+          "type x",
+          "undo",
+          "undo",
+          "undo"
+        ]
+      ],
+      "expected": "xx",
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h7",
+      "args": [
+        [
+          "type a",
+          "undo",
+          "type b",
+          "undo",
+          "type c"
+        ]
+      ],
+      "expected": "c",
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h8",
+      "args": [
+        [
+          "type ab",
+          "type cd",
+          "undo",
+          "undo",
+          "undo",
+          "type ef"
+        ]
+      ],
+      "expected": "ef",
+      "comparator": "exact",
+      "edge_case_id": "e2"
+    },
+    {
+      "id": "h9",
+      "args": [
+        [
+          "type one two",
+          "type  three"
+        ]
+      ],
+      "expected": "one two three",
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    }
+  ],
+  "rubric": {
+    "approaches": [
+      {
+        "name": "stack of typed pieces, joined at the end",
+        "time": "O(total text)",
+        "space": "O(total text)",
+        "acceptable": true
+      },
+      {
+        "name": "store a full copy of the text after every command",
+        "time": "O(n * text length)",
+        "space": "O(n * text length)",
+        "acceptable": false
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "title": "Clarify the input",
+        "required": true,
+        "order": 1,
+        "description": "Asks what undo does with nothing to undo, and whether typed text can contain spaces.",
+        "look_for": [
+          "asks about undo on an empty history",
+          "asks about spaces in typed text"
+        ],
+        "hints": [
+          "Before you start, is there anything about the commands you'd want to confirm?",
+          "What should 'undo' do if nothing has been typed, and can the typed text include spaces?",
+          "Settle the empty-undo case and spaces in text before writing the parser."
+        ]
+      },
+      {
+        "id": "s2",
+        "title": "Parse each command",
+        "required": true,
+        "order": 2,
+        "description": "Separates 'type' from the text without breaking text that contains spaces.",
+        "look_for": [
+          "splits only once or slices off the 'type ' prefix",
+          "tests text with spaces"
+        ],
+        "hints": [
+          "Look at how you pull the text out of a type command.",
+          "What does your parsing do with 'type hello world'?",
+          "Take everything after the first 'type ' as the text, instead of splitting on every space."
+        ]
+      },
+      {
+        "id": "s3",
+        "title": "Remember each typing as a unit",
+        "required": true,
+        "order": 3,
+        "description": "Pushes each typed piece onto a stack so an undo can remove exactly that piece.",
+        "look_for": [
+          "uses a list as a stack",
+          "pushes the whole piece, not single characters"
+        ],
+        "hints": [
+          "Look at what an undo needs to know to do its job.",
+          "If 'bc' was typed in one command, how much should one undo remove?",
+          "Keep a stack of typed pieces; undo pops the most recent piece."
+        ]
+      },
+      {
+        "id": "s4",
+        "title": "Make undo safe",
+        "required": true,
+        "order": 4,
+        "description": "Ignores an undo when the stack is empty instead of crashing.",
+        "look_for": [
+          "checks the stack before popping",
+          "tests leading undos"
+        ],
+        "hints": [
+          "Try your code with an undo as the very first command.",
+          "What happens when you pop from an empty list in Python?",
+          "Only pop when the stack has something in it."
+        ]
+      },
+      {
+        "id": "s5",
+        "title": "Build the text once",
+        "required": false,
+        "order": 5,
+        "description": "Joins the pieces at the end rather than rebuilding the string on every command.",
+        "look_for": [
+          "joins the stack at the end",
+          "avoids copying the whole string on each command"
+        ],
+        "hints": [
+          "Look at how often your code rebuilds the full text.",
+          "Do you need the full text after every command, or only at the end?",
+          "Join the stack of pieces once, at the end."
+        ]
+      }
+    ],
+    "edge_cases": [
+      {
+        "id": "e1",
+        "description": "no commands"
+      },
+      {
+        "id": "e2",
+        "description": "undo with nothing to undo"
+      },
+      {
+        "id": "e3",
+        "description": "typed text with spaces"
+      },
+      {
+        "id": "e4",
+        "description": "undo after new typing"
+      }
+    ],
+    "common_mistakes": [
+      {
+        "id": "m1",
+        "description": "splits each command on every space",
+        "symptom": "loses everything after the first word, like 'type hello world'"
+      },
+      {
+        "id": "m2",
+        "description": "pops from an empty stack",
+        "symptom": "crashes with IndexError on a leading undo"
+      },
+      {
+        "id": "m3",
+        "description": "removes one character per undo",
+        "symptom": "leaves 'b' behind after typing 'bc' and undoing"
+      }
+    ],
+    "wrap_up_questions": [
+      "What are the time and space complexity?",
+      "How would you add a 'redo' command that brings back the last undone piece?"
+    ]
+  },
+  "time_limit_min": 30,
+  "illustration": null,
+  "origin_note": "Original. Pattern: stack of typed pieces, joined at the end."
+}
