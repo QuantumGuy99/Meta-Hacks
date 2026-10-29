@@ -64,6 +64,7 @@ session. Update it before you finish any session that changed code, decisions or
 - 2026-10-28 [claude] for LG: the harness's per-test timer works on Windows (a timer thread raises SIGINT; the SIGALRM path is unchanged). `test_harness.py` and `test_problem_run.py` pass on Windows.
 - 2026-10-28 [claude, for Likhil] `fix/windows-runner-cleanup`: LocalRunner stops the whole process tree on Windows and removes the app log best-effort; `run_attack` keeps a finished run when cleanup fails (a locked log crashed the stage and left sessions stuck in chaos). The 5 pipeline e2e tests now pass on Windows. Needs Shreyas's review.
 - 2026-10-27 [claude] Merged #13–#15; opened #17, #18; docs refreshed (README status, role plan, spec).
+- 2026-10-28 [claude] #35 + #43 Defense fixes (reference attack matched by file/lines, keyword root-cause floor, p95 0 = no check, race load floor 50, empty-audit retry, harness configures models, stages cancelled on end). Live run on bank-transfer-min: attacker timed out twice (pre-#43 registry) → reference attack matched → broke $11,249 → grill 10/10 → held → PASS.
 - 2026-10-27 [claude] SG approved #13–#15. Attack containment in 3 layers (validator bans, loopback hook, Modal block_network); V7 done; samples load once.
 - 2026-10-27 [claude] Day 0 + Day 1 checklist complete; RUN-1 "done when" checked on a real problem.
 - 2026-10-27 [claude] DEF-6, RUN-1, OPS-2 built; Modal verified; deploy config PR #14; Glimmer dropped PR #13; folders consolidated.

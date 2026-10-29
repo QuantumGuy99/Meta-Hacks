@@ -18,10 +18,14 @@ logger = logging.getLogger(__name__)
 ATTACKER_TIMEOUT_S = 30
 MAX_CONCURRENCY = 200
 MAX_DURATION_S = 30
+# A race needs enough overlapping requests to show: at 20 concurrent bank-transfer held, at 50-100 it
+# broke (#43). The audit sometimes plans too little, so race findings get at least this many.
+RACE_MIN_CONCURRENCY = 50
 
 
-def clamp_load(concurrency: int, duration_s: int) -> tuple[int, int]:
-    return max(1, min(concurrency, MAX_CONCURRENCY)), max(1, min(duration_s, MAX_DURATION_S))
+def clamp_load(concurrency: int, duration_s: int, *, category: str | None = None) -> tuple[int, int]:
+    floor = RACE_MIN_CONCURRENCY if category == "race_condition" else 1
+    return max(floor, min(concurrency, MAX_CONCURRENCY)), max(1, min(duration_s, MAX_DURATION_S))
 
 
 def render_attack(fn: AttackFunctions, *, port: int, concurrency: int, duration_s: int) -> str:
