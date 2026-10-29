@@ -9,7 +9,9 @@ from crucible.main import _engine, create_app
 
 @pytest.fixture
 def settings(tmp_path) -> Settings:
-    return Settings(_env_file=None, DATABASE_URL=f"sqlite:///{tmp_path / 'test.db'}", MODEL_API_KEY="")
+    return Settings(
+        _env_file=None, DATABASE_URL=f"sqlite:///{tmp_path / 'test.db'}", MODEL_API_KEY="", MOCK=False
+    )
 
 
 @pytest.fixture
