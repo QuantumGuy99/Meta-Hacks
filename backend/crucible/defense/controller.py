@@ -223,9 +223,8 @@ class DefenseController:
             event.kind == TimelineKind.PHASE
             and PhaseChange.model_validate(event.payload).to_phase == Phase.ENDED
         ):
-            await (
-                self._cancel_tasks()
-            )  # an attack mid-run must not keep writing after the session ended (#22)
+            # An attack mid-run must not keep writing after the session ended (#22).
+            await self._cancel_tasks()
             return
         if event.kind != TimelineKind.TRANSCRIPT or rt.session.phase != Phase.GRILL or self._current is None:
             return
