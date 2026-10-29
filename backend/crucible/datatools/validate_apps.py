@@ -25,6 +25,7 @@ from crucible.defense.projects import Sample, apply_patch, load_samples
 from crucible.defense.validator import AttackRejected, validate_functions
 from crucible.runner.base import Runner
 
+ERRORS_REASON = "of requests failed"  # chaos.decide_verdict's wording for the >5% error rule
 REQUIRED_FLAW_KEYS = (
     "id",
     "category",
@@ -109,7 +110,18 @@ async def check_app(
                 report.runs.append(f"{finding.id} {kind} #{attempt}: {run.verdict} | {run.summary}")
                 if run.verdict != want:
                     report.errors.append(_mismatch(finding.id, kind, want, run))
+                elif kind == "baseline" and breaks_on_errors(run):
+                    report.errors.append(
+                        f"{finding.id}: the attack breaks on failed requests, not only its invariant, so the "
+                        f"headline undersells it (lower the concurrency or make requests cheaper): {run.detail}"
+                    )
     return report
+
+
+def breaks_on_errors(run: ChaosRun) -> bool:
+    """The run's error rate alone would break it (chaos.decide_verdict's >5% rule). A reference attack should
+    break on its invariant, whose detail is the headline on screen, with requests that still succeed."""
+    return run.verdict == "broke" and ERRORS_REASON in run.detail
 
 
 # --- private helpers ------------------------------------------------------------------------------------------
