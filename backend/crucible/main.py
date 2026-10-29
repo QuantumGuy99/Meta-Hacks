@@ -30,9 +30,9 @@ from crucible.runner import make_runner
 
 logger = logging.getLogger(__name__)
 
-# Env var → model role override for the wrapper (PLAN §19.2). Roles not listed keep the registry default.
 SESSIONS_PATH = "/api/sessions"  # POST creates a session: the call the daily quota counts
 
+# Env var → model role override for the wrapper (PLAN §19.2). Roles not listed keep the registry default.
 ROLE_ENV: dict[str, str] = {
     "analyzer": "MODEL_ANALYZER",
     "interviewer": "MODEL_INTERVIEWER",
