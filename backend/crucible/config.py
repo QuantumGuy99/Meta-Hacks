@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     MOCK_SPEED: float = 1.0  # MOCK replays at this speed (2 = twice as fast)
     CORS_ORIGINS: str = "http://localhost:3000"
     MAX_SESSIONS_PER_IP_PER_DAY: int = 10
+    GUIDE_MAX_PER_IP_PER_DAY: int = 60  # "Ask Crucible" questions per client IP per day (#25)
     BEHIND_PROXY: bool = False  # trust the proxy's X-Forwarded-For for the client IP (the Dockerfile sets it)
 
     # Deployment: production is APP_ENV=prod, or any Railway environment (Railway sets this variable).
