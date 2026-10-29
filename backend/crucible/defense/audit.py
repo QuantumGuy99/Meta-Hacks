@@ -53,8 +53,7 @@ async def run_audit(
     if use_cache and key in _CACHE:
         return _CACHE[key]
     try:
-        raw = await llm.complete_json("audit", _messages(sample), AuditResult, timeout_s=AUDIT_TIMEOUT_S)
-        result = check_audit(raw, sample.files)
+        result = await audit_with_model(sample, llm)
     except ModelUnavailable as exc:
         if not sample.flaws:
             raise AuditFailed(f"audit models unavailable and no flaws.json: {exc}") from exc
@@ -64,6 +63,13 @@ async def run_audit(
         result = audit_from_flaws(sample)
     _CACHE[key] = result
     return result
+
+
+async def audit_with_model(sample: Sample, llm: ModelClient) -> AuditResult:
+    """The model's audit, checked by code; no cache and no fallback (raises ModelUnavailable). The recall
+    eval uses this directly so flaws.json can never pass for the model."""
+    raw = await llm.complete_json("audit", _messages(sample), AuditResult, timeout_s=AUDIT_TIMEOUT_S)
+    return check_audit(raw, sample.files)
 
 
 def check_audit(a: AuditResult, files: dict[str, str]) -> AuditResult:
@@ -116,7 +122,9 @@ def audit_from_flaws(sample: Sample) -> AuditResult:
     """Ground-truth fallback for sample apps (logged; never presented as an AI result in the demo)."""
     nodes, edges = derive_topology(sample.files)
     by_file = {n.file: n.id for n in nodes if n.file}
-    first_chaos = next((f.get("id") for f in sample.flaws if f.get("chaos") or f.get("chaos_invariant")), None)
+    first_chaos = next(
+        (f.get("id") for f in sample.flaws if f.get("chaos") or f.get("chaos_invariant")), None
+    )
     findings = []
     for i, flaw in enumerate(sample.flaws):
         ref = sample.reference_for(flaw.get("id", f"f{i + 1}"), first_chaos)
