@@ -74,7 +74,7 @@ async def test_a_failed_cleanup_keeps_the_finished_attack(bank, sink):
 @pytest.mark.asyncio
 async def test_a_locked_log_is_retried_then_left_without_raising(tmp_path, monkeypatch, caplog):
     log = tmp_path / "app.log"
-    log.write_text("x")
+    log.write_text("x", encoding="utf-8")
     calls = {"n": 0}
 
     def locked(self, missing_ok=False):
@@ -93,7 +93,7 @@ async def test_a_locked_log_is_retried_then_left_without_raising(tmp_path, monke
 @pytest.mark.asyncio
 async def test_a_log_released_on_a_retry_is_deleted(tmp_path, monkeypatch):
     log = tmp_path / "app.log"
-    log.write_text("x")
+    log.write_text("x", encoding="utf-8")
     real_unlink = Path.unlink
     calls = {"n": 0}
 

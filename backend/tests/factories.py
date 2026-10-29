@@ -33,9 +33,11 @@ def write_quiet_streak(root: Path) -> Path:
     """The quiet-streak sample as a problem folder under `root` (a stand-in until the gold problems land)."""
     folder = root / "quiet-streak"
     folder.mkdir(parents=True)
-    (folder / "problem.json").write_text((FIXTURES / "problem_spec.json").read_text())
-    (folder / "statement.md").write_text(QUIET_STREAK_STATEMENT)
-    (folder / "reference.py").write_text(QUIET_STREAK_REFERENCE)
+    (folder / "problem.json").write_text(
+        (FIXTURES / "problem_spec.json").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (folder / "statement.md").write_text(QUIET_STREAK_STATEMENT, encoding="utf-8")
+    (folder / "reference.py").write_text(QUIET_STREAK_REFERENCE, encoding="utf-8")
     return folder
 
 
@@ -156,4 +158,4 @@ def runtime(
 
 
 def problem_json() -> dict[str, Any]:
-    return json.loads((FIXTURES / "problem_spec.json").read_text())
+    return json.loads((FIXTURES / "problem_spec.json").read_text(encoding="utf-8"))

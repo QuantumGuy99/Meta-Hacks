@@ -75,6 +75,7 @@ def render() -> str:
         text=True,
         check=True,
         cwd=REPO_ROOT,
+        encoding="utf-8",
     )
     return HEADER + result.stdout
 
@@ -85,13 +86,13 @@ def main() -> int:
     args = parser.parse_args()
     rendered = render()
     if args.check:
-        current = OUTPUT.read_text() if OUTPUT.exists() else ""
+        current = OUTPUT.read_text(encoding="utf-8") if OUTPUT.exists() else ""
         if current != rendered:
             print(f"{OUTPUT.relative_to(REPO_ROOT)} is out of date: run `make contracts`", file=sys.stderr)
             return 1
         return 0
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(rendered)
+    OUTPUT.write_text(rendered, encoding="utf-8")
     print(f"wrote {OUTPUT.relative_to(REPO_ROOT)}")
     return 0
 

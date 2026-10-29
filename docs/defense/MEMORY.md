@@ -48,6 +48,7 @@ session. Update it before you finish any session that changed code, decisions or
 - ST: confirm `QuantumGuy99` is your account (#11). LG: open a PR for `feat/fe-visual-stack` (#12).
 
 ## Verified facts and gotchas
+- 2026-10-28 [claude] Windows Python reads and writes text as cp1252 unless told otherwise: always pass encoding="utf-8" (a test checks).
 - Windows: with LOCAL_RUNNER_ISOLATE, `proc.terminate()` ends only `uv run`; the app it started survives and keeps the port and the log file. Stop the tree (`taskkill /T`), and never let cleanup raise out of a stage.
 <!-- e.g. "2026-10-28 [claude] Modal Sandbox.open() writes files into a running sandbox (V7)" -->
 - 2026-10-28 [claude] On Windows the harness timer is a thread raising SIGINT: it lands up to ~25 ms late, and like SIGALRM it can't stop a blocked lock or other C code (the runner's process kill does).
@@ -59,6 +60,7 @@ session. Update it before you finish any session that changed code, decisions or
   the session id is the scenario name (PLAN §14.6).
 
 ## Session log (keep the last 10, newest first)
+- 2026-10-28 [claude] for LG: every text read/write names encoding="utf-8" (Windows defaulted to cp1252: "→" in a problem was served as "â†’"), with `tests/test_text_encoding.py` as a guard. The full backend suite passes on Windows.
 - 2026-10-28 [claude] for LG: the harness's per-test timer works on Windows (a timer thread raises SIGINT; the SIGALRM path is unchanged). `test_harness.py` and `test_problem_run.py` pass on Windows.
 - 2026-10-28 [claude, for Likhil] `fix/windows-runner-cleanup`: LocalRunner stops the whole process tree on Windows and removes the app log best-effort; `run_attack` keeps a finished run when cleanup fails (a locked log crashed the stage and left sessions stuck in chaos). The 5 pipeline e2e tests now pass on Windows. Needs Shreyas's review.
 - 2026-10-27 [claude] Merged #13–#15; opened #17, #18; docs refreshed (README status, role plan, spec).

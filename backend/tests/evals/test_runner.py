@@ -30,7 +30,7 @@ QUIET = "def longest_quiet_streak(readings: list[int], threshold: int) -> int:\n
 
 def write_eval(tmp_path: Path, name: str, rows: list[dict[str, Any]]) -> Path:
     path = tmp_path / f"{name}.jsonl"
-    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
+    path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
     return path
 
 

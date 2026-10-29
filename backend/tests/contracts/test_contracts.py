@@ -63,7 +63,7 @@ SERVER = TypeAdapter(ws.ServerMessage)
 
 
 def _load(name: str) -> Any:
-    return json.loads((FIXTURES / name).read_text())
+    return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
 def _message_types(union: Any) -> set[str]:

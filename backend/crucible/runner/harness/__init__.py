@@ -3,4 +3,4 @@
 from pathlib import Path
 
 HARNESS_DIR = Path(__file__).parent
-CHAOS_TEMPLATE = (HARNESS_DIR / "chaos_template.py").read_text()
+CHAOS_TEMPLATE = (HARNESS_DIR / "chaos_template.py").read_text(encoding="utf-8")

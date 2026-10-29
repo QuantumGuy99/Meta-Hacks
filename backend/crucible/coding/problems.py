@@ -72,12 +72,12 @@ class ProblemBank:
 
 def load_problem(folder: Path) -> ProblemSpec:
     """`problem.json` plus its sibling files (statement, reference, optional brute force)."""
-    raw = json.loads((folder / "problem.json").read_text())
-    raw["statement_md"] = (folder / "statement.md").read_text()
-    raw["reference_solution"] = (folder / "reference.py").read_text()
+    raw = json.loads((folder / "problem.json").read_text(encoding="utf-8"))
+    raw["statement_md"] = (folder / "statement.md").read_text(encoding="utf-8")
+    raw["reference_solution"] = (folder / "reference.py").read_text(encoding="utf-8")
     brute = folder / "brute.py"
     if brute.exists():
-        raw["brute_force_solution"] = brute.read_text()
+        raw["brute_force_solution"] = brute.read_text(encoding="utf-8")
     try:
         spec = ProblemSpec.model_validate(raw)
     except ValidationError as exc:

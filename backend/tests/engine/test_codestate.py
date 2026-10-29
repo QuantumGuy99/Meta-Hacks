@@ -139,14 +139,14 @@ def test_apply_changes_sorts_by_offset_descending() -> None:
 
 def test_replay_parity_case() -> None:
     """Same checkpoints as frontend/src/lib/__tests__/replay.test.mjs, from the same fixture."""
-    case = json.loads(REPLAY_CASE.read_text())
+    case = json.loads(REPLAY_CASE.read_text(encoding="utf-8"))
     timeline = [TimelineEvent.model_validate(e) for e in case["events"]]
     for point in case["checkpoints"]:
         assert code_at(timeline, point["file"], point["t"]) == point["code"], point["note"]
 
 
 def test_live_state_matches_replay_at_the_end() -> None:
-    case = json.loads(REPLAY_CASE.read_text())
+    case = json.loads(REPLAY_CASE.read_text(encoding="utf-8"))
     state = CodeState()
     for raw in case["events"]:
         event = TimelineEvent.model_validate(raw)

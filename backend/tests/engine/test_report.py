@@ -57,8 +57,10 @@ from tests.factories import (
     write_quiet_streak,
 )
 
-DRAFT = json.loads((FIXTURES / "report_draft.json").read_text())
-DEFENSE = DefenseExtra.model_validate(json.loads((FIXTURES / "report_defense.json").read_text())["defense"])
+DRAFT = json.loads((FIXTURES / "report_draft.json").read_text(encoding="utf-8"))
+DEFENSE = DefenseExtra.model_validate(
+    json.loads((FIXTURES / "report_defense.json").read_text(encoding="utf-8"))["defense"]
+)
 CODING = CodingExtra(problem_slug="quiet-streak", steps=[], approach=None, complexity_answer_ok=None)
 NOW = datetime(2026, 10, 31, 12, 0, tzinfo=UTC)
 
@@ -279,7 +281,9 @@ def test_a_final_submit_that_first_passes_is_one_moment() -> None:
 
 
 def test_defense_moments_cover_chaos_grill_and_verdict() -> None:
-    audit = AuditResult.model_validate(json.loads((FIXTURES / "audit_result.json").read_text()))
+    audit = AuditResult.model_validate(
+        json.loads((FIXTURES / "audit_result.json").read_text(encoding="utf-8"))
+    )
     timeline = events(
         (1_000, TimelineKind.AUDIT, audit),
         (2_000, TimelineKind.CHAOS_RUN, DEFENSE.chaos_runs[0]),

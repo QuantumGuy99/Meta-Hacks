@@ -37,7 +37,7 @@ def load_scenario(name: str) -> list[tuple[int, dict]]:
     if not path.is_file():
         raise KeyError(name)
     lines = []
-    for raw in path.read_text().splitlines():
+    for raw in path.read_text(encoding="utf-8").splitlines():
         if raw.strip():
             item = json.loads(raw)
             SERVER_MESSAGE.validate_python(item["msg"])

@@ -81,7 +81,7 @@ def record(name: str, apps_dir: Path, project: str, duration_s: int) -> Path:
             ws.send_json({"type": "defense.verify", "finding_id": "f1", "files": fixed})
             until(lambda m: m["type"] == "session.state" and m["phase"] == "ended")
     out = FIXTURES / f"{name}.jsonl"
-    out.write_text("".join(json.dumps(line) + "\n" for line in lines))
+    out.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
     return out
 
 

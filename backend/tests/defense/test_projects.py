@@ -31,9 +31,9 @@ def _copy_sample(root: Path, name: str) -> Path:
 def test_a_malformed_reference_attack_skips_only_that_sample(tmp_path):
     _copy_sample(tmp_path, "good")
     bad = _copy_sample(tmp_path, "bad")
-    ref = json.loads((bad / "reference_attack.json").read_text())
+    ref = json.loads((bad / "reference_attack.json").read_text(encoding="utf-8"))
     del ref["functions"]["rationale"]
-    (bad / "reference_attack.json").write_text(json.dumps(ref))
+    (bad / "reference_attack.json").write_text(json.dumps(ref), encoding="utf-8")
     assert set(load_samples(tmp_path)) == {"good"}
 
 

@@ -190,7 +190,7 @@ def _safe_write(root: Path, rel: str, content: str) -> None:
     if not target.is_relative_to(root.resolve()):
         raise RunnerError(f"path escapes the work dir: {rel!r}")
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content)
+    target.write_text(content, encoding="utf-8")
 
 
 def _workdir(h: ProjectHandle) -> str:

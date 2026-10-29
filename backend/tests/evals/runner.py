@@ -95,7 +95,7 @@ def load_eval(path: Path) -> Eval:
     meta: dict[str, Any] = {}
     expect: dict[str, Any] = {}
     steps: list[Step] = []
-    for number, line in enumerate(path.read_text().splitlines(), start=1):
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         if not line.strip():
             continue
         row = json.loads(line)
@@ -498,7 +498,7 @@ def write_results(results: dict[str, list[RunReport]], path: Path) -> None:
             lines.append(f"  - interventions: {', '.join(fired) or 'none'}")
         lines.append("")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines))
+    path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def local_runner() -> Runner:

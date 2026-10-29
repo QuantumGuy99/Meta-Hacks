@@ -147,7 +147,7 @@ def _read_files(d: Path) -> dict[str, str]:
         if p.suffix not in TEXT_SUFFIXES:
             continue
         try:
-            files[rel.as_posix()] = p.read_text()
+            files[rel.as_posix()] = p.read_text(encoding="utf-8")
         except UnicodeDecodeError as exc:
             raise ProjectInvalid(f"{rel} isn't UTF-8 text") from exc
     return files
@@ -157,7 +157,7 @@ def _read_json(p: Path):
     if not p.exists():
         return None
     try:
-        return json.loads(p.read_text())
+        return json.loads(p.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise ProjectInvalid(f"{p.name} isn't valid JSON: {exc}") from exc
 
@@ -168,14 +168,14 @@ def _reference_fix(d: Path, files: dict[str, str]) -> dict[str, str] | None:
         return {
             **files,
             **{
-                p.relative_to(fixed_dir).as_posix(): p.read_text()
+                p.relative_to(fixed_dir).as_posix(): p.read_text(encoding="utf-8")
                 for p in fixed_dir.rglob("*")
                 if p.is_file() and "__pycache__" not in p.parts
             },
         }
     patch = d / "fix.patch"
     if patch.exists():
-        return apply_patch(files, patch.read_text())
+        return apply_patch(files, patch.read_text(encoding="utf-8"))
     return None
 
 
@@ -185,7 +185,7 @@ def apply_patch(files: dict[str, str], patch_text: str) -> dict[str, str]:
         root = Path(tmp)
         for rel, content in files.items():
             (root / rel).parent.mkdir(parents=True, exist_ok=True)
-            (root / rel).write_text(content)
+            (root / rel).write_text(content, encoding="utf-8")
         try:
             result = subprocess.run(
                 ["patch", "-p1", "--quiet", "--forward"],
@@ -194,6 +194,7 @@ def apply_patch(files: dict[str, str], patch_text: str) -> dict[str, str]:
                 cwd=root,
                 capture_output=True,
                 check=False,
+                encoding="utf-8",
             )
         except FileNotFoundError as exc:  # the backend image installs GNU patch (Dockerfile)
             raise ProjectInvalid("fix.patch needs the `patch` program, which isn't installed") from exc
@@ -201,7 +202,7 @@ def apply_patch(files: dict[str, str], patch_text: str) -> dict[str, str]:
             raise ProjectInvalid(f"fix.patch doesn't apply: {result.stdout or result.stderr}")
         # Read back every file, so files the patch creates are included too.
         return {
-            p.relative_to(root).as_posix(): p.read_text()
+            p.relative_to(root).as_posix(): p.read_text(encoding="utf-8")
             for p in sorted(root.rglob("*"))
             if p.is_file() and p.suffix not in (".orig", ".rej")
         }
