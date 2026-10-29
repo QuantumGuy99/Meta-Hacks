@@ -195,13 +195,11 @@ class DefensePipeline:
         return v
 
     def _reference_for(self, f: Finding) -> AttackFunctions | None:
-        ref = self.sample.reference_attack
-        if ref is None:
-            return None
         first_chaos = (
             next((x.id for x in self.state.audit.findings if x.chaos), None) if self.state.audit else None
         )
-        return ref.functions if ref.flaw_id in (f.id, None) and (ref.flaw_id or first_chaos == f.id) else None
+        ref = self.sample.reference_for(f.id, first_chaos)
+        return ref.functions if ref else None
 
 
 async def run_scripted(

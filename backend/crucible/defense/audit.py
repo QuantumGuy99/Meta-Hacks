@@ -116,10 +116,12 @@ def audit_from_flaws(sample: Sample) -> AuditResult:
     """Ground-truth fallback for sample apps (logged; never presented as an AI result in the demo)."""
     nodes, edges = derive_topology(sample.files)
     by_file = {n.file: n.id for n in nodes if n.file}
+    first_chaos = next((f.get("id") for f in sample.flaws if f.get("chaos") or f.get("chaos_invariant")), None)
     findings = []
     for i, flaw in enumerate(sample.flaws):
+        ref = sample.reference_for(flaw.get("id", f"f{i + 1}"), first_chaos)
         try:
-            findings.append(_finding_from_flaw(flaw, i, by_file.get(flaw["file"]), sample.reference_attack))
+            findings.append(_finding_from_flaw(flaw, i, by_file.get(flaw["file"]), ref))
         except (KeyError, ValidationError) as exc:
             logger.error("flaws.json entry %d in %s is invalid: %s", i, sample.project.id, exc)
     result = AuditResult(
@@ -150,7 +152,7 @@ def derive_topology(files: dict[str, str]) -> tuple[list[TopologyNode], list[Top
 
 def _finding_from_flaw(flaw: dict, i: int, node_id: str | None, ref: ReferenceAttack | None) -> Finding:
     chaos_extra = flaw.get("chaos") or {}
-    use_ref = ref is not None and (ref.flaw_id in (None, flaw.get("id")))
+    use_ref = ref is not None  # audit_from_flaws already matched it to this flaw
     chaos = (
         ChaosPlan(
             endpoint=chaos_extra.get("endpoint", flaw.get("endpoint", "")),
