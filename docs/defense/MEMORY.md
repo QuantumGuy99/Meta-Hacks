@@ -1,11 +1,11 @@
-# Defense working memory (shared by Claude Code and Muse Code)
+# Defense working memory (shared by the coding agents)
 
 The one place where context survives between sessions and between agents. Read it at the start of every
 session. Update it before you finish any session that changed code, decisions or status.
 
 **Rules**
 - Facts, not narratives. One line per item. Absolute dates (2026-10-27), never "today" or "yesterday".
-- Sign entries with the agent: `[claude]`, `[muse]` or `[shreyas]`.
+- Sign entries with the agent: `[agent]`, `[muse]` or `[shreyas]`.
 - Keep this file under ~150 lines. When a section grows, delete what is done or no longer true. Git
   history keeps the old versions.
 - Don't copy what lives elsewhere: architecture is in PLAN.md, your build order, handoff dates and
@@ -35,7 +35,7 @@ session. Update it before you finish any session that changed code, decisions or
 | lib/defense.ts | Selectors for Likhil's views | Thu | Shape in the role plan |
 
 ## Handoff (overwrite every session)
-- **Last done:** 2026-10-27 [claude] Merged #13 (Glimmer dropped), #14 (deploy), #15 (Defense end to end) into
+- **Last done:** 2026-10-27 [agent] Merged #13 (Glimmer dropped), #14 (deploy), #15 (Defense end to end) into
   main; main green (backend, contracts, docker, frontend). Opened #17 (assistant spec) and #18 (prompt rules).
   Replied to every review; issues #11 (Sharvil) and #12 (Likhil) updated.
 - **Next step:** Wed morning: if `data/defense_apps/bank-transfer` isn't up, build it from
@@ -48,21 +48,21 @@ session. Update it before you finish any session that changed code, decisions or
 - ST: confirm `QuantumGuy99` is your account (#11). LG: open a PR for `feat/fe-visual-stack` (#12).
 
 ## Verified facts and gotchas
-<!-- e.g. "2026-10-28 [claude] Modal Sandbox.open() writes files into a running sandbox (V7)" -->
-- 2026-10-27 [claude] Modal `block_network=True` blocks egress and keeps loopback (V7 done).
-- 2026-10-27 [claude] Modal stdout arrives in chunks, not lines; ModalRunner.stream_exec splits them (V7).
-- 2026-10-27 [claude] Main moves under you: PR #2 landed while PR #4 was open. `git fetch` and check
+<!-- e.g. "2026-10-28 [agent] Modal Sandbox.open() writes files into a running sandbox (V7)" -->
+- 2026-10-27 [agent] Modal `block_network=True` blocks egress and keeps loopback (V7 done).
+- 2026-10-27 [agent] Modal stdout arrives in chunks, not lines; ModalRunner.stream_exec splits them (V7).
+- 2026-10-27 [agent] Main moves under you: PR #2 landed while PR #4 was open. `git fetch` and check
   `git log HEAD..origin/main` before starting work and before pushing.
-- 2026-10-27 [claude] MOCK fixture line format is `{"dt_ms": ..., "msg": <ServerMessage>}`; in MOCK mode
+- 2026-10-27 [agent] MOCK fixture line format is `{"dt_ms": ..., "msg": <ServerMessage>}`; in MOCK mode
   the session id is the scenario name (PLAN §14.6).
 
 ## Session log (keep the last 10, newest first)
-- 2026-10-27 [claude] Merged #13–#15; opened #17, #18; docs refreshed (README status, role plan, spec).
-- 2026-10-28 [claude] #35 + #43 Defense fixes (reference attack matched by file/lines, keyword root-cause floor, p95 0 = no check, race load floor 50, empty-audit retry, harness configures models, stages cancelled on end). Live run on bank-transfer-min: attacker timed out twice (pre-#43 registry) → reference attack matched → broke $11,249 → grill 10/10 → held → PASS.
-- 2026-10-27 [claude] SG approved #13–#15. Attack containment in 3 layers (validator bans, loopback hook, Modal block_network); V7 done; samples load once.
-- 2026-10-27 [claude] Day 0 + Day 1 checklist complete; RUN-1 "done when" checked on a real problem.
-- 2026-10-27 [claude] DEF-6, RUN-1, OPS-2 built; Modal verified; deploy config PR #14; Glimmer dropped PR #13; folders consolidated.
-- 2026-10-27 [claude] S-0 PR #10 (CI green); Defense built on SG's stack in `feat/defense`, 194 tests pass; reviews posted on #5–#7.
-- 2026-10-27 [claude] Merged main into PR #4, resolved conflicts, controller.py rename, role plan + README synced.
-- 2026-10-27 [claude] Cloned repo; wrote CLAUDE.md + DEFENSE_AGENT_SPEC.txt; reconciled 24 conflicts
+- 2026-10-27 [agent] Merged #13–#15; opened #17, #18; docs refreshed (README status, role plan, spec).
+- 2026-10-28 [agent] #35 + #43 Defense fixes (reference attack matched by file/lines, keyword root-cause floor, p95 0 = no check, race load floor 50, empty-audit retry, harness configures models, stages cancelled on end). Live run on bank-transfer-min: attacker timed out twice (pre-#43 registry) → reference attack matched → broke $11,249 → grill 10/10 → held → PASS.
+- 2026-10-27 [agent] SG approved #13–#15. Attack containment in 3 layers (validator bans, loopback hook, Modal block_network); V7 done; samples load once.
+- 2026-10-27 [agent] Day 0 + Day 1 checklist complete; RUN-1 "done when" checked on a real problem.
+- 2026-10-27 [agent] DEF-6, RUN-1, OPS-2 built; Modal verified; deploy config PR #14; Glimmer dropped PR #13; folders consolidated.
+- 2026-10-27 [agent] S-0 PR #10 (CI green); Defense built on SG's stack in `feat/defense`, 194 tests pass; reviews posted on #5–#7.
+- 2026-10-27 [agent] Merged main into PR #4, resolved conflicts, controller.py rename, role plan + README synced.
+- 2026-10-27 [agent] Cloned repo; wrote the agent rules + DEFENSE_AGENT_SPEC.txt; reconciled 24 conflicts
   with PLAN.md; opened PR #4; added agent memory, coding rules and code-format skill.
