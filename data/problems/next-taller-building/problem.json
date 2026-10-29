@@ -1,0 +1,392 @@
+{
+  "slug": "next-taller-building",
+  "title": "Next Taller Building",
+  "difficulty": "medium",
+  "topics": [
+    "stacks",
+    "arrays"
+  ],
+  "function": {
+    "name": "next_taller_distance",
+    "params": [
+      {
+        "name": "heights",
+        "type": "list[int]"
+      }
+    ],
+    "returns": "list[int]"
+  },
+  "starter_code": "def next_taller_distance(heights: list[int]) -> list[int]:\n    pass\n",
+  "examples": [
+    {
+      "input": "heights = [3, 1, 4, 2, 5]",
+      "output": "[2, 1, 2, 1, 0]",
+      "explanation": "The building of height 3 first sees a taller one (4) two buildings later. Nothing is taller than 5."
+    },
+    {
+      "input": "heights = [2, 2, 3]",
+      "output": "[2, 1, 0]",
+      "explanation": "A building of the same height doesn't count as taller."
+    }
+  ],
+  "constraints": [
+    "0 <= len(heights) <= 10^5",
+    "1 <= heights[i] <= 10^9"
+  ],
+  "tests_visible": [
+    {
+      "id": "v1",
+      "args": [
+        [
+          3,
+          1,
+          4,
+          2,
+          5
+        ]
+      ],
+      "expected": [
+        2,
+        1,
+        2,
+        1,
+        0
+      ],
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v2",
+      "args": [
+        [
+          5,
+          4,
+          3
+        ]
+      ],
+      "expected": [
+        0,
+        0,
+        0
+      ],
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v3",
+      "args": [
+        [
+          2,
+          2,
+          3
+        ]
+      ],
+      "expected": [
+        2,
+        1,
+        0
+      ],
+      "comparator": "exact",
+      "edge_case_id": null
+    }
+  ],
+  "tests_hidden": [
+    {
+      "id": "h1",
+      "args": [
+        []
+      ],
+      "expected": [],
+      "comparator": "exact",
+      "edge_case_id": "e1"
+    },
+    {
+      "id": "h2",
+      "args": [
+        [
+          7
+        ]
+      ],
+      "expected": [
+        0
+      ],
+      "comparator": "exact",
+      "edge_case_id": "e2"
+    },
+    {
+      "id": "h3",
+      "args": [
+        [
+          4,
+          4,
+          4
+        ]
+      ],
+      "expected": [
+        0,
+        0,
+        0
+      ],
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    },
+    {
+      "id": "h4",
+      "args": [
+        [
+          1,
+          2,
+          3,
+          4
+        ]
+      ],
+      "expected": [
+        1,
+        1,
+        1,
+        0
+      ],
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    },
+    {
+      "id": "h5",
+      "args": [
+        [
+          4,
+          3,
+          2,
+          1
+        ]
+      ],
+      "expected": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "comparator": "exact",
+      "edge_case_id": "e5"
+    },
+    {
+      "id": "h6",
+      "args": [
+        [
+          3,
+          1,
+          1,
+          1,
+          5
+        ]
+      ],
+      "expected": [
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h7",
+      "args": [
+        [
+          2,
+          5,
+          1,
+          1,
+          3,
+          6
+        ]
+      ],
+      "expected": [
+        1,
+        4,
+        2,
+        1,
+        1,
+        0
+      ],
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h8",
+      "args": [
+        [
+          10,
+          1,
+          9,
+          2,
+          8,
+          3,
+          11
+        ]
+      ],
+      "expected": [
+        6,
+        1,
+        4,
+        1,
+        2,
+        1,
+        0
+      ],
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h9",
+      "args": [
+        [
+          1,
+          3,
+          2,
+          3,
+          1,
+          4
+        ]
+      ],
+      "expected": [
+        1,
+        4,
+        1,
+        2,
+        1,
+        0
+      ],
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    }
+  ],
+  "rubric": {
+    "approaches": [
+      {
+        "name": "monotonic stack of unresolved indexes",
+        "time": "O(n)",
+        "space": "O(n)",
+        "acceptable": true
+      },
+      {
+        "name": "check every later building",
+        "time": "O(n^2)",
+        "space": "O(1)",
+        "acceptable": false
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "title": "Clarify the input",
+        "required": true,
+        "order": 1,
+        "description": "Confirms that 'taller' means strictly taller and what to put when nothing taller follows.",
+        "look_for": [
+          "asks whether equal height counts",
+          "asks what to return when none is taller"
+        ],
+        "hints": [
+          "Before you start, is there anything about 'taller' you'd want to pin down?",
+          "Does a building of the same height count as taller?",
+          "Confirm strictly taller, and 0 when nothing taller comes later."
+        ]
+      },
+      {
+        "id": "s2",
+        "title": "Keep the buildings still waiting",
+        "required": true,
+        "order": 2,
+        "description": "Scans left to right, keeping a stack of indexes that haven't found a taller building yet.",
+        "look_for": [
+          "uses a stack",
+          "stores indexes rather than heights"
+        ],
+        "hints": [
+          "Look at what you need to remember about earlier buildings.",
+          "Which earlier buildings could the current building be the answer for?",
+          "Keep a stack of indexes still waiting for a taller building; their heights never increase from bottom to top."
+        ]
+      },
+      {
+        "id": "s3",
+        "title": "Resolve buildings the current one beats",
+        "required": true,
+        "order": 3,
+        "description": "Pops every waiting index whose height is lower than the current building and records the distance.",
+        "look_for": [
+          "pops in a while loop",
+          "records i - j as the distance"
+        ],
+        "hints": [
+          "Look at what happens to waiting buildings when a tall one arrives.",
+          "How many waiting buildings can one tall building answer at once?",
+          "While the top of the stack is shorter than the current building, pop it and record the distance."
+        ]
+      },
+      {
+        "id": "s4",
+        "title": "Handle ties and leftovers",
+        "required": true,
+        "order": 4,
+        "description": "Leaves equal heights on the stack and gives 0 to any building still waiting at the end.",
+        "look_for": [
+          "uses a strict comparison",
+          "initializes the answers to 0"
+        ],
+        "hints": [
+          "Try your code on a list of equal heights.",
+          "What answer do buildings that are still waiting at the end get?",
+          "Pop only on strictly taller, and start every answer at 0."
+        ]
+      }
+    ],
+    "edge_cases": [
+      {
+        "id": "e1",
+        "description": "no buildings"
+      },
+      {
+        "id": "e2",
+        "description": "a single building"
+      },
+      {
+        "id": "e3",
+        "description": "equal heights"
+      },
+      {
+        "id": "e4",
+        "description": "heights that only go up"
+      },
+      {
+        "id": "e5",
+        "description": "heights that only go down"
+      }
+    ],
+    "common_mistakes": [
+      {
+        "id": "m1",
+        "description": "pops on greater-than-or-equal",
+        "symptom": "treats equal buildings as taller, failing [4, 4, 4]"
+      },
+      {
+        "id": "m2",
+        "description": "stores heights on the stack instead of indexes",
+        "symptom": "can't compute the distance"
+      },
+      {
+        "id": "m3",
+        "description": "checks every later building for each one",
+        "symptom": "correct but O(n^2), too slow on long streets"
+      }
+    ],
+    "wrap_up_questions": [
+      "What are the time and space complexity?",
+      "How would you change this to look for the next taller building to the left instead?"
+    ]
+  },
+  "time_limit_min": 30,
+  "illustration": null,
+  "origin_note": "Original. Pattern: monotonic stack of unresolved indexes."
+}

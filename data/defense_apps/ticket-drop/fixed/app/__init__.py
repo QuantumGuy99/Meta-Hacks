@@ -1,0 +1,1 @@
+"""Seatly ticketing API."""

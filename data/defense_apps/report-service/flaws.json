@@ -1,0 +1,80 @@
+[
+  {
+    "id": "f1",
+    "title": "Monthly report generation",
+    "category": "blocking_io",
+    "severity": "high",
+    "file": "app/reports.py",
+    "line_start": 20,
+    "line_end": 24,
+    "explanation": "ReportService.monthly_report is async, but on line 23 it calls the warehouse SDK's synchronous fetch_transactions, which blocks for about 200 ms (time.sleep in app/warehouse.py, line 22). A blocking call inside an async function freezes the whole event loop, so while any report is being built the server can't answer anything else, including /health. Under concurrent report requests every endpoint queues behind them and latency climbs to many seconds.",
+    "expected_fix": "Run the synchronous query off the event loop: await run_in_threadpool(...) or asyncio.to_thread(...), or make the route a plain def so FastAPI runs it in its thread pool, or switch to an async client.",
+    "grill_expected_points": [
+      "fetch_transactions is a blocking call made directly inside an async function.",
+      "A blocking call freezes the event loop, so every other request, including /health, waits until it finishes.",
+      "Fix it by running the query in a thread pool (run_in_threadpool or asyncio.to_thread), a sync route, or an async client."
+    ],
+    "chaos_invariant": "/health p95 stays under 200 ms while reports are being generated",
+    "grill_question": "While 100 reports were being generated, even /health took seconds to answer, though it does no work at all. Why?",
+    "grill_follow_up": "What does the event loop do while fetch_transactions is waiting on the warehouse?",
+    "fix_steps": [
+      {
+        "id": "s1",
+        "title": "Find the blocking call",
+        "required": true,
+        "order": 1,
+        "description": "Identifies that a synchronous SDK call runs inside an async route.",
+        "look_for": [
+          "points at fetch_transactions on line 23",
+          "mentions time.sleep or the synchronous SDK"
+        ],
+        "hints": [
+          "Look at what the report route waits on.",
+          "Is the warehouse call something the event loop can switch away from while it waits?",
+          "A synchronous call inside an async function blocks the event loop until it returns."
+        ]
+      },
+      {
+        "id": "s2",
+        "title": "Move it off the event loop",
+        "required": true,
+        "order": 2,
+        "description": "Runs the query in a worker thread, or makes the route synchronous so FastAPI uses its thread pool.",
+        "look_for": [
+          "uses run_in_threadpool or asyncio.to_thread",
+          "or changes the route to def"
+        ],
+        "hints": [
+          "Check where the slow query runs once you've changed it.",
+          "How can a blocking call run without stopping the event loop?",
+          "Run the query in a thread pool so the event loop keeps serving other requests."
+        ]
+      },
+      {
+        "id": "s3",
+        "title": "Keep the other report paths covered",
+        "required": false,
+        "order": 3,
+        "description": "Makes sure compare and CSV export, which reuse monthly_report, get the fix too.",
+        "look_for": [
+          "fixes it inside monthly_report rather than one route",
+          "mentions compare or export"
+        ],
+        "hints": [
+          "Look at every route that ends up calling the warehouse.",
+          "If you only fix one route, do the others still block?",
+          "Fix it in monthly_report so every route that uses it benefits."
+        ]
+      }
+    ],
+    "chaos": {
+      "endpoint": "/reports/2026-09",
+      "method": "GET",
+      "body_example": null,
+      "concurrency": 100,
+      "duration_s": 10,
+      "invariant": "/health p95 under 200 ms while reports load",
+      "p95_threshold_ms": null
+    }
+  }
+]
