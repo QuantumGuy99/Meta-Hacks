@@ -277,7 +277,7 @@ Owners: **SG** Srinithin Ganesh · **SS** Shreyas Sahoo · **LG** Likhil Gudipat
         │   ├── capture/editor.ts              (SG)  Monaco → EditorEvent batches + snapshots
         │   ├── capture/audio/*                (SG)  mic → AudioWorklet → PCM 24 kHz Int16 frames
         │   ├── replay.ts                      (SG)  code at time t (mirrors engine/codestate.py)
-        │   ├── tts.ts                         (LG)
+        │   ├── tts.ts                         (SG)  interviewer voice, speechSynthesis (LG reviews)
         │   └── defense.ts                     (SS)  defense-stage helpers/selectors
         └── types/contracts.ts                 # GENERATED (make contracts); do not edit
 ```
@@ -1768,6 +1768,35 @@ a retry button), because recorded results shown as live would be a faked demo.
 when the candidate starts speaking (barge-in), and an `onstart`/`onend` that drives the speaking indicator.
 No third-party TTS (e.g. ElevenLabs): it would be the only non-Meta model call at runtime, needs another
 key, and `speechSynthesis` has no outage to fall back from.
+- **API:** `createTts({onStart, onEnd, onBlocked, onVoices, voiceName})` → `{speak(text), cancel(),
+  setMuted(bool), setVoice(name | null), warm(), unlock(), dispose(), speaking, blocked, voices, voice,
+  supported}`, plus `rankVoices`, `isNaturalVoice`, `voiceLabel` and `loadVoiceChoice`/`saveVoiceChoice`
+  (localStorage, per browser). Without `speechSynthesis` (or on the server render) every call is a no-op.
+- **Voice, as human as the browser allows:** waits for `voiceschanged` (at most 1.5 s), then ranks the English
+  voices, en-US first within each tier: Edge's neural voices ("… Online (Natural)", Ava, Andrew, Emma and Brian
+  first), macOS "(Premium)" then "(Enhanced)" voices, any other natural or neural voice, Google's ("Google US
+  English", then "Google UK English Female"), then Samantha, Daniel, Karen and Moira, then the rest. The novelty
+  voices (Albert, Bad News, Bells, Zarvox, …) and the robotic Eloquence ones (Eddy, Flo, Grandma, Grandpa, Reed,
+  Rocko, Sandy, Shelley) are never picked or listed. The candidate's own pick wins when it's installed.
+- **Prosody:** rate 1.05, pitch 1. One utterance per sentence, so the first sentence starts at once and nothing
+  breaks mid-phrase; only a sentence over 220 characters (Chrome cuts an utterance off after about 15 s) splits,
+  at its commas, semicolons and colons. Markdown is read as plain text and code blocks are skipped. `warm()`
+  speaks one silent, empty utterance in the default local voice to start the engine (the room calls it on load
+  and on the first click; Google's network voices don't warm up, each sentence is its own request).
+- **Queue:** sentences are spoken one at a time. `onStart` fires when the first one starts and `onEnd` once the
+  queue is empty or cancelled. Chrome can wedge its queue when `speak()` follows `cancel()` at once (seen with
+  the room's remount in development), so the next sentence waits 120 ms after any cancel, and a sentence the
+  busy engine hasn't started within 3 s is cleared and retried once, then skipped. A lost end event is caught
+  once the engine goes idle, and a sentence stuck far past its length is cut, so the mic is never held silent
+  for good.
+- **Blocked:** a browser that refuses to speak before the user has interacted with the page (`not-allowed`, or
+  Safari dropping it silently) sets `blocked` and holds the newest message; the room shows "Turn on voice",
+  whose click calls `unlock()`.
+- **The room:** speaks each new interviewer message with `speak: true` as it appears, and calls the audio
+  capture's `setPaused(true)` from `onStart` until `onEnd`, so the mic sends silence (§8.3). Holding Ask cancels
+  the speech. The header has the mute toggle and a voice picker (the ranked list, remembered per browser). When
+  the best voice installed is Google's or older, a one-line hint suggests Microsoft Edge or a macOS Premium voice
+  (System Settings → Accessibility → Spoken Content).
 
 ---
 
