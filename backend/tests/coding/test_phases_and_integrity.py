@@ -123,6 +123,15 @@ def in_phase(phase: str) -> Callable[[dict[str, Any]], bool]:
     return lambda m: m["type"] == "session.state" and m["phase"] == phase
 
 
+def skip_warm_up(ws: Any) -> None:
+    """Wait for the warm-up's greeting, press "Skip intro", then wait for clarify (the warm-up has its own tests)."""
+    receive_until(
+        ws, lambda m: m["type"] == "interviewer.message" and m["intervention"]["trigger"] == "warmup"
+    )
+    ws.send_json({"type": "phase.advance", "to": "clarify"})
+    receive_until(ws, in_phase("clarify"))
+
+
 def said(text_part: str) -> Callable[[dict[str, Any]], bool]:
     return lambda m: m["type"] == "interviewer.message" and text_part in m["intervention"]["text"]
 
@@ -138,20 +147,24 @@ def typed(t: int, version: int, offset: int, text: str) -> dict[str, Any]:
     return {"t": t, "file": "solution.py", "version": version, "kind": "change", "changes": [change]}
 
 
-def test_the_interviewer_introduces_the_problem_then_clarify_starts(
+def test_the_interviewer_greets_then_skip_intro_presents_the_problem_with_the_full_time(
     make_client: Callable[..., TestClient],
 ) -> None:
     _, socket = join(make_client())
     with socket as ws:
-        intro = receive_until(ws, said("Your problem is Quiet Streak"))["intervention"]
+        greeting = receive_until(ws, lambda m: m["type"] == "interviewer.message")["intervention"]
+        assert greeting["trigger"] == "warmup" and greeting["level"] == "question"
+        ws.send_json({"type": "phase.advance", "to": "clarify"})
+        state = receive_until(ws, in_phase("clarify"))
+        intro = receive_until(ws, said("Here's your problem: Quiet Streak"))["intervention"]
         assert intro["trigger"] == "phase" and "20 minutes" in intro["text"]
-        receive_until(ws, in_phase("clarify"))
+        assert state["remaining_s"] >= 20 * 60 - 1  # the warm-up didn't use the problem's time
 
 
 def test_three_new_lines_start_coding_and_two_dont(make_client: Callable[..., TestClient]) -> None:
     _, socket = join(make_client())
     with socket as ws:
-        receive_until(ws, in_phase("clarify"))
+        skip_warm_up(ws)
         ws.send_json(
             {
                 "type": "editor.snapshot",
@@ -173,7 +186,7 @@ def test_three_new_lines_start_coding_and_two_dont(make_client: Callable[..., Te
 def test_pastes_and_tab_switches_send_integrity_notes(make_client: Callable[..., TestClient]) -> None:
     _, socket = join(make_client())
     with socket as ws:
-        receive_until(ws, in_phase("clarify"))
+        skip_warm_up(ws)
         paste = {**typed(1000, 2, 0, "a = 1\nb = 2\n"), "kind": "paste", "pasted_chars": 12}
         hidden = {"t": 2000, "file": "solution.py", "version": 2, "kind": "hidden", "changes": []}
         visible = {**hidden, "t": 17000, "kind": "visible"}
@@ -187,7 +200,7 @@ def test_pastes_and_tab_switches_send_integrity_notes(make_client: Callable[...,
 def test_im_done_runs_the_wrap_up_questions_then_ends(make_client: Callable[..., TestClient]) -> None:
     _, socket = join(make_client())
     with socket as ws:
-        receive_until(ws, in_phase("clarify"))
+        skip_warm_up(ws)
         ws.send_json({"type": "phase.advance", "to": "coding"})
         receive_until(ws, in_phase("coding"))
         ws.send_json({"type": "phase.advance", "to": "wrap_up"})
@@ -203,7 +216,7 @@ def test_im_done_runs_the_wrap_up_questions_then_ends(make_client: Callable[...,
 def test_a_passing_submit_opens_the_wrap_up_with_praise(make_client: Callable[..., TestClient]) -> None:
     _, socket = join(make_client())
     with socket as ws:
-        receive_until(ws, in_phase("clarify"))
+        skip_warm_up(ws)
         ws.send_json({"type": "phase.advance", "to": "coding"})
         receive_until(ws, in_phase("coding"))
         ws.send_json({"type": "code.submit", "file": "solution.py", "code": QUIET_STREAK_REFERENCE})
@@ -214,7 +227,7 @@ def test_a_passing_submit_opens_the_wrap_up_with_praise(make_client: Callable[..
 def test_the_time_limit_moves_to_wrap_up(make_client: Callable[..., TestClient]) -> None:
     _, socket = join(make_client(), time_limit_s=1)
     with socket as ws:
-        receive_until(ws, in_phase("clarify"))
+        skip_warm_up(ws)
         receive_until(ws, in_phase("wrap_up"))
         receive_until(ws, said("That's time"))
 
@@ -222,7 +235,7 @@ def test_the_time_limit_moves_to_wrap_up(make_client: Callable[..., TestClient])
 def test_an_unanswered_wrap_up_ends_after_its_limit(make_client: Callable[..., TestClient]) -> None:
     _, socket = join(make_client(wrap_up_limit_s=0.5))
     with socket as ws:
-        receive_until(ws, in_phase("clarify"))
+        skip_warm_up(ws)
         ws.send_json({"type": "phase.advance", "to": "coding"})
         receive_until(ws, in_phase("coding"))
         started = time.monotonic()

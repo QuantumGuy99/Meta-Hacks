@@ -2,8 +2,8 @@
 
 Every sandbox runs with `block_network=True`, so nothing is installed at run time: the test harness and each
 project's pinned requirements are baked into images, which `prebuild` builds at startup. Coding sessions get
-one warm sandbox each (RUN-2); each Defense run gets its own. Every Modal call has a timeout (PLAN §21).
-Covered by the `integration` tests, which need Modal credentials.
+one warm sandbox each (RUN-2); each Defense run gets its own. Covered by the `integration` tests, which need
+Modal credentials.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ import logging
 import math
 import re
 import shlex
-from collections.abc import AsyncIterator, Iterable
+from collections.abc import AsyncIterator, Awaitable, Iterable
 
 from crucible.config import Settings, get_settings
 from crucible.contracts.defense import Project
@@ -27,15 +27,23 @@ logger = logging.getLogger(__name__)
 PROJECT_PACKAGES = ["fastapi", "uvicorn[standard]", "httpx", "aiosqlite", "flask"]
 APP_DIR = "/work/app"
 HARNESS_PATH = "/harness/run_tests.py"
-SANDBOX_TIMEOUT_S = 60 * 5  # a Defense run: boot + baseline/verify attack (≤ 30 s) + slack
+SANDBOX_TIMEOUT_S = 60 * 5  # covers boot + baseline/verify attack (≤ 30 s) + slack
 READY_TIMEOUT_S = 20
 # A coding session's sandbox lives at most as long as the longest session, and stops after 10 idle minutes
 # (a run counts as activity), so a session that ends without close_session can't run up the bill.
 TEST_SANDBOX_TIMEOUT_S = 60 * 75
 TEST_IDLE_TIMEOUT_S = 60 * 10
 HARNESS_MARGIN_S = 3.0  # on top of the run's total_s, for process start-up and the kill
-CREATE_TIMEOUT_S = 180  # a first, unbuilt image is built here; prebuild makes this a few seconds
-CALL_TIMEOUT_S = 30  # one exec, file write or terminate
+
+# Deadlines on every Modal call (PLAN §21, root rule 6): a stalled API turns into a RunnerError, which the
+# chaos stage reports as an `error` run with a retry, instead of hanging the session's WebSocket.
+LOOKUP_TIMEOUT_S = 30
+CREATE_TIMEOUT_S = 90  # the first create can pull the image
+BUILD_TIMEOUT_S = 300  # prebuild: an image that isn't cached yet installs its packages here
+FILE_TIMEOUT_S = 20
+COMMAND_TIMEOUT_S = 30
+TERMINATE_TIMEOUT_S = 15
+STREAM_SLACK_S = 15  # on top of the exec's own timeout
 STDERR_TAIL_BYTES = 2000
 MAX_REQUIREMENTS = 20
 # Pinned or bare package names only: the line goes to pip at image build, so nothing else gets through.
@@ -73,8 +81,7 @@ class ModalRunner:
         app = await self._get_app()
         images = [self._base, *(self._project_image(files) for files in file_sets)]
         for image in images:
-            async with asyncio.timeout(CREATE_TIMEOUT_S):
-                await image.build.aio(app)
+            await _within(BUILD_TIMEOUT_S, image.build.aio(app), "image build")
         logger.info("modal: %d image(s) built", len(images))
 
     # --- coding: tests (RUN-2) ------------------------------------------------------------------------------
@@ -117,7 +124,9 @@ class ModalRunner:
                 await self.put_file(h, f"app/{rel}", content)
             cmd = _uvicorn_cmd(project.entrypoint, project.port)
             await self._run(sb, f"cd {APP_DIR} && nohup {cmd} > /tmp/app.log 2>&1 &")
-            await self._wait_ready(sb, project.port)
+            await _within(
+                READY_TIMEOUT_S + COMMAND_TIMEOUT_S, self._wait_ready(sb, project.port), "readiness probe"
+            )
         except Exception:
             await self.stop_project(h)
             raise
@@ -126,43 +135,33 @@ class ModalRunner:
     async def put_file(self, h: ProjectHandle, rel_path: str, content: str) -> None:
         if rel_path.startswith("/") or ".." in rel_path.split("/"):
             raise RunnerError(f"path escapes the work dir: {rel_path!r}")
-        sb = self._sandbox(h)
-        path = f"/work/{rel_path}"
-        dirname = path.rsplit("/", 1)[0]
-        async with asyncio.timeout(CALL_TIMEOUT_S):
-            p = await sb.exec.aio("sh", "-c", f"mkdir -p {shlex.quote(dirname)} && cat > {shlex.quote(path)}")
-            p.stdin.write(content.encode())
-            p.stdin.write_eof()
-            await p.stdin.drain.aio()
-            code = await p.wait.aio()
-        if code:
-            raise RunnerError(f"couldn't write {path} in the sandbox")
+        await _within(
+            FILE_TIMEOUT_S, self._write(self._sandbox(h), f"/work/{rel_path}", content), "file write"
+        )
 
     async def stream_exec(self, h: ProjectHandle, argv: list[str], timeout_s: float) -> AsyncIterator[str]:
         sb = self._sandbox(h)
         cmd = " ".join(shlex.quote(a) for a in argv)
-        deadline = asyncio.get_running_loop().time() + timeout_s + CALL_TIMEOUT_S
-        async with asyncio.timeout(CALL_TIMEOUT_S):
-            p = await sb.exec.aio("sh", "-c", f"cd /work && {cmd} 2>&1", timeout=math.ceil(timeout_s))
+        p = await _within(
+            COMMAND_TIMEOUT_S,
+            sb.exec.aio("sh", "-c", f"cd /work && {cmd} 2>&1", timeout=math.ceil(timeout_s)),
+            "exec",
+        )
         # Modal's stream yields chunks, not lines: several JSON lines can arrive glued together, or one
         # can arrive split. Buffer and cut on newlines so callers always see whole lines.
-        chunks = aiter(p.stdout)
         buffer = ""
-        while True:
-            try:
-                chunk = await asyncio.wait_for(anext(chunks), _remaining(deadline))
-            except StopAsyncIteration:
-                break
-            except TimeoutError as exc:
-                raise RunnerError(f"exec gave no output for too long ({timeout_s:.0f} s budget)") from exc
-            buffer += chunk
-            *complete, buffer = buffer.split("\n")
-            for line in complete:
-                yield line
-        if buffer:
-            yield buffer
-        async with asyncio.timeout(CALL_TIMEOUT_S):
-            code = await p.wait.aio()
+        try:
+            async with asyncio.timeout(timeout_s + STREAM_SLACK_S):
+                async for chunk in p.stdout:
+                    buffer += chunk
+                    *complete, buffer = buffer.split("\n")
+                    for line in complete:
+                        yield line
+                if buffer:
+                    yield buffer
+                code = await p.wait.aio()
+        except TimeoutError as exc:
+            raise RunnerError(f"exec output stalled past {timeout_s + STREAM_SLACK_S:.0f} s") from exc
         if code == -1:  # Modal's code for an exec that hit its timeout
             raise RunnerError(f"exec timed out after {timeout_s:.0f} s")
 
@@ -175,21 +174,22 @@ class ModalRunner:
 
     async def _get_app(self):
         if self._app is None:
-            async with asyncio.timeout(CALL_TIMEOUT_S):
-                self._app = await self._modal.App.lookup.aio(
-                    self._settings.MODAL_APP_NAME, create_if_missing=True
-                )
+            self._app = await _within(
+                LOOKUP_TIMEOUT_S,
+                self._modal.App.lookup.aio(self._settings.MODAL_APP_NAME, create_if_missing=True),
+                "app lookup",
+            )
         return self._app
 
     async def _create(self, image, *, timeout_s: int, idle_timeout_s: int | None = None):
         app = await self._get_app()
-        try:
-            async with asyncio.timeout(CREATE_TIMEOUT_S):
-                return await self._modal.Sandbox.create.aio(
-                    app=app, image=image, timeout=timeout_s, idle_timeout=idle_timeout_s, block_network=True
-                )
-        except TimeoutError as exc:
-            raise RunnerError(f"Modal didn't start a sandbox within {CREATE_TIMEOUT_S} s") from exc
+        return await _within(
+            CREATE_TIMEOUT_S,
+            self._modal.Sandbox.create.aio(
+                app=app, image=image, timeout=timeout_s, idle_timeout=idle_timeout_s, block_network=True
+            ),
+            "sandbox create",
+        )
 
     async def _test_sandbox(self, session_id: str):
         lock = self._session_locks.setdefault(session_id, asyncio.Lock())
@@ -204,21 +204,23 @@ class ModalRunner:
 
     async def _run_harness(self, sb, req: RunRequest, payload: bytes) -> RunResult:
         budget_s = req.limits.total_s + HARNESS_MARGIN_S
+
+        async def run() -> tuple[int, str, object]:
+            p = await sb.exec.aio("sh", "-c", _RUN_HARNESS, timeout=math.ceil(budget_s))
+            p.stdin.write(payload)
+            p.stdin.write_eof()
+            await p.stdin.drain.aio()
+            out = await p.stdout.read.aio()
+            return await p.wait.aio(), out, p
+
         try:
-            async with asyncio.timeout(budget_s + CALL_TIMEOUT_S):
-                p = await sb.exec.aio("sh", "-c", _RUN_HARNESS, timeout=math.ceil(budget_s))
-                p.stdin.write(payload)
-                p.stdin.write_eof()
-                await p.stdin.drain.aio()
-                out = await p.stdout.read.aio()
-                code = await p.wait.aio()
-        except TimeoutError:
+            code, out, p = await _within(budget_s + COMMAND_TIMEOUT_S, run(), "test run")
+        except RunnerError:
             return stopped_run(req, "the run took too long and was stopped")
         if code == -1:
             return stopped_run(req, "the run took too long and was stopped")
         if code != 0 or not out:
-            async with asyncio.timeout(CALL_TIMEOUT_S):
-                err = await p.stderr.read.aio()
+            err = await _within(COMMAND_TIMEOUT_S, p.stderr.read.aio(), "stderr")
             tail = err[-STDERR_TAIL_BYTES:]
             return stopped_run(req, f"the test process crashed (exit {code}): {tail}".strip())
         return RunResult.model_validate(
@@ -239,16 +241,25 @@ class ModalRunner:
 
     async def _terminate(self, sb) -> None:
         try:
-            async with asyncio.timeout(CALL_TIMEOUT_S):
-                await sb.terminate.aio()
+            await _within(TERMINATE_TIMEOUT_S, sb.terminate.aio(), "terminate")
         except Exception:  # the sandbox also stops on its own timeout; never fail the caller over this
             logger.exception("couldn't terminate sandbox %s", getattr(sb, "object_id", "?"))
 
+    async def _write(self, sb, path: str, content: str) -> None:
+        dirname = path.rsplit("/", 1)[0]
+        p = await sb.exec.aio("sh", "-c", f"mkdir -p {shlex.quote(dirname)} && cat > {shlex.quote(path)}")
+        p.stdin.write(content.encode())
+        p.stdin.write_eof()
+        await p.stdin.drain.aio()
+        if await p.wait.aio():
+            raise RunnerError(f"couldn't write {path} in the sandbox")
+
     async def _run(self, sb, script: str) -> None:
-        async with asyncio.timeout(CALL_TIMEOUT_S):
+        async def run() -> int:
             p = await sb.exec.aio("sh", "-c", script)
-            code = await p.wait.aio()
-        if code:
+            return await p.wait.aio()
+
+        if await _within(COMMAND_TIMEOUT_S, run(), "command"):
             raise RunnerError(f"sandbox command failed: {script[:120]}")
 
     async def _wait_ready(self, sb, port: int) -> None:
@@ -261,13 +272,10 @@ class ModalRunner:
             "    except OSError: time.sleep(0.2)\n"
             "raise SystemExit(1)\n"
         )
-        async with asyncio.timeout(READY_TIMEOUT_S + CALL_TIMEOUT_S):
-            p = await sb.exec.aio("python", "-c", probe)
-            code = await p.wait.aio()
-        if code:
-            async with asyncio.timeout(CALL_TIMEOUT_S):
-                log = await sb.exec.aio("sh", "-c", "tail -c 2000 /tmp/app.log")
-                tail = await log.stdout.read.aio()
+        p = await sb.exec.aio("python", "-c", probe)
+        if await p.wait.aio():
+            log = await sb.exec.aio("sh", "-c", "tail -c 2000 /tmp/app.log")
+            tail = await log.stdout.read.aio()
             raise RunnerError(f"app didn't open port {port} within {READY_TIMEOUT_S} s: {tail}")
 
 
@@ -296,8 +304,12 @@ def _payload(req: RunRequest) -> bytes:
     ).encode()
 
 
-def _remaining(deadline: float) -> float:
-    return max(0.0, deadline - asyncio.get_running_loop().time())
+async def _within[R](seconds: float, call: Awaitable[R], what: str) -> R:
+    try:
+        async with asyncio.timeout(seconds):
+            return await call
+    except TimeoutError as exc:
+        raise RunnerError(f"Modal didn't answer within {seconds:.0f} s ({what})") from exc
 
 
 def _uvicorn_cmd(entrypoint: str, port: int) -> str:

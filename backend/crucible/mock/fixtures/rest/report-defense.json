@@ -1,0 +1,1607 @@
+{
+ "session": {
+  "id": "report-defense",
+  "config": {
+   "mode": "defense",
+   "feedback": "active",
+   "voice": true,
+   "speak_replies": true,
+   "proctor": false,
+   "problem_slug": null,
+   "difficulty": null,
+   "topic": null,
+   "project_id": "bank-transfer",
+   "time_limit_s": null
+  },
+  "phase": "reported",
+  "created_at": "2026-10-29T01:02:50.812105Z",
+  "started_at": "2026-10-29T01:02:50.815577Z",
+  "ended_at": "2026-10-29T01:03:06.248219Z",
+  "time_limit_s": 1800,
+  "problem_slug": null,
+  "project_id": "bank-transfer"
+ },
+ "report": {
+  "session_id": "report-defense",
+  "mode": "defense",
+  "overall": 100,
+  "dimensions": [
+   {
+    "name": "system_understanding",
+    "score": 10,
+    "evidence": "Average grill score 10.0/10 over 1 findings."
+   },
+   {
+    "name": "correctness",
+    "score": 10,
+    "evidence": "1 of 1 broken findings held after the fix."
+   },
+   {
+    "name": "independence",
+    "score": 10,
+    "evidence": "Used no hints."
+   }
+  ],
+  "summary": "The written review couldn't be generated, so this report shows what was measured: the scores, metrics and moments below come straight from the session.",
+  "strengths": [],
+  "improvements": [],
+  "moments": [
+   {
+    "t": 7691,
+    "kind": "issue",
+    "title": "Broke under load",
+    "detail": "Balance transfers under load: Under 200 concurrent transfers, $7,204 disappeared (7,369 requests at 200 concurrent, p95 392 ms, 0.0% errors)",
+    "tip": null
+   },
+   {
+    "t": 7694,
+    "kind": "good",
+    "title": "Grill answer",
+    "detail": "Grill on Balance transfers under load: scored 10/10, named the root cause. ",
+    "tip": null
+   },
+   {
+    "t": 15431,
+    "kind": "good",
+    "title": "Fix held",
+    "detail": "Balance transfers under load, attempt 1: Held: the invariant stayed intact (6,648 requests at 200 concurrent, p95 452 ms, 0.0% errors)",
+    "tip": null
+   },
+   {
+    "t": 15432,
+    "kind": "good",
+    "title": "Verdict",
+    "detail": "Passed: f1: held under the same attack (violations 7204 \u2192 0)",
+    "tip": null
+   }
+  ],
+  "metrics": {
+   "duration_s": 15,
+   "time_to_first_edit_s": null,
+   "time_to_first_run_s": null,
+   "runs": 0,
+   "submits": 0,
+   "hidden_passed": null,
+   "hidden_total": null,
+   "interventions_shown": 0,
+   "hints_by_level": {
+    "nudge": 0,
+    "question": 0,
+    "hint": 0,
+    "concept": 0
+   },
+   "chars_typed": 0,
+   "chars_pasted": 0,
+   "tab_hidden_s": 0,
+   "talk_time_s": 0,
+   "longest_silence_s": 0
+  },
+  "coding": null,
+  "defense": {
+   "findings": [
+    {
+     "id": "f1",
+     "title": "Balance transfers under load",
+     "category": "race_condition",
+     "severity": "critical",
+     "file": "app/services.py",
+     "line_start": 30,
+     "line_end": 52,
+     "node_id": "app.services",
+     "explanation": "TransferService.transfer loads a copy of the receiver's account (line 31), then awaits the fraud screen (line 41, about 30 ms), then saves that copy plus the amount (lines 51-52). While it waits, other transfers to the same receiver complete and save their own credits. When this one resumes it writes back the old balance plus its amount, overwriting those credits, so the money is debited from the senders but never lands anywhere. The blocked-transfer refund (lines 44-45) has the same problem for the sender's copy.",
+     "chaos": {
+      "endpoint": "/transfer",
+      "method": "POST",
+      "body_example": "{\"from_account\": \"acc_001\", \"to_account\": \"acc_010\", \"amount_cents\": 100, \"memo\": \"load test\"}",
+      "concurrency": 200,
+      "duration_s": 10,
+      "invariant": "The total balance across all accounts stays at $1,000,000",
+      "p95_threshold_ms": null
+     },
+     "grill": {
+      "question": "The attack sent 200 concurrent transfers and the total across all accounts went down, even though every transfer only moves money between accounts. Walk me through where that money went.",
+      "expected_points": [
+       "The receiver's balance is read before the await on the fraud screen and written after it, so the write is based on a stale value (a lost update).",
+       "Under concurrency, other transfers to the same account save during that 30 ms window, and the stale write overwrites their credits, so money is debited but never credited.",
+       "Fix it by not holding a balance across an await: screen first, then read, check and write both balances atomically (a lock or a database transaction)."
+      ],
+      "follow_up": "What exactly happens to the receiver's balance between the moment it's read and the moment it's saved, if another transfer to the same account finishes in between?"
+     },
+     "fix_steps": [
+      {
+       "id": "s1",
+       "title": "Locate the gap between read and write",
+       "description": "Identifies that the receiver's account is read before the fraud screen and saved after it, with an await in between.",
+       "required": true,
+       "order": 1,
+       "look_for": [
+        "points at the receiver being loaded at the top of transfer",
+        "mentions the await on the fraud screen",
+        "says the save uses an old copy"
+       ],
+       "hints": [
+        "Look at when each account is read compared with when it's saved.",
+        "What can other requests do while this one is waiting on the fraud screen?",
+        "The receiver's balance is read before an await and written after it, which is a lost-update race."
+       ]
+      },
+      {
+       "id": "s2",
+       "title": "Work from fresh balances",
+       "description": "Moves the fraud screen ahead of the balance reads, or re-reads both accounts after it, so the update uses current data.",
+       "required": true,
+       "order": 2,
+       "look_for": [
+        "moves the screen call before reading balances",
+        "re-reads the accounts after the await"
+       ],
+       "hints": [
+        "Check which values your update is based on.",
+        "Does anything force the balance you write to be the one that's in storage right now?",
+        "Do the slow screening step first, and only read balances after it finishes."
+       ]
+      },
+      {
+       "id": "s3",
+       "title": "Make the debit and credit one atomic step",
+       "description": "Reads, checks and writes both balances together with nothing that yields in between, and re-checks the sender's funds inside that step.",
+       "required": true,
+       "order": 3,
+       "look_for": [
+        "adds an asyncio.Lock or a transaction around the balance update",
+        "no await that suspends inside the critical section",
+        "re-checks insufficient funds inside it"
+       ],
+       "hints": [
+        "Look at whether another request can run between your read and your write.",
+        "If two transfers touch the same account at once, what guarantees they don't interleave?",
+        "Wrap the read-check-write of both balances in a lock or a transaction, with no slow awaits inside."
+       ]
+      },
+      {
+       "id": "s4",
+       "title": "Keep the blocked path consistent",
+       "description": "Makes sure a blocked transfer can't leave balances wrong, ideally by screening before any money moves so there is nothing to refund.",
+       "required": false,
+       "order": 4,
+       "look_for": [
+        "removes the reserve-then-refund pattern",
+        "screens before debiting the sender"
+       ],
+       "hints": [
+        "Look at what happens to the sender when a transfer is blocked.",
+        "Could the refund path have the same stale-copy problem as the credit?",
+        "If you screen before any money moves, the blocked path has nothing to undo."
+       ]
+      }
+     ]
+    }
+   ],
+   "chaos_runs": [
+    {
+     "id": "53787ab00bd6",
+     "finding_id": "f1",
+     "kind": "baseline",
+     "attempt": 1,
+     "script": "\"\"\"Chaos attack template (PLAN \u00a711.4). The model writes ONLY the three bodies marked below; this file owns\nimports, concurrency, timing and the JSON-lines output, so every metric line matches ChaosMetric.\n\nRendered by crucible.defense.attack_writer.render_attack(). Runs with the standard library + httpx only.\ncheck_invariant returns (ok, violations, detail): violations is a count shown live (seats double-booked,\ndollars missing), detail is the human headline (\"$1,240 disappeared\").\n\"\"\"\n\nimport asyncio\nimport json\nimport math\nimport random\nimport string\nimport sys\nimport time\nimport uuid\n\nimport httpx\n\nBASE = \"http://127.0.0.1:50993\"\nCONCURRENCY = 200\nDURATION_S = 6\nMETRIC_INTERVAL_S = 0.5\nPOOL_SIZE = 10            # connections per httpx client: one big pool collapses past ~50 concurrent requests\nRAMP_S = 0.4              # workers start spread over this window, not in one burst (listen-queue overflow)\n\n\nasync def setup(client: httpx.AsyncClient) -> dict:\n    resp = await client.get(BASE + \"/accounts\")\n    accounts = resp.json()\n    ids = [a[\"id\"] for a in accounts]\n    return {\n        \"senders\": ids[:-1],\n        \"receiver\": ids[-1],\n        \"start_total\": sum(a[\"balance_cents\"] for a in accounts),\n    }\n\n\nasync def make_request(client: httpx.AsyncClient, i: int, ctx: dict) -> httpx.Response:\n    senders = ctx[\"senders\"]\n    body = {\n        \"from_account\": senders[i % len(senders)],\n        \"to_account\": ctx[\"receiver\"],\n        \"amount_cents\": 100,\n        \"memo\": \"load test \" + str(i),\n    }\n    return await client.post(BASE + \"/transfer\", json=body)\n\n\nasync def check_invariant(client: httpx.AsyncClient, ctx: dict) -> tuple[bool, int, str]:\n    resp = await client.get(BASE + \"/accounts\")\n    total = sum(a[\"balance_cents\"] for a in resp.json())\n    missing_cents = ctx[\"start_total\"] - total\n    if missing_cents == 0:\n        return True, 0, f\"Total balance held at ${total // 100:,} across all accounts\"\n    dollars = (abs(missing_cents) + 99) // 100\n    if missing_cents > 0:\n        return False, dollars, f\"Under {CONCURRENCY} concurrent transfers, ${dollars:,} disappeared\"\n    return False, dollars, f\"Under {CONCURRENCY} concurrent transfers, ${dollars:,} appeared from nowhere\"\n\n\n# --- fixed runner below: the model never edits this part ---------------------------------------------\n\n\n_LOOPBACK = frozenset({\"127.0.0.1\", \"localhost\", \"::1\"})\n\n\nasync def _loopback_only(request: httpx.Request) -> None:\n    # Whatever the model-written bodies build, every request leaves through a client with this hook, and it\n    # refuses any host but the app under test. The validator checks the code; this checks the traffic.\n    if request.url.host not in _LOOPBACK:\n        raise RuntimeError(f\"blocked: the attack may only call the app under test, not {request.url.host!r}\")\n\n\ndef _client(**kwargs) -> httpx.AsyncClient:\n    return httpx.AsyncClient(event_hooks={\"request\": [_loopback_only]}, follow_redirects=False, **kwargs)\n\n\ndef _pct(sorted_vals: list[float], p: float) -> float:\n    if not sorted_vals:\n        return 0.0\n    k = min(len(sorted_vals) - 1, max(0, math.ceil(p * len(sorted_vals)) - 1))\n    return round(sorted_vals[k], 2)\n\n\ndef _emit(obj: dict) -> None:\n    sys.stdout.write(json.dumps(obj) + \"\\n\")\n    sys.stdout.flush()\n\n\nasync def _main() -> None:\n    _ = (random, string, uuid)   # available to the model's bodies\n    n_pools = max(1, math.ceil(CONCURRENCY / POOL_SIZE))\n    limits = httpx.Limits(max_connections=POOL_SIZE, max_keepalive_connections=POOL_SIZE)\n    clients = [_client(limits=limits, timeout=10.0) for _ in range(n_pools)]\n    client = clients[0]\n    try:\n        await _run(clients, client)\n    finally:\n        for c in clients:\n            await c.aclose()\n\n\nasync def _run(clients: list, client: httpx.AsyncClient) -> None:\n    ctx = await setup(client)\n    state = {\"i\": 0, \"in_flight\": 0, \"requests\": 0, \"errors\": 0, \"violations\": 0}\n    window: list[float] = []\n    all_lat: list[float] = []\n    start = time.monotonic()\n    deadline = start + DURATION_S\n\n    async def worker(k: int) -> None:\n        pool = clients[k % len(clients)]\n        await asyncio.sleep(RAMP_S * k / max(CONCURRENCY, 1))\n        while time.monotonic() < deadline:\n            i = state[\"i\"]\n            state[\"i\"] += 1\n            state[\"in_flight\"] += 1\n            t0 = time.monotonic()\n            try:\n                resp = await make_request(pool, i, ctx)\n                if resp.status_code >= 400:\n                    state[\"errors\"] += 1\n            except Exception:\n                state[\"errors\"] += 1\n            finally:\n                state[\"in_flight\"] -= 1\n                state[\"requests\"] += 1\n                ms = (time.monotonic() - t0) * 1000\n                window.append(ms)\n                all_lat.append(ms)\n\n    async def checker(probe: httpx.AsyncClient) -> None:\n        # Own client and own loop: the attack's pool is saturated by design, so sharing it would\n        # stall the live violation count (and with it every metric line).\n        while True:\n            try:\n                _, v, _ = await check_invariant(probe, ctx)\n                state[\"violations\"] = max(int(v), 0)\n            except Exception:\n                pass\n            await asyncio.sleep(METRIC_INTERVAL_S)\n\n    async def reporter() -> None:\n        last_t = start\n        while True:\n            await asyncio.sleep(METRIC_INTERVAL_S)\n            now = time.monotonic()\n            lat = sorted(window)\n            window.clear()\n            _emit({\n                \"t_ms\": int((now - start) * 1000),\n                \"in_flight\": state[\"in_flight\"],\n                \"rps\": round(len(lat) / max(now - last_t, 1e-6), 1),\n                \"p50_ms\": _pct(lat, 0.50),\n                \"p95_ms\": _pct(lat, 0.95),\n                \"p99_ms\": _pct(lat, 0.99),\n                \"errors\": state[\"errors\"],\n                \"violations\": state[\"violations\"],\n            })\n            last_t = now\n\n    async with _client(timeout=5.0) as probe:\n        chk = asyncio.create_task(checker(probe))\n        rep = asyncio.create_task(reporter())\n        await asyncio.gather(*(worker(k) for k in range(CONCURRENCY)))\n        rep.cancel()\n        chk.cancel()\n    try:\n        ok, violations, detail = await check_invariant(client, ctx)\n    except Exception as exc:\n        ok, violations, detail = False, 0, f\"invariant check crashed: {type(exc).__name__}: {exc}\"\n    lat = sorted(all_lat)\n    _emit({  # one last metric line, so the chart and the verdict end on the final count, not the last tick\n        \"t_ms\": int((time.monotonic() - start) * 1000),\n        \"in_flight\": 0,\n        \"rps\": 0.0,\n        \"p50_ms\": _pct(lat, 0.50),\n        \"p95_ms\": _pct(lat, 0.95),\n        \"p99_ms\": _pct(lat, 0.99),\n        \"errors\": state[\"errors\"],\n        \"violations\": max(int(violations), 0),\n    })\n    _emit({\n        \"done\": True,\n        \"invariant_ok\": bool(ok),\n        \"violations\": int(violations),\n        \"detail\": str(detail),\n        \"requests\": state[\"requests\"],\n        \"errors\": state[\"errors\"],\n        \"p95_ms\": _pct(lat, 0.95),\n        \"p99_ms\": _pct(lat, 0.99),\n        \"elapsed_s\": round(time.monotonic() - start, 2),\n    })\n\n\nif __name__ == \"__main__\":\n    asyncio.run(_main())\n",
+     "verdict": "broke",
+     "summary": "Under 200 concurrent transfers, $7,204 disappeared (7,369 requests at 200 concurrent, p95 392 ms, 0.0% errors)",
+     "detail": "Under 200 concurrent transfers, $7,204 disappeared",
+     "metrics": [
+      {
+       "run_id": "53787ab00bd6",
+       "t_ms": 578,
+       "in_flight": 200,
+       "rps": 734.6,
+       "p50_ms": 99.47,
+       "p95_ms": 209.34,
+       "p99_ms": 234.37,
+       "errors": 0,
+       "violations": 1
+      },
+      {
+       "run_id": "53787ab00bd6",
+       "t_ms": 1116,
+       "in_flight": 200,
+       "rps": 1230.1,
+       "p50_ms": 131.82,
+       "p95_ms": 317.15,
+       "p99_ms": 533.88,
+       "errors": 0,
+       "violations": 561
+      },
+      {
+       "run_id": "53787ab00bd6",
+       "t_ms": 1648,
+       "in_flight": 200,
+       "rps": 1573.0,
+       "p50_ms": 112.53,
+       "p95_ms": 247.63,
+       "p99_ms": 726.43,
+       "errors": 0,
+       "violations": 1295
+      },
+      {
+       "run_id": "53787ab00bd6",
+       "t_ms": 2195,
+       "in_flight": 200,
+       "rps": 1297.9,
+       "p50_ms": 111.19,
+       "p95_ms": 276.33,
+       "p99_ms": 423.84,
+       "errors": 0,
+       "violations": 2254
+      },
+      {
+       "run_id": "53787ab00bd6",
+       "t_ms": 2726,
+       "in_flight": 200,
+       "rps": 1134.1,
+       "p50_ms": 123.67,
+       "p95_ms": 405.6,
+       "p99_ms": 799.79,
+       "errors": 0,
+       "violations": 2999
+      },
+      {
+       "run_id": "53787ab00bd6",
+       "t_ms": 3255,
+       "in_flight": 200,
+       "rps": 1185.0,
+       "p50_ms": 119.73,
+       "p95_ms": 515.04,
+       "p99_ms": 854.72,
+       "errors": 0,
+       "violations": 3673
+      },
+      {
+       "run_id": "53787ab00bd6",
+       "t_ms": 3793,
+       "in_flight": 200,
+       "rps": 993.0,
+       "p50_ms": 125.6,
+       "p95_ms": 326.81,
+       "p99_ms": 572.66,
+       "errors": 0,
+       "violations": 3673
+      },
+      {
+       "run_id": "53787ab00bd6",
+       "t_ms": 4332,
+       "in_flight": 200,
+       "rps": 1487.9,
+       "p50_ms": 118.23,
+       "p95_ms": 508.85,
+       "p99_ms": 917.52,
+       "errors": 0,
+       "violations": 4333
+      },
+      {
+       "run_id": "53787ab00bd6",
+       "t_ms": 4864,
+       "in_flight": 200,
+       "rps": 1575.4,
+       "p50_ms": 117.25,
+       "p95_ms": 152.25,
+       "p99_ms": 438.84,
+       "errors": 0,
+       "violations": 5274
+      },
+      {
+       "run_id": "53787ab00bd6",
+       "t_ms": 5436,
+       "in_flight": 200,
+       "rps": 838.2,
+       "p50_ms": 156.78,
+       "p95_ms": 400.3,
+       "p99_ms": 493.42,
+       "errors": 0,
+       "violations": 6106
+      },
+      {
+       "run_id": "53787ab00bd6",
+       "t_ms": 5965,
+       "in_flight": 200,
+       "rps": 1177.6,
+       "p50_ms": 115.84,
+       "p95_ms": 542.51,
+       "p99_ms": 846.76,
+       "errors": 0,
+       "violations": 6626
+      },
+      {
+       "run_id": "53787ab00bd6",
+       "t_ms": 6111,
+       "in_flight": 0,
+       "rps": 0.0,
+       "p50_ms": 119.26,
+       "p95_ms": 391.93,
+       "p99_ms": 743.25,
+       "errors": 0,
+       "violations": 7204
+      }
+     ]
+    },
+    {
+     "id": "0b3f45e9d19d",
+     "finding_id": "f1",
+     "kind": "verify",
+     "attempt": 1,
+     "script": "\"\"\"Chaos attack template (PLAN \u00a711.4). The model writes ONLY the three bodies marked below; this file owns\nimports, concurrency, timing and the JSON-lines output, so every metric line matches ChaosMetric.\n\nRendered by crucible.defense.attack_writer.render_attack(). Runs with the standard library + httpx only.\ncheck_invariant returns (ok, violations, detail): violations is a count shown live (seats double-booked,\ndollars missing), detail is the human headline (\"$1,240 disappeared\").\n\"\"\"\n\nimport asyncio\nimport json\nimport math\nimport random\nimport string\nimport sys\nimport time\nimport uuid\n\nimport httpx\n\nBASE = \"http://127.0.0.1:56795\"\nCONCURRENCY = 200\nDURATION_S = 6\nMETRIC_INTERVAL_S = 0.5\nPOOL_SIZE = 10            # connections per httpx client: one big pool collapses past ~50 concurrent requests\nRAMP_S = 0.4              # workers start spread over this window, not in one burst (listen-queue overflow)\n\n\nasync def setup(client: httpx.AsyncClient) -> dict:\n    resp = await client.get(BASE + \"/accounts\")\n    accounts = resp.json()\n    ids = [a[\"id\"] for a in accounts]\n    return {\n        \"senders\": ids[:-1],\n        \"receiver\": ids[-1],\n        \"start_total\": sum(a[\"balance_cents\"] for a in accounts),\n    }\n\n\nasync def make_request(client: httpx.AsyncClient, i: int, ctx: dict) -> httpx.Response:\n    senders = ctx[\"senders\"]\n    body = {\n        \"from_account\": senders[i % len(senders)],\n        \"to_account\": ctx[\"receiver\"],\n        \"amount_cents\": 100,\n        \"memo\": \"load test \" + str(i),\n    }\n    return await client.post(BASE + \"/transfer\", json=body)\n\n\nasync def check_invariant(client: httpx.AsyncClient, ctx: dict) -> tuple[bool, int, str]:\n    resp = await client.get(BASE + \"/accounts\")\n    total = sum(a[\"balance_cents\"] for a in resp.json())\n    missing_cents = ctx[\"start_total\"] - total\n    if missing_cents == 0:\n        return True, 0, f\"Total balance held at ${total // 100:,} across all accounts\"\n    dollars = (abs(missing_cents) + 99) // 100\n    if missing_cents > 0:\n        return False, dollars, f\"Under {CONCURRENCY} concurrent transfers, ${dollars:,} disappeared\"\n    return False, dollars, f\"Under {CONCURRENCY} concurrent transfers, ${dollars:,} appeared from nowhere\"\n\n\n# --- fixed runner below: the model never edits this part ---------------------------------------------\n\n\n_LOOPBACK = frozenset({\"127.0.0.1\", \"localhost\", \"::1\"})\n\n\nasync def _loopback_only(request: httpx.Request) -> None:\n    # Whatever the model-written bodies build, every request leaves through a client with this hook, and it\n    # refuses any host but the app under test. The validator checks the code; this checks the traffic.\n    if request.url.host not in _LOOPBACK:\n        raise RuntimeError(f\"blocked: the attack may only call the app under test, not {request.url.host!r}\")\n\n\ndef _client(**kwargs) -> httpx.AsyncClient:\n    return httpx.AsyncClient(event_hooks={\"request\": [_loopback_only]}, follow_redirects=False, **kwargs)\n\n\ndef _pct(sorted_vals: list[float], p: float) -> float:\n    if not sorted_vals:\n        return 0.0\n    k = min(len(sorted_vals) - 1, max(0, math.ceil(p * len(sorted_vals)) - 1))\n    return round(sorted_vals[k], 2)\n\n\ndef _emit(obj: dict) -> None:\n    sys.stdout.write(json.dumps(obj) + \"\\n\")\n    sys.stdout.flush()\n\n\nasync def _main() -> None:\n    _ = (random, string, uuid)   # available to the model's bodies\n    n_pools = max(1, math.ceil(CONCURRENCY / POOL_SIZE))\n    limits = httpx.Limits(max_connections=POOL_SIZE, max_keepalive_connections=POOL_SIZE)\n    clients = [_client(limits=limits, timeout=10.0) for _ in range(n_pools)]\n    client = clients[0]\n    try:\n        await _run(clients, client)\n    finally:\n        for c in clients:\n            await c.aclose()\n\n\nasync def _run(clients: list, client: httpx.AsyncClient) -> None:\n    ctx = await setup(client)\n    state = {\"i\": 0, \"in_flight\": 0, \"requests\": 0, \"errors\": 0, \"violations\": 0}\n    window: list[float] = []\n    all_lat: list[float] = []\n    start = time.monotonic()\n    deadline = start + DURATION_S\n\n    async def worker(k: int) -> None:\n        pool = clients[k % len(clients)]\n        await asyncio.sleep(RAMP_S * k / max(CONCURRENCY, 1))\n        while time.monotonic() < deadline:\n            i = state[\"i\"]\n            state[\"i\"] += 1\n            state[\"in_flight\"] += 1\n            t0 = time.monotonic()\n            try:\n                resp = await make_request(pool, i, ctx)\n                if resp.status_code >= 400:\n                    state[\"errors\"] += 1\n            except Exception:\n                state[\"errors\"] += 1\n            finally:\n                state[\"in_flight\"] -= 1\n                state[\"requests\"] += 1\n                ms = (time.monotonic() - t0) * 1000\n                window.append(ms)\n                all_lat.append(ms)\n\n    async def checker(probe: httpx.AsyncClient) -> None:\n        # Own client and own loop: the attack's pool is saturated by design, so sharing it would\n        # stall the live violation count (and with it every metric line).\n        while True:\n            try:\n                _, v, _ = await check_invariant(probe, ctx)\n                state[\"violations\"] = max(int(v), 0)\n            except Exception:\n                pass\n            await asyncio.sleep(METRIC_INTERVAL_S)\n\n    async def reporter() -> None:\n        last_t = start\n        while True:\n            await asyncio.sleep(METRIC_INTERVAL_S)\n            now = time.monotonic()\n            lat = sorted(window)\n            window.clear()\n            _emit({\n                \"t_ms\": int((now - start) * 1000),\n                \"in_flight\": state[\"in_flight\"],\n                \"rps\": round(len(lat) / max(now - last_t, 1e-6), 1),\n                \"p50_ms\": _pct(lat, 0.50),\n                \"p95_ms\": _pct(lat, 0.95),\n                \"p99_ms\": _pct(lat, 0.99),\n                \"errors\": state[\"errors\"],\n                \"violations\": state[\"violations\"],\n            })\n            last_t = now\n\n    async with _client(timeout=5.0) as probe:\n        chk = asyncio.create_task(checker(probe))\n        rep = asyncio.create_task(reporter())\n        await asyncio.gather(*(worker(k) for k in range(CONCURRENCY)))\n        rep.cancel()\n        chk.cancel()\n    try:\n        ok, violations, detail = await check_invariant(client, ctx)\n    except Exception as exc:\n        ok, violations, detail = False, 0, f\"invariant check crashed: {type(exc).__name__}: {exc}\"\n    lat = sorted(all_lat)\n    _emit({  # one last metric line, so the chart and the verdict end on the final count, not the last tick\n        \"t_ms\": int((time.monotonic() - start) * 1000),\n        \"in_flight\": 0,\n        \"rps\": 0.0,\n        \"p50_ms\": _pct(lat, 0.50),\n        \"p95_ms\": _pct(lat, 0.95),\n        \"p99_ms\": _pct(lat, 0.99),\n        \"errors\": state[\"errors\"],\n        \"violations\": max(int(violations), 0),\n    })\n    _emit({\n        \"done\": True,\n        \"invariant_ok\": bool(ok),\n        \"violations\": int(violations),\n        \"detail\": str(detail),\n        \"requests\": state[\"requests\"],\n        \"errors\": state[\"errors\"],\n        \"p95_ms\": _pct(lat, 0.95),\n        \"p99_ms\": _pct(lat, 0.99),\n        \"elapsed_s\": round(time.monotonic() - start, 2),\n    })\n\n\nif __name__ == \"__main__\":\n    asyncio.run(_main())\n",
+     "verdict": "held",
+     "summary": "Held: the invariant stayed intact (6,648 requests at 200 concurrent, p95 452 ms, 0.0% errors)",
+     "detail": "",
+     "metrics": [
+      {
+       "run_id": "0b3f45e9d19d",
+       "t_ms": 561,
+       "in_flight": 200,
+       "rps": 755.0,
+       "p50_ms": 87.79,
+       "p95_ms": 210.92,
+       "p99_ms": 240.7,
+       "errors": 0,
+       "violations": 0
+      },
+      {
+       "run_id": "0b3f45e9d19d",
+       "t_ms": 1097,
+       "in_flight": 200,
+       "rps": 1262.3,
+       "p50_ms": 132.19,
+       "p95_ms": 322.56,
+       "p99_ms": 546.11,
+       "errors": 0,
+       "violations": 0
+      },
+      {
+       "run_id": "0b3f45e9d19d",
+       "t_ms": 1634,
+       "in_flight": 200,
+       "rps": 1411.5,
+       "p50_ms": 120.02,
+       "p95_ms": 306.37,
+       "p99_ms": 742.61,
+       "errors": 0,
+       "violations": 0
+      },
+      {
+       "run_id": "0b3f45e9d19d",
+       "t_ms": 2165,
+       "in_flight": 200,
+       "rps": 1244.5,
+       "p50_ms": 122.69,
+       "p95_ms": 193.76,
+       "p99_ms": 707.14,
+       "errors": 0,
+       "violations": 0
+      },
+      {
+       "run_id": "0b3f45e9d19d",
+       "t_ms": 2714,
+       "in_flight": 200,
+       "rps": 1125.8,
+       "p50_ms": 119.97,
+       "p95_ms": 354.14,
+       "p99_ms": 788.71,
+       "errors": 0,
+       "violations": 0
+      },
+      {
+       "run_id": "0b3f45e9d19d",
+       "t_ms": 3248,
+       "in_flight": 200,
+       "rps": 947.5,
+       "p50_ms": 128.04,
+       "p95_ms": 638.3,
+       "p99_ms": 866.0,
+       "errors": 0,
+       "violations": 0
+      },
+      {
+       "run_id": "0b3f45e9d19d",
+       "t_ms": 3786,
+       "in_flight": 200,
+       "rps": 1187.8,
+       "p50_ms": 133.47,
+       "p95_ms": 509.08,
+       "p99_ms": 1033.25,
+       "errors": 0,
+       "violations": 0
+      },
+      {
+       "run_id": "0b3f45e9d19d",
+       "t_ms": 4318,
+       "in_flight": 200,
+       "rps": 1060.8,
+       "p50_ms": 145.9,
+       "p95_ms": 281.93,
+       "p99_ms": 794.8,
+       "errors": 0,
+       "violations": 0
+      },
+      {
+       "run_id": "0b3f45e9d19d",
+       "t_ms": 4847,
+       "in_flight": 200,
+       "rps": 859.8,
+       "p50_ms": 133.36,
+       "p95_ms": 509.07,
+       "p99_ms": 698.64,
+       "errors": 0,
+       "violations": 0
+      },
+      {
+       "run_id": "0b3f45e9d19d",
+       "t_ms": 5376,
+       "in_flight": 200,
+       "rps": 1162.0,
+       "p50_ms": 132.32,
+       "p95_ms": 618.1,
+       "p99_ms": 962.26,
+       "errors": 0,
+       "violations": 0
+      },
+      {
+       "run_id": "0b3f45e9d19d",
+       "t_ms": 5923,
+       "in_flight": 200,
+       "rps": 972.3,
+       "p50_ms": 140.39,
+       "p95_ms": 498.57,
+       "p99_ms": 941.93,
+       "errors": 0,
+       "violations": 0
+      },
+      {
+       "run_id": "0b3f45e9d19d",
+       "t_ms": 6143,
+       "in_flight": 0,
+       "rps": 0.0,
+       "p50_ms": 131.19,
+       "p95_ms": 452.37,
+       "p99_ms": 818.42,
+       "errors": 0,
+       "violations": 0
+      }
+     ]
+    }
+   ],
+   "grill": [
+    {
+     "finding_id": "f1",
+     "question": "Under 200 concurrent transfers, $7,204 disappeared (7,369 requests at 200 concurrent, p95 392 ms, 0.0% errors). The attack sent 200 concurrent transfers and the total across all accounts went down, even though every transfer only moves money between accounts. Walk me through where that money went.",
+     "answer_turn_ids": [
+      "819da48af7ed"
+     ],
+     "follow_up_asked": false,
+     "eval": {
+      "points_hit": [
+       0,
+       1,
+       2
+      ],
+      "points_missed": [],
+      "needs_follow_up": false,
+      "feedback": ""
+     },
+     "sam_node_id": null,
+     "root_cause_hit": true,
+     "score": 10
+    }
+   ],
+   "verdict": {
+    "passed": true,
+    "reasons": [
+     "f1: held under the same attack (violations 7204 \u2192 0)"
+    ],
+    "findings_fixed": [
+     "f1"
+    ],
+    "findings_unfixed": [],
+    "avg_grill_score": 10.0
+   },
+   "card_url": null
+  },
+  "model": "template",
+  "generated_at": "2026-10-29T01:03:06.250875Z"
+ },
+ "timeline": [
+  {
+   "seq": 1,
+   "t": 0,
+   "kind": "phase",
+   "payload": {
+    "from_phase": "setup",
+    "to_phase": "audit",
+    "reason": "session started"
+   }
+  },
+  {
+   "seq": 2,
+   "t": 1,
+   "kind": "system",
+   "payload": {
+    "level": "warning",
+    "message": "Audit models unavailable; using bank-transfer/flaws.json. (model wrapper not configured (MODEL_API_KEY unset))"
+   }
+  },
+  {
+   "seq": 3,
+   "t": 2,
+   "kind": "audit",
+   "payload": {
+    "summary": "1 area of this project needs a closer look under load.",
+    "nodes": [
+     {
+      "id": "app.fraud",
+      "label": "fraud.py",
+      "kind": "service",
+      "file": "app/fraud.py",
+      "flagged": false
+     },
+     {
+      "id": "app.main",
+      "label": "main.py",
+      "kind": "route",
+      "file": "app/main.py",
+      "flagged": false
+     },
+     {
+      "id": "app.models",
+      "label": "models.py",
+      "kind": "store",
+      "file": "app/models.py",
+      "flagged": false
+     },
+     {
+      "id": "app.services",
+      "label": "services.py",
+      "kind": "service",
+      "file": "app/services.py",
+      "flagged": true
+     },
+     {
+      "id": "app.store",
+      "label": "store.py",
+      "kind": "store",
+      "file": "app/store.py",
+      "flagged": false
+     }
+    ],
+    "edges": [],
+    "findings": [
+     {
+      "id": "f1",
+      "title": "Balance transfers under load",
+      "category": "race_condition",
+      "severity": "critical",
+      "file": "app/services.py",
+      "line_start": 30,
+      "line_end": 52,
+      "node_id": "app.services",
+      "explanation": "TransferService.transfer loads a copy of the receiver's account (line 31), then awaits the fraud screen (line 41, about 30 ms), then saves that copy plus the amount (lines 51-52). While it waits, other transfers to the same receiver complete and save their own credits. When this one resumes it writes back the old balance plus its amount, overwriting those credits, so the money is debited from the senders but never lands anywhere. The blocked-transfer refund (lines 44-45) has the same problem for the sender's copy.",
+      "chaos": {
+       "endpoint": "/transfer",
+       "method": "POST",
+       "body_example": "{\"from_account\": \"acc_001\", \"to_account\": \"acc_010\", \"amount_cents\": 100, \"memo\": \"load test\"}",
+       "concurrency": 200,
+       "duration_s": 10,
+       "invariant": "The total balance across all accounts stays at $1,000,000",
+       "p95_threshold_ms": null
+      },
+      "grill": {
+       "question": "The attack sent 200 concurrent transfers and the total across all accounts went down, even though every transfer only moves money between accounts. Walk me through where that money went.",
+       "expected_points": [
+        "The receiver's balance is read before the await on the fraud screen and written after it, so the write is based on a stale value (a lost update).",
+        "Under concurrency, other transfers to the same account save during that 30 ms window, and the stale write overwrites their credits, so money is debited but never credited.",
+        "Fix it by not holding a balance across an await: screen first, then read, check and write both balances atomically (a lock or a database transaction)."
+       ],
+       "follow_up": "What exactly happens to the receiver's balance between the moment it's read and the moment it's saved, if another transfer to the same account finishes in between?"
+      },
+      "fix_steps": [
+       {
+        "id": "s1",
+        "title": "Locate the gap between read and write",
+        "description": "Identifies that the receiver's account is read before the fraud screen and saved after it, with an await in between.",
+        "required": true,
+        "order": 1,
+        "look_for": [
+         "points at the receiver being loaded at the top of transfer",
+         "mentions the await on the fraud screen",
+         "says the save uses an old copy"
+        ],
+        "hints": [
+         "Look at when each account is read compared with when it's saved.",
+         "What can other requests do while this one is waiting on the fraud screen?",
+         "The receiver's balance is read before an await and written after it, which is a lost-update race."
+        ]
+       },
+       {
+        "id": "s2",
+        "title": "Work from fresh balances",
+        "description": "Moves the fraud screen ahead of the balance reads, or re-reads both accounts after it, so the update uses current data.",
+        "required": true,
+        "order": 2,
+        "look_for": [
+         "moves the screen call before reading balances",
+         "re-reads the accounts after the await"
+        ],
+        "hints": [
+         "Check which values your update is based on.",
+         "Does anything force the balance you write to be the one that's in storage right now?",
+         "Do the slow screening step first, and only read balances after it finishes."
+        ]
+       },
+       {
+        "id": "s3",
+        "title": "Make the debit and credit one atomic step",
+        "description": "Reads, checks and writes both balances together with nothing that yields in between, and re-checks the sender's funds inside that step.",
+        "required": true,
+        "order": 3,
+        "look_for": [
+         "adds an asyncio.Lock or a transaction around the balance update",
+         "no await that suspends inside the critical section",
+         "re-checks insufficient funds inside it"
+        ],
+        "hints": [
+         "Look at whether another request can run between your read and your write.",
+         "If two transfers touch the same account at once, what guarantees they don't interleave?",
+         "Wrap the read-check-write of both balances in a lock or a transaction, with no slow awaits inside."
+        ]
+       },
+       {
+        "id": "s4",
+        "title": "Keep the blocked path consistent",
+        "description": "Makes sure a blocked transfer can't leave balances wrong, ideally by screening before any money moves so there is nothing to refund.",
+        "required": false,
+        "order": 4,
+        "look_for": [
+         "removes the reserve-then-refund pattern",
+         "screens before debiting the sender"
+        ],
+        "hints": [
+         "Look at what happens to the sender when a transfer is blocked.",
+         "Could the refund path have the same stale-copy problem as the credit?",
+         "If you screen before any money moves, the blocked path has nothing to undo."
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "seq": 4,
+   "t": 2,
+   "kind": "phase",
+   "payload": {
+    "from_phase": "audit",
+    "to_phase": "chaos",
+    "reason": "audit done"
+   }
+  },
+  {
+   "seq": 5,
+   "t": 2,
+   "kind": "system",
+   "payload": {
+    "level": "warning",
+    "message": "Attack writer unavailable for f1: model wrapper not configured (MODEL_API_KEY unset)"
+   }
+  },
+  {
+   "seq": 6,
+   "t": 3,
+   "kind": "system",
+   "payload": {
+    "level": "info",
+    "message": "Using the sample's reference attack for f1"
+   }
+  },
+  {
+   "seq": 7,
+   "t": 1891,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "53787ab00bd6",
+    "t_ms": 578,
+    "in_flight": 200,
+    "rps": 734.6,
+    "p50_ms": 99.47,
+    "p95_ms": 209.34,
+    "p99_ms": 234.37,
+    "errors": 0,
+    "violations": 1
+   }
+  },
+  {
+   "seq": 8,
+   "t": 2429,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "53787ab00bd6",
+    "t_ms": 1116,
+    "in_flight": 200,
+    "rps": 1230.1,
+    "p50_ms": 131.82,
+    "p95_ms": 317.15,
+    "p99_ms": 533.88,
+    "errors": 0,
+    "violations": 561
+   }
+  },
+  {
+   "seq": 9,
+   "t": 2961,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "53787ab00bd6",
+    "t_ms": 1648,
+    "in_flight": 200,
+    "rps": 1573.0,
+    "p50_ms": 112.53,
+    "p95_ms": 247.63,
+    "p99_ms": 726.43,
+    "errors": 0,
+    "violations": 1295
+   }
+  },
+  {
+   "seq": 10,
+   "t": 3507,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "53787ab00bd6",
+    "t_ms": 2195,
+    "in_flight": 200,
+    "rps": 1297.9,
+    "p50_ms": 111.19,
+    "p95_ms": 276.33,
+    "p99_ms": 423.84,
+    "errors": 0,
+    "violations": 2254
+   }
+  },
+  {
+   "seq": 11,
+   "t": 4039,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "53787ab00bd6",
+    "t_ms": 2726,
+    "in_flight": 200,
+    "rps": 1134.1,
+    "p50_ms": 123.67,
+    "p95_ms": 405.6,
+    "p99_ms": 799.79,
+    "errors": 0,
+    "violations": 2999
+   }
+  },
+  {
+   "seq": 12,
+   "t": 4567,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "53787ab00bd6",
+    "t_ms": 3255,
+    "in_flight": 200,
+    "rps": 1185.0,
+    "p50_ms": 119.73,
+    "p95_ms": 515.04,
+    "p99_ms": 854.72,
+    "errors": 0,
+    "violations": 3673
+   }
+  },
+  {
+   "seq": 13,
+   "t": 5106,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "53787ab00bd6",
+    "t_ms": 3793,
+    "in_flight": 200,
+    "rps": 993.0,
+    "p50_ms": 125.6,
+    "p95_ms": 326.81,
+    "p99_ms": 572.66,
+    "errors": 0,
+    "violations": 3673
+   }
+  },
+  {
+   "seq": 14,
+   "t": 5645,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "53787ab00bd6",
+    "t_ms": 4332,
+    "in_flight": 200,
+    "rps": 1487.9,
+    "p50_ms": 118.23,
+    "p95_ms": 508.85,
+    "p99_ms": 917.52,
+    "errors": 0,
+    "violations": 4333
+   }
+  },
+  {
+   "seq": 15,
+   "t": 6177,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "53787ab00bd6",
+    "t_ms": 4864,
+    "in_flight": 200,
+    "rps": 1575.4,
+    "p50_ms": 117.25,
+    "p95_ms": 152.25,
+    "p99_ms": 438.84,
+    "errors": 0,
+    "violations": 5274
+   }
+  },
+  {
+   "seq": 16,
+   "t": 6748,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "53787ab00bd6",
+    "t_ms": 5436,
+    "in_flight": 200,
+    "rps": 838.2,
+    "p50_ms": 156.78,
+    "p95_ms": 400.3,
+    "p99_ms": 493.42,
+    "errors": 0,
+    "violations": 6106
+   }
+  },
+  {
+   "seq": 17,
+   "t": 7277,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "53787ab00bd6",
+    "t_ms": 5965,
+    "in_flight": 200,
+    "rps": 1177.6,
+    "p50_ms": 115.84,
+    "p95_ms": 542.51,
+    "p99_ms": 846.76,
+    "errors": 0,
+    "violations": 6626
+   }
+  },
+  {
+   "seq": 18,
+   "t": 7423,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "53787ab00bd6",
+    "t_ms": 6111,
+    "in_flight": 0,
+    "rps": 0.0,
+    "p50_ms": 119.26,
+    "p95_ms": 391.93,
+    "p99_ms": 743.25,
+    "errors": 0,
+    "violations": 7204
+   }
+  },
+  {
+   "seq": 19,
+   "t": 7691,
+   "kind": "chaos_run",
+   "payload": {
+    "id": "53787ab00bd6",
+    "finding_id": "f1",
+    "kind": "baseline",
+    "attempt": 1,
+    "script": "\"\"\"Chaos attack template (PLAN \u00a711.4). The model writes ONLY the three bodies marked below; this file owns\nimports, concurrency, timing and the JSON-lines output, so every metric line matches ChaosMetric.\n\nRendered by crucible.defense.attack_writer.render_attack(). Runs with the standard library + httpx only.\ncheck_invariant returns (ok, violations, detail): violations is a count shown live (seats double-booked,\ndollars missing), detail is the human headline (\"$1,240 disappeared\").\n\"\"\"\n\nimport asyncio\nimport json\nimport math\nimport random\nimport string\nimport sys\nimport time\nimport uuid\n\nimport httpx\n\nBASE = \"http://127.0.0.1:50993\"\nCONCURRENCY = 200\nDURATION_S = 6\nMETRIC_INTERVAL_S = 0.5\nPOOL_SIZE = 10            # connections per httpx client: one big pool collapses past ~50 concurrent requests\nRAMP_S = 0.4              # workers start spread over this window, not in one burst (listen-queue overflow)\n\n\nasync def setup(client: httpx.AsyncClient) -> dict:\n    resp = await client.get(BASE + \"/accounts\")\n    accounts = resp.json()\n    ids = [a[\"id\"] for a in accounts]\n    return {\n        \"senders\": ids[:-1],\n        \"receiver\": ids[-1],\n        \"start_total\": sum(a[\"balance_cents\"] for a in accounts),\n    }\n\n\nasync def make_request(client: httpx.AsyncClient, i: int, ctx: dict) -> httpx.Response:\n    senders = ctx[\"senders\"]\n    body = {\n        \"from_account\": senders[i % len(senders)],\n        \"to_account\": ctx[\"receiver\"],\n        \"amount_cents\": 100,\n        \"memo\": \"load test \" + str(i),\n    }\n    return await client.post(BASE + \"/transfer\", json=body)\n\n\nasync def check_invariant(client: httpx.AsyncClient, ctx: dict) -> tuple[bool, int, str]:\n    resp = await client.get(BASE + \"/accounts\")\n    total = sum(a[\"balance_cents\"] for a in resp.json())\n    missing_cents = ctx[\"start_total\"] - total\n    if missing_cents == 0:\n        return True, 0, f\"Total balance held at ${total // 100:,} across all accounts\"\n    dollars = (abs(missing_cents) + 99) // 100\n    if missing_cents > 0:\n        return False, dollars, f\"Under {CONCURRENCY} concurrent transfers, ${dollars:,} disappeared\"\n    return False, dollars, f\"Under {CONCURRENCY} concurrent transfers, ${dollars:,} appeared from nowhere\"\n\n\n# --- fixed runner below: the model never edits this part ---------------------------------------------\n\n\n_LOOPBACK = frozenset({\"127.0.0.1\", \"localhost\", \"::1\"})\n\n\nasync def _loopback_only(request: httpx.Request) -> None:\n    # Whatever the model-written bodies build, every request leaves through a client with this hook, and it\n    # refuses any host but the app under test. The validator checks the code; this checks the traffic.\n    if request.url.host not in _LOOPBACK:\n        raise RuntimeError(f\"blocked: the attack may only call the app under test, not {request.url.host!r}\")\n\n\ndef _client(**kwargs) -> httpx.AsyncClient:\n    return httpx.AsyncClient(event_hooks={\"request\": [_loopback_only]}, follow_redirects=False, **kwargs)\n\n\ndef _pct(sorted_vals: list[float], p: float) -> float:\n    if not sorted_vals:\n        return 0.0\n    k = min(len(sorted_vals) - 1, max(0, math.ceil(p * len(sorted_vals)) - 1))\n    return round(sorted_vals[k], 2)\n\n\ndef _emit(obj: dict) -> None:\n    sys.stdout.write(json.dumps(obj) + \"\\n\")\n    sys.stdout.flush()\n\n\nasync def _main() -> None:\n    _ = (random, string, uuid)   # available to the model's bodies\n    n_pools = max(1, math.ceil(CONCURRENCY / POOL_SIZE))\n    limits = httpx.Limits(max_connections=POOL_SIZE, max_keepalive_connections=POOL_SIZE)\n    clients = [_client(limits=limits, timeout=10.0) for _ in range(n_pools)]\n    client = clients[0]\n    try:\n        await _run(clients, client)\n    finally:\n        for c in clients:\n            await c.aclose()\n\n\nasync def _run(clients: list, client: httpx.AsyncClient) -> None:\n    ctx = await setup(client)\n    state = {\"i\": 0, \"in_flight\": 0, \"requests\": 0, \"errors\": 0, \"violations\": 0}\n    window: list[float] = []\n    all_lat: list[float] = []\n    start = time.monotonic()\n    deadline = start + DURATION_S\n\n    async def worker(k: int) -> None:\n        pool = clients[k % len(clients)]\n        await asyncio.sleep(RAMP_S * k / max(CONCURRENCY, 1))\n        while time.monotonic() < deadline:\n            i = state[\"i\"]\n            state[\"i\"] += 1\n            state[\"in_flight\"] += 1\n            t0 = time.monotonic()\n            try:\n                resp = await make_request(pool, i, ctx)\n                if resp.status_code >= 400:\n                    state[\"errors\"] += 1\n            except Exception:\n                state[\"errors\"] += 1\n            finally:\n                state[\"in_flight\"] -= 1\n                state[\"requests\"] += 1\n                ms = (time.monotonic() - t0) * 1000\n                window.append(ms)\n                all_lat.append(ms)\n\n    async def checker(probe: httpx.AsyncClient) -> None:\n        # Own client and own loop: the attack's pool is saturated by design, so sharing it would\n        # stall the live violation count (and with it every metric line).\n        while True:\n            try:\n                _, v, _ = await check_invariant(probe, ctx)\n                state[\"violations\"] = max(int(v), 0)\n            except Exception:\n                pass\n            await asyncio.sleep(METRIC_INTERVAL_S)\n\n    async def reporter() -> None:\n        last_t = start\n        while True:\n            await asyncio.sleep(METRIC_INTERVAL_S)\n            now = time.monotonic()\n            lat = sorted(window)\n            window.clear()\n            _emit({\n                \"t_ms\": int((now - start) * 1000),\n                \"in_flight\": state[\"in_flight\"],\n                \"rps\": round(len(lat) / max(now - last_t, 1e-6), 1),\n                \"p50_ms\": _pct(lat, 0.50),\n                \"p95_ms\": _pct(lat, 0.95),\n                \"p99_ms\": _pct(lat, 0.99),\n                \"errors\": state[\"errors\"],\n                \"violations\": state[\"violations\"],\n            })\n            last_t = now\n\n    async with _client(timeout=5.0) as probe:\n        chk = asyncio.create_task(checker(probe))\n        rep = asyncio.create_task(reporter())\n        await asyncio.gather(*(worker(k) for k in range(CONCURRENCY)))\n        rep.cancel()\n        chk.cancel()\n    try:\n        ok, violations, detail = await check_invariant(client, ctx)\n    except Exception as exc:\n        ok, violations, detail = False, 0, f\"invariant check crashed: {type(exc).__name__}: {exc}\"\n    lat = sorted(all_lat)\n    _emit({  # one last metric line, so the chart and the verdict end on the final count, not the last tick\n        \"t_ms\": int((time.monotonic() - start) * 1000),\n        \"in_flight\": 0,\n        \"rps\": 0.0,\n        \"p50_ms\": _pct(lat, 0.50),\n        \"p95_ms\": _pct(lat, 0.95),\n        \"p99_ms\": _pct(lat, 0.99),\n        \"errors\": state[\"errors\"],\n        \"violations\": max(int(violations), 0),\n    })\n    _emit({\n        \"done\": True,\n        \"invariant_ok\": bool(ok),\n        \"violations\": int(violations),\n        \"detail\": str(detail),\n        \"requests\": state[\"requests\"],\n        \"errors\": state[\"errors\"],\n        \"p95_ms\": _pct(lat, 0.95),\n        \"p99_ms\": _pct(lat, 0.99),\n        \"elapsed_s\": round(time.monotonic() - start, 2),\n    })\n\n\nif __name__ == \"__main__\":\n    asyncio.run(_main())\n",
+    "verdict": "broke",
+    "summary": "Under 200 concurrent transfers, $7,204 disappeared (7,369 requests at 200 concurrent, p95 392 ms, 0.0% errors)",
+    "detail": "Under 200 concurrent transfers, $7,204 disappeared",
+    "metrics": [
+     {
+      "run_id": "53787ab00bd6",
+      "t_ms": 578,
+      "in_flight": 200,
+      "rps": 734.6,
+      "p50_ms": 99.47,
+      "p95_ms": 209.34,
+      "p99_ms": 234.37,
+      "errors": 0,
+      "violations": 1
+     },
+     {
+      "run_id": "53787ab00bd6",
+      "t_ms": 1116,
+      "in_flight": 200,
+      "rps": 1230.1,
+      "p50_ms": 131.82,
+      "p95_ms": 317.15,
+      "p99_ms": 533.88,
+      "errors": 0,
+      "violations": 561
+     },
+     {
+      "run_id": "53787ab00bd6",
+      "t_ms": 1648,
+      "in_flight": 200,
+      "rps": 1573.0,
+      "p50_ms": 112.53,
+      "p95_ms": 247.63,
+      "p99_ms": 726.43,
+      "errors": 0,
+      "violations": 1295
+     },
+     {
+      "run_id": "53787ab00bd6",
+      "t_ms": 2195,
+      "in_flight": 200,
+      "rps": 1297.9,
+      "p50_ms": 111.19,
+      "p95_ms": 276.33,
+      "p99_ms": 423.84,
+      "errors": 0,
+      "violations": 2254
+     },
+     {
+      "run_id": "53787ab00bd6",
+      "t_ms": 2726,
+      "in_flight": 200,
+      "rps": 1134.1,
+      "p50_ms": 123.67,
+      "p95_ms": 405.6,
+      "p99_ms": 799.79,
+      "errors": 0,
+      "violations": 2999
+     },
+     {
+      "run_id": "53787ab00bd6",
+      "t_ms": 3255,
+      "in_flight": 200,
+      "rps": 1185.0,
+      "p50_ms": 119.73,
+      "p95_ms": 515.04,
+      "p99_ms": 854.72,
+      "errors": 0,
+      "violations": 3673
+     },
+     {
+      "run_id": "53787ab00bd6",
+      "t_ms": 3793,
+      "in_flight": 200,
+      "rps": 993.0,
+      "p50_ms": 125.6,
+      "p95_ms": 326.81,
+      "p99_ms": 572.66,
+      "errors": 0,
+      "violations": 3673
+     },
+     {
+      "run_id": "53787ab00bd6",
+      "t_ms": 4332,
+      "in_flight": 200,
+      "rps": 1487.9,
+      "p50_ms": 118.23,
+      "p95_ms": 508.85,
+      "p99_ms": 917.52,
+      "errors": 0,
+      "violations": 4333
+     },
+     {
+      "run_id": "53787ab00bd6",
+      "t_ms": 4864,
+      "in_flight": 200,
+      "rps": 1575.4,
+      "p50_ms": 117.25,
+      "p95_ms": 152.25,
+      "p99_ms": 438.84,
+      "errors": 0,
+      "violations": 5274
+     },
+     {
+      "run_id": "53787ab00bd6",
+      "t_ms": 5436,
+      "in_flight": 200,
+      "rps": 838.2,
+      "p50_ms": 156.78,
+      "p95_ms": 400.3,
+      "p99_ms": 493.42,
+      "errors": 0,
+      "violations": 6106
+     },
+     {
+      "run_id": "53787ab00bd6",
+      "t_ms": 5965,
+      "in_flight": 200,
+      "rps": 1177.6,
+      "p50_ms": 115.84,
+      "p95_ms": 542.51,
+      "p99_ms": 846.76,
+      "errors": 0,
+      "violations": 6626
+     },
+     {
+      "run_id": "53787ab00bd6",
+      "t_ms": 6111,
+      "in_flight": 0,
+      "rps": 0.0,
+      "p50_ms": 119.26,
+      "p95_ms": 391.93,
+      "p99_ms": 743.25,
+      "errors": 0,
+      "violations": 7204
+     }
+    ]
+   }
+  },
+  {
+   "seq": 20,
+   "t": 7691,
+   "kind": "phase",
+   "payload": {
+    "from_phase": "chaos",
+    "to_phase": "grill",
+    "reason": "chaos broke at least one finding"
+   }
+  },
+  {
+   "seq": 21,
+   "t": 7692,
+   "kind": "intervention",
+   "payload": {
+    "id": "7813256db79b",
+    "t": 7692,
+    "trigger": "grill",
+    "level": "question",
+    "text": "Under 200 concurrent transfers, $7,204 disappeared (7,369 requests at 200 concurrent, p95 392 ms, 0.0% errors). The attack sent 200 concurrent transfers and the total across all accounts went down, even though every transfer only moves money between accounts. Walk me through where that money went.",
+    "step_id": null,
+    "speak": true,
+    "suppressed": false
+   }
+  },
+  {
+   "seq": 22,
+   "t": 7692,
+   "kind": "transcript",
+   "payload": {
+    "turn_id": "276c09a526ee",
+    "speaker": "interviewer",
+    "text": "Under 200 concurrent transfers, $7,204 disappeared (7,369 requests at 200 concurrent, p95 392 ms, 0.0% errors). The attack sent 200 concurrent transfers and the total across all accounts went down, even though every transfer only moves money between accounts. Walk me through where that money went.",
+    "start_ms": 7692,
+    "end_ms": 7692,
+    "final": true,
+    "source": "text"
+   }
+  },
+  {
+   "seq": 23,
+   "t": 7693,
+   "kind": "transcript",
+   "payload": {
+    "turn_id": "91689085a477",
+    "speaker": "candidate",
+    "text": "The transfer reads both balances, awaits the fraud check, then writes values computed from that stale read, so concurrent transfers overwrite each other: a read-modify-write race with lost updates. While one request waits at the await, others read and write the same accounts. I'd make the read, the funds check and the write atomic with a lock or a transaction.",
+    "start_ms": 7693,
+    "end_ms": 7693,
+    "final": true,
+    "source": "text"
+   }
+  },
+  {
+   "seq": 24,
+   "t": 7693,
+   "kind": "system",
+   "payload": {
+    "level": "warning",
+    "message": "Grill grading model unavailable for f1; keyword fallback. (model wrapper not configured (MODEL_API_KEY unset))"
+   }
+  },
+  {
+   "seq": 25,
+   "t": 7694,
+   "kind": "grill",
+   "payload": {
+    "finding_id": "f1",
+    "question": "Under 200 concurrent transfers, $7,204 disappeared (7,369 requests at 200 concurrent, p95 392 ms, 0.0% errors). The attack sent 200 concurrent transfers and the total across all accounts went down, even though every transfer only moves money between accounts. Walk me through where that money went.",
+    "answer_turn_ids": [
+     "819da48af7ed"
+    ],
+    "follow_up_asked": false,
+    "eval": {
+     "points_hit": [
+      0,
+      1,
+      2
+     ],
+     "points_missed": [],
+     "needs_follow_up": false,
+     "feedback": ""
+    },
+    "sam_node_id": null,
+    "root_cause_hit": true,
+    "score": 10
+   }
+  },
+  {
+   "seq": 26,
+   "t": 7694,
+   "kind": "phase",
+   "payload": {
+    "from_phase": "grill",
+    "to_phase": "fix",
+    "reason": "grill done"
+   }
+  },
+  {
+   "seq": 27,
+   "t": 7694,
+   "kind": "intervention",
+   "payload": {
+    "id": "4c89882c2011",
+    "t": 7694,
+    "trigger": "grill",
+    "level": "info",
+    "text": "Over to you: fix it in the editor, then press Verify. I'll run the exact same attack again.",
+    "step_id": null,
+    "speak": true,
+    "suppressed": false
+   }
+  },
+  {
+   "seq": 28,
+   "t": 7694,
+   "kind": "transcript",
+   "payload": {
+    "turn_id": "d6d0d78fbc22",
+    "speaker": "interviewer",
+    "text": "Over to you: fix it in the editor, then press Verify. I'll run the exact same attack again.",
+    "start_ms": 7694,
+    "end_ms": 7694,
+    "final": true,
+    "source": "text"
+   }
+  },
+  {
+   "seq": 29,
+   "t": 7696,
+   "kind": "phase",
+   "payload": {
+    "from_phase": "fix",
+    "to_phase": "verify",
+    "reason": "verify f1"
+   }
+  },
+  {
+   "seq": 30,
+   "t": 9566,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "0b3f45e9d19d",
+    "t_ms": 561,
+    "in_flight": 200,
+    "rps": 755.0,
+    "p50_ms": 87.79,
+    "p95_ms": 210.92,
+    "p99_ms": 240.7,
+    "errors": 0,
+    "violations": 0
+   }
+  },
+  {
+   "seq": 31,
+   "t": 10102,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "0b3f45e9d19d",
+    "t_ms": 1097,
+    "in_flight": 200,
+    "rps": 1262.3,
+    "p50_ms": 132.19,
+    "p95_ms": 322.56,
+    "p99_ms": 546.11,
+    "errors": 0,
+    "violations": 0
+   }
+  },
+  {
+   "seq": 32,
+   "t": 10640,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "0b3f45e9d19d",
+    "t_ms": 1634,
+    "in_flight": 200,
+    "rps": 1411.5,
+    "p50_ms": 120.02,
+    "p95_ms": 306.37,
+    "p99_ms": 742.61,
+    "errors": 0,
+    "violations": 0
+   }
+  },
+  {
+   "seq": 33,
+   "t": 11171,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "0b3f45e9d19d",
+    "t_ms": 2165,
+    "in_flight": 200,
+    "rps": 1244.5,
+    "p50_ms": 122.69,
+    "p95_ms": 193.76,
+    "p99_ms": 707.14,
+    "errors": 0,
+    "violations": 0
+   }
+  },
+  {
+   "seq": 34,
+   "t": 11719,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "0b3f45e9d19d",
+    "t_ms": 2714,
+    "in_flight": 200,
+    "rps": 1125.8,
+    "p50_ms": 119.97,
+    "p95_ms": 354.14,
+    "p99_ms": 788.71,
+    "errors": 0,
+    "violations": 0
+   }
+  },
+  {
+   "seq": 35,
+   "t": 12253,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "0b3f45e9d19d",
+    "t_ms": 3248,
+    "in_flight": 200,
+    "rps": 947.5,
+    "p50_ms": 128.04,
+    "p95_ms": 638.3,
+    "p99_ms": 866.0,
+    "errors": 0,
+    "violations": 0
+   }
+  },
+  {
+   "seq": 36,
+   "t": 12792,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "0b3f45e9d19d",
+    "t_ms": 3786,
+    "in_flight": 200,
+    "rps": 1187.8,
+    "p50_ms": 133.47,
+    "p95_ms": 509.08,
+    "p99_ms": 1033.25,
+    "errors": 0,
+    "violations": 0
+   }
+  },
+  {
+   "seq": 37,
+   "t": 13323,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "0b3f45e9d19d",
+    "t_ms": 4318,
+    "in_flight": 200,
+    "rps": 1060.8,
+    "p50_ms": 145.9,
+    "p95_ms": 281.93,
+    "p99_ms": 794.8,
+    "errors": 0,
+    "violations": 0
+   }
+  },
+  {
+   "seq": 38,
+   "t": 13853,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "0b3f45e9d19d",
+    "t_ms": 4847,
+    "in_flight": 200,
+    "rps": 859.8,
+    "p50_ms": 133.36,
+    "p95_ms": 509.07,
+    "p99_ms": 698.64,
+    "errors": 0,
+    "violations": 0
+   }
+  },
+  {
+   "seq": 39,
+   "t": 14381,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "0b3f45e9d19d",
+    "t_ms": 5376,
+    "in_flight": 200,
+    "rps": 1162.0,
+    "p50_ms": 132.32,
+    "p95_ms": 618.1,
+    "p99_ms": 962.26,
+    "errors": 0,
+    "violations": 0
+   }
+  },
+  {
+   "seq": 40,
+   "t": 14928,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "0b3f45e9d19d",
+    "t_ms": 5923,
+    "in_flight": 200,
+    "rps": 972.3,
+    "p50_ms": 140.39,
+    "p95_ms": 498.57,
+    "p99_ms": 941.93,
+    "errors": 0,
+    "violations": 0
+   }
+  },
+  {
+   "seq": 41,
+   "t": 15148,
+   "kind": "chaos_metric",
+   "payload": {
+    "run_id": "0b3f45e9d19d",
+    "t_ms": 6143,
+    "in_flight": 0,
+    "rps": 0.0,
+    "p50_ms": 131.19,
+    "p95_ms": 452.37,
+    "p99_ms": 818.42,
+    "errors": 0,
+    "violations": 0
+   }
+  },
+  {
+   "seq": 42,
+   "t": 15431,
+   "kind": "chaos_run",
+   "payload": {
+    "id": "0b3f45e9d19d",
+    "finding_id": "f1",
+    "kind": "verify",
+    "attempt": 1,
+    "script": "\"\"\"Chaos attack template (PLAN \u00a711.4). The model writes ONLY the three bodies marked below; this file owns\nimports, concurrency, timing and the JSON-lines output, so every metric line matches ChaosMetric.\n\nRendered by crucible.defense.attack_writer.render_attack(). Runs with the standard library + httpx only.\ncheck_invariant returns (ok, violations, detail): violations is a count shown live (seats double-booked,\ndollars missing), detail is the human headline (\"$1,240 disappeared\").\n\"\"\"\n\nimport asyncio\nimport json\nimport math\nimport random\nimport string\nimport sys\nimport time\nimport uuid\n\nimport httpx\n\nBASE = \"http://127.0.0.1:56795\"\nCONCURRENCY = 200\nDURATION_S = 6\nMETRIC_INTERVAL_S = 0.5\nPOOL_SIZE = 10            # connections per httpx client: one big pool collapses past ~50 concurrent requests\nRAMP_S = 0.4              # workers start spread over this window, not in one burst (listen-queue overflow)\n\n\nasync def setup(client: httpx.AsyncClient) -> dict:\n    resp = await client.get(BASE + \"/accounts\")\n    accounts = resp.json()\n    ids = [a[\"id\"] for a in accounts]\n    return {\n        \"senders\": ids[:-1],\n        \"receiver\": ids[-1],\n        \"start_total\": sum(a[\"balance_cents\"] for a in accounts),\n    }\n\n\nasync def make_request(client: httpx.AsyncClient, i: int, ctx: dict) -> httpx.Response:\n    senders = ctx[\"senders\"]\n    body = {\n        \"from_account\": senders[i % len(senders)],\n        \"to_account\": ctx[\"receiver\"],\n        \"amount_cents\": 100,\n        \"memo\": \"load test \" + str(i),\n    }\n    return await client.post(BASE + \"/transfer\", json=body)\n\n\nasync def check_invariant(client: httpx.AsyncClient, ctx: dict) -> tuple[bool, int, str]:\n    resp = await client.get(BASE + \"/accounts\")\n    total = sum(a[\"balance_cents\"] for a in resp.json())\n    missing_cents = ctx[\"start_total\"] - total\n    if missing_cents == 0:\n        return True, 0, f\"Total balance held at ${total // 100:,} across all accounts\"\n    dollars = (abs(missing_cents) + 99) // 100\n    if missing_cents > 0:\n        return False, dollars, f\"Under {CONCURRENCY} concurrent transfers, ${dollars:,} disappeared\"\n    return False, dollars, f\"Under {CONCURRENCY} concurrent transfers, ${dollars:,} appeared from nowhere\"\n\n\n# --- fixed runner below: the model never edits this part ---------------------------------------------\n\n\n_LOOPBACK = frozenset({\"127.0.0.1\", \"localhost\", \"::1\"})\n\n\nasync def _loopback_only(request: httpx.Request) -> None:\n    # Whatever the model-written bodies build, every request leaves through a client with this hook, and it\n    # refuses any host but the app under test. The validator checks the code; this checks the traffic.\n    if request.url.host not in _LOOPBACK:\n        raise RuntimeError(f\"blocked: the attack may only call the app under test, not {request.url.host!r}\")\n\n\ndef _client(**kwargs) -> httpx.AsyncClient:\n    return httpx.AsyncClient(event_hooks={\"request\": [_loopback_only]}, follow_redirects=False, **kwargs)\n\n\ndef _pct(sorted_vals: list[float], p: float) -> float:\n    if not sorted_vals:\n        return 0.0\n    k = min(len(sorted_vals) - 1, max(0, math.ceil(p * len(sorted_vals)) - 1))\n    return round(sorted_vals[k], 2)\n\n\ndef _emit(obj: dict) -> None:\n    sys.stdout.write(json.dumps(obj) + \"\\n\")\n    sys.stdout.flush()\n\n\nasync def _main() -> None:\n    _ = (random, string, uuid)   # available to the model's bodies\n    n_pools = max(1, math.ceil(CONCURRENCY / POOL_SIZE))\n    limits = httpx.Limits(max_connections=POOL_SIZE, max_keepalive_connections=POOL_SIZE)\n    clients = [_client(limits=limits, timeout=10.0) for _ in range(n_pools)]\n    client = clients[0]\n    try:\n        await _run(clients, client)\n    finally:\n        for c in clients:\n            await c.aclose()\n\n\nasync def _run(clients: list, client: httpx.AsyncClient) -> None:\n    ctx = await setup(client)\n    state = {\"i\": 0, \"in_flight\": 0, \"requests\": 0, \"errors\": 0, \"violations\": 0}\n    window: list[float] = []\n    all_lat: list[float] = []\n    start = time.monotonic()\n    deadline = start + DURATION_S\n\n    async def worker(k: int) -> None:\n        pool = clients[k % len(clients)]\n        await asyncio.sleep(RAMP_S * k / max(CONCURRENCY, 1))\n        while time.monotonic() < deadline:\n            i = state[\"i\"]\n            state[\"i\"] += 1\n            state[\"in_flight\"] += 1\n            t0 = time.monotonic()\n            try:\n                resp = await make_request(pool, i, ctx)\n                if resp.status_code >= 400:\n                    state[\"errors\"] += 1\n            except Exception:\n                state[\"errors\"] += 1\n            finally:\n                state[\"in_flight\"] -= 1\n                state[\"requests\"] += 1\n                ms = (time.monotonic() - t0) * 1000\n                window.append(ms)\n                all_lat.append(ms)\n\n    async def checker(probe: httpx.AsyncClient) -> None:\n        # Own client and own loop: the attack's pool is saturated by design, so sharing it would\n        # stall the live violation count (and with it every metric line).\n        while True:\n            try:\n                _, v, _ = await check_invariant(probe, ctx)\n                state[\"violations\"] = max(int(v), 0)\n            except Exception:\n                pass\n            await asyncio.sleep(METRIC_INTERVAL_S)\n\n    async def reporter() -> None:\n        last_t = start\n        while True:\n            await asyncio.sleep(METRIC_INTERVAL_S)\n            now = time.monotonic()\n            lat = sorted(window)\n            window.clear()\n            _emit({\n                \"t_ms\": int((now - start) * 1000),\n                \"in_flight\": state[\"in_flight\"],\n                \"rps\": round(len(lat) / max(now - last_t, 1e-6), 1),\n                \"p50_ms\": _pct(lat, 0.50),\n                \"p95_ms\": _pct(lat, 0.95),\n                \"p99_ms\": _pct(lat, 0.99),\n                \"errors\": state[\"errors\"],\n                \"violations\": state[\"violations\"],\n            })\n            last_t = now\n\n    async with _client(timeout=5.0) as probe:\n        chk = asyncio.create_task(checker(probe))\n        rep = asyncio.create_task(reporter())\n        await asyncio.gather(*(worker(k) for k in range(CONCURRENCY)))\n        rep.cancel()\n        chk.cancel()\n    try:\n        ok, violations, detail = await check_invariant(client, ctx)\n    except Exception as exc:\n        ok, violations, detail = False, 0, f\"invariant check crashed: {type(exc).__name__}: {exc}\"\n    lat = sorted(all_lat)\n    _emit({  # one last metric line, so the chart and the verdict end on the final count, not the last tick\n        \"t_ms\": int((time.monotonic() - start) * 1000),\n        \"in_flight\": 0,\n        \"rps\": 0.0,\n        \"p50_ms\": _pct(lat, 0.50),\n        \"p95_ms\": _pct(lat, 0.95),\n        \"p99_ms\": _pct(lat, 0.99),\n        \"errors\": state[\"errors\"],\n        \"violations\": max(int(violations), 0),\n    })\n    _emit({\n        \"done\": True,\n        \"invariant_ok\": bool(ok),\n        \"violations\": int(violations),\n        \"detail\": str(detail),\n        \"requests\": state[\"requests\"],\n        \"errors\": state[\"errors\"],\n        \"p95_ms\": _pct(lat, 0.95),\n        \"p99_ms\": _pct(lat, 0.99),\n        \"elapsed_s\": round(time.monotonic() - start, 2),\n    })\n\n\nif __name__ == \"__main__\":\n    asyncio.run(_main())\n",
+    "verdict": "held",
+    "summary": "Held: the invariant stayed intact (6,648 requests at 200 concurrent, p95 452 ms, 0.0% errors)",
+    "detail": "",
+    "metrics": [
+     {
+      "run_id": "0b3f45e9d19d",
+      "t_ms": 561,
+      "in_flight": 200,
+      "rps": 755.0,
+      "p50_ms": 87.79,
+      "p95_ms": 210.92,
+      "p99_ms": 240.7,
+      "errors": 0,
+      "violations": 0
+     },
+     {
+      "run_id": "0b3f45e9d19d",
+      "t_ms": 1097,
+      "in_flight": 200,
+      "rps": 1262.3,
+      "p50_ms": 132.19,
+      "p95_ms": 322.56,
+      "p99_ms": 546.11,
+      "errors": 0,
+      "violations": 0
+     },
+     {
+      "run_id": "0b3f45e9d19d",
+      "t_ms": 1634,
+      "in_flight": 200,
+      "rps": 1411.5,
+      "p50_ms": 120.02,
+      "p95_ms": 306.37,
+      "p99_ms": 742.61,
+      "errors": 0,
+      "violations": 0
+     },
+     {
+      "run_id": "0b3f45e9d19d",
+      "t_ms": 2165,
+      "in_flight": 200,
+      "rps": 1244.5,
+      "p50_ms": 122.69,
+      "p95_ms": 193.76,
+      "p99_ms": 707.14,
+      "errors": 0,
+      "violations": 0
+     },
+     {
+      "run_id": "0b3f45e9d19d",
+      "t_ms": 2714,
+      "in_flight": 200,
+      "rps": 1125.8,
+      "p50_ms": 119.97,
+      "p95_ms": 354.14,
+      "p99_ms": 788.71,
+      "errors": 0,
+      "violations": 0
+     },
+     {
+      "run_id": "0b3f45e9d19d",
+      "t_ms": 3248,
+      "in_flight": 200,
+      "rps": 947.5,
+      "p50_ms": 128.04,
+      "p95_ms": 638.3,
+      "p99_ms": 866.0,
+      "errors": 0,
+      "violations": 0
+     },
+     {
+      "run_id": "0b3f45e9d19d",
+      "t_ms": 3786,
+      "in_flight": 200,
+      "rps": 1187.8,
+      "p50_ms": 133.47,
+      "p95_ms": 509.08,
+      "p99_ms": 1033.25,
+      "errors": 0,
+      "violations": 0
+     },
+     {
+      "run_id": "0b3f45e9d19d",
+      "t_ms": 4318,
+      "in_flight": 200,
+      "rps": 1060.8,
+      "p50_ms": 145.9,
+      "p95_ms": 281.93,
+      "p99_ms": 794.8,
+      "errors": 0,
+      "violations": 0
+     },
+     {
+      "run_id": "0b3f45e9d19d",
+      "t_ms": 4847,
+      "in_flight": 200,
+      "rps": 859.8,
+      "p50_ms": 133.36,
+      "p95_ms": 509.07,
+      "p99_ms": 698.64,
+      "errors": 0,
+      "violations": 0
+     },
+     {
+      "run_id": "0b3f45e9d19d",
+      "t_ms": 5376,
+      "in_flight": 200,
+      "rps": 1162.0,
+      "p50_ms": 132.32,
+      "p95_ms": 618.1,
+      "p99_ms": 962.26,
+      "errors": 0,
+      "violations": 0
+     },
+     {
+      "run_id": "0b3f45e9d19d",
+      "t_ms": 5923,
+      "in_flight": 200,
+      "rps": 972.3,
+      "p50_ms": 140.39,
+      "p95_ms": 498.57,
+      "p99_ms": 941.93,
+      "errors": 0,
+      "violations": 0
+     },
+     {
+      "run_id": "0b3f45e9d19d",
+      "t_ms": 6143,
+      "in_flight": 0,
+      "rps": 0.0,
+      "p50_ms": 131.19,
+      "p95_ms": 452.37,
+      "p99_ms": 818.42,
+      "errors": 0,
+      "violations": 0
+     }
+    ]
+   }
+  },
+  {
+   "seq": 43,
+   "t": 15432,
+   "kind": "phase",
+   "payload": {
+    "from_phase": "verify",
+    "to_phase": "verdict",
+    "reason": "verify done"
+   }
+  },
+  {
+   "seq": 44,
+   "t": 15432,
+   "kind": "verdict",
+   "payload": {
+    "passed": true,
+    "reasons": [
+     "f1: held under the same attack (violations 7204 \u2192 0)"
+    ],
+    "findings_fixed": [
+     "f1"
+    ],
+    "findings_unfixed": [],
+    "avg_grill_score": 10.0
+   }
+  },
+  {
+   "seq": 45,
+   "t": 15433,
+   "kind": "phase",
+   "payload": {
+    "from_phase": "verdict",
+    "to_phase": "ended",
+    "reason": "every broken finding held under the same attack"
+   }
+  },
+  {
+   "seq": 46,
+   "t": 15433,
+   "kind": "phase",
+   "payload": {
+    "from_phase": "ended",
+    "to_phase": "reporting",
+    "reason": "building the report"
+   }
+  },
+  {
+   "seq": 47,
+   "t": 15435,
+   "kind": "system",
+   "payload": {
+    "level": "warning",
+    "message": "no report model is configured; built a metrics-only report"
+   }
+  },
+  {
+   "seq": 48,
+   "t": 15436,
+   "kind": "phase",
+   "payload": {
+    "from_phase": "reporting",
+    "to_phase": "reported",
+    "reason": "report ready (template)"
+   }
+  }
+ ]
+}

@@ -44,10 +44,24 @@ _LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
 
 
 async def _loopback_only(request: httpx.Request) -> None:
-    # Whatever the model-written bodies build, every request leaves through a client with this hook, and it
-    # refuses any host but the app under test. The validator checks the code; this checks the traffic.
+    # The validator checks the code; this checks the traffic: any host but the app under test is refused.
     if request.url.host not in _LOOPBACK:
         raise RuntimeError(f"blocked: the attack may only call the app under test, not {request.url.host!r}")
+
+
+_SEND = httpx.AsyncClient.send
+
+
+async def _send_loopback_only(self, request: httpx.Request, **kwargs):
+    # Enforced on the class, not only through a client's event hook: a body that builds its own client
+    # (type(client)()) or clears `event_hooks` still sends through here. Redirects are off, so a modified app
+    # can't bounce the attack to another host.
+    await _loopback_only(request)
+    kwargs["follow_redirects"] = False
+    return await _SEND(self, request, **kwargs)
+
+
+httpx.AsyncClient.send = _send_loopback_only
 
 
 def _client(**kwargs) -> httpx.AsyncClient:

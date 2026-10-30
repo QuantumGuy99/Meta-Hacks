@@ -58,8 +58,9 @@ contracts-check:    ## fail if contracts.ts is out of date (skipped until S-1 la
 	@if [ -f backend/crucible/contracts/export.py ]; then $(UV) run python -m crucible.contracts.export --check; \
 	else echo "contracts not merged yet (S-1): skipping drift check"; fi
 
-validate:           ## validate every problem and sample app in data/ (DATA-2)
-	@echo "validate lands with DATA-2 (crucible.datatools)"; exit 1
+validate:           ## validate every problem and sample app in data/ (DATA-2; runs the apps locally, ~1 min)
+	RUNNER=local ALLOW_LOCAL_RUNNER=1 $(UV) run python -m crucible.datatools.validate_problems --all
+	RUNNER=local ALLOW_LOCAL_RUNNER=1 $(UV) run python -m crucible.datatools.validate_apps --all --duration 6
 
 evals:              ## scripted sessions through the real models; costs credits (results in backend/tests/evals/results/)
 	$(UV) run python -m tests.evals.runner
