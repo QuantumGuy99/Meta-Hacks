@@ -15,6 +15,7 @@ ModelRole = Literal[
     "complexity",
     "conversation",
     "grill_eval",
+    "grill_check",
     "audit",
     "report",
     "attacker",
@@ -89,7 +90,12 @@ ROLES: dict[ModelRole, RoleSpec] = {
     # (which answers questions) so the strip says what it's doing and its budget can be tuned on its own.
     # Minimal effort: these lines are short and every second of thinking is a pause the candidate hears.
     "conversation": RoleSpec(_spark("minimal"), timeout_s=6),
-    "grill_eval": RoleSpec(_spark("medium"), timeout_s=10, fallbacks=(_spark("low"), _SPARK_OPEN)),
+    # Low, not medium: with two graders checking each other (DEF-13), medium's 11 s on bank-transfer's finding
+    # (2026-10-29) bought nothing; low and Wonder low marked the same points in 4-6 s.
+    "grill_eval": RoleSpec(_spark("low"), timeout_s=10, fallbacks=(_spark("minimal"), _SPARK_OPEN)),
+    # The second grader (DEF-13): a different Meta model, so two must agree. Spark Open (open-weight) takes
+    # over once Baseten is configured; until then Wonder at low effort, in parallel with grill_eval.
+    "grill_check": RoleSpec(_wonder("low"), timeout_s=15, fallbacks=(_SPARK_OPEN,)),
     "audit": RoleSpec(_wonder("xhigh"), timeout_s=120, fallbacks=(_spark("high"),)),
     "report": RoleSpec(_wonder("high"), timeout_s=45, fallbacks=(_spark("high"),)),
     "attacker": RoleSpec(_spark("low"), timeout_s=30, fallbacks=(_spark("medium"),)),
