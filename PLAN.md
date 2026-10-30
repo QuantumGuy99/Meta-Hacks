@@ -1652,8 +1652,9 @@ style: plausible, readable, subtly wrong), `requirements.txt`, `crucible.json`, 
 | `rate-limiter` | unsynchronized counter + unbounded dict | allowed ≤ limit per window | P1 |
 
 `flaws.json`: `[{id, category, file, line_start, line_end, explanation, expected_fix, grill_expected_points,
-chaos_invariant}]`. `validate_apps` checks: the app boots in the runner, the reference chaos script **breaks**
-the original, and `fix.patch` applied → the same script **holds**.
+chaos_invariant}]`. `reference_attack.json`: `{flaw_id, concurrency, duration_s, functions}`, or a list with one
+per chaos flaw. `validate_apps` (`make validate`) checks: the app boots in the runner, every reference attack
+**breaks** the original, and with the reference fix applied the same attack **holds**.
 
 ### 13.3 Evals (`data/evals/`)
 - **Coding** (`evals/coding/*.jsonl`): scripted timelines (editor events + transcript + runs) with expected
