@@ -320,6 +320,14 @@ proves `defense.audit` never carries an explanation.
   reject; the report and verdict reasons show the AI share. Only in fix/verify, max 20 asks per session.
   Needs the contract additions (SG + SS), the `assistant` role and `chars_ai` (Srinithin), and the side panel
   (Likhil).
+- **DEF-13..16 — Meta models in unexpected roles** (P1, PLAN §11.11): two graders must agree (Thu), replay the
+  race step by step (Fri), vibe-code an app on demand (Sat), circle the flaw with SAM (Sun). Done as of Thu
+  Oct 29: RUN-2 (#67), Defense on the strip (#68), DEF-12 spec (#70). Done by Sharvil's #73: DATA-2, validator
+  corpus, report-defense fixture, recall eval, loopback hardening, ticket-drop f2 attack.
+- **DEF-12 — Any vibe-coded project** (P1 · Sat, with OPS-1): PLAN §11.10. Project kinds (`web_app`,
+  `python_project`), a project-level audit with weaknesses or else 3 future improvements, proof by a targeted
+  test (`probe_writer.py`, `harness/probe_template.py`, validator allowlist for the project's own modules), and
+  the "clean" verdict. Needs SG's OK on the contract changes and ST's non-app sample.
 
 ---
 
@@ -331,9 +339,9 @@ proves `defense.audit` never carries an explanation.
 | 1 | Tue Oct 27 | S-0 merged, store, RUN-1, OPS-2 skeleton | CI green on `main`; LocalRunner runs a gold problem |
 | 2 | Wed Oct 28 | LocalRunner projects, DEF-1, DEF-2; agree on the engine hooks | **IC1**: `bank-transfer` audit renders |
 | 3 | Thu Oct 29 | RUN-2, RUN-3, DEF-3, OPS-2 working, `lib/defense.ts` | Likhil runs on MOCK |
-| 4 | Fri Oct 30 | DEF-4, DEF-5 (text) | **IC2**: `bank-transfer` breaks live |
-| 5 | Sat Oct 31 | DEF-6, OPS-1 | Deployed |
-| 6 | Sun Nov 1 | DEF-7, DEF-8, DEF-11 backend (P1); integration fixes | **IC3** + cut-line review |
+| 4 | Fri Oct 30 | DEF-14 race replay; IC2 run-through with Likhil's views | **IC2**: `bank-transfer` breaks live |
+| 5 | Sat Oct 31 | OPS-1 deploy; DEF-12 any project; DEF-15 app on demand | Deployed |
+| 6 | Sun Nov 1 | DEF-16 SAM (with Likhil's pen), DEF-7, DEF-8; integration fixes | **IC3** + cut-line review |
 | 7 | Mon Nov 2 | Reliability (cold starts, retries, timeouts); DEF-9 if IC3 is green and Likhil agrees; DEF-10 (P2) only after the demo script passes twice | Demo script passes twice |
 | 8 | Tue Nov 3 | **Feature freeze 12 PM.** Bug fixes only; record demo takes | Takes recorded |
 | 9 | Wed Nov 4 | Final video edit; **submit by 6 PM** | Submitted |
