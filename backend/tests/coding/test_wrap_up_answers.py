@@ -94,7 +94,7 @@ async def wrap(tmp_path: Path) -> AsyncIterator[Wrap]:
 
 async def test_a_spoken_answer_in_two_turns_gets_one_question_after_the_gap(wrap: Wrap) -> None:
     await wrap.says("It's O of n time")
-    await wrap.wait(1.5)  # the pause Muse Voice ends a turn at
+    await wrap.wait(GAP_S - 0.4)  # a pause Muse Voice ends a turn at, shorter than the gap
     assert len(wrap.questions()) == 1
     await wrap.says("and O of one space")
     answered_ms = wrap.rt.now_ms()
@@ -109,7 +109,7 @@ async def test_a_spoken_answer_in_two_turns_gets_one_question_after_the_gap(wrap
 
 async def test_speech_resuming_within_the_gap_holds_the_question(wrap: Wrap) -> None:
     await wrap.says("It's O of n time")
-    await wrap.wait(2.0)
+    await wrap.wait(GAP_S - 0.4)
     await wrap.speech_start()  # talking again; the turn isn't final yet
     await wrap.wait(5.0)  # long past the first turn's gap
     assert len(wrap.questions()) == 1

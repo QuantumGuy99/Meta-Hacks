@@ -276,10 +276,19 @@ def _hold_or_deliver(state: PolicyState, facts: Facts, candidate: _Candidate | N
         if candidate.decision.trigger == InterventionTrigger.PASTE:
             state.paste_pending = False
         return None
-    if not _quiet(facts):
+    if not _quiet(facts) and not _reply_to_a_finished_turn(state, facts, candidate):
         return None
     state.held = None
     return _commit(state, facts, candidate)
+
+
+def _reply_to_a_finished_turn(state: PolicyState, facts: Facts, candidate: _Candidate) -> bool:
+    """A reply to what the candidate just finished saying doesn't wait out the quiet window: the final transcript
+    already says their turn is over. Unless they've started talking or typing again since (§9.5)."""
+    if candidate.decision.trigger != InterventionTrigger.REPLY or state.statement is None:
+        return False
+    said_ms = state.statement[1]
+    return (facts.last_partial_ms or 0) <= said_ms and (facts.last_edit_ms or 0) <= said_ms
 
 
 def _quiet(facts: Facts) -> bool:
@@ -515,17 +524,25 @@ def _idle(state: PolicyState, facts: Facts) -> _Candidate | None:
 # --- talk: REPLY, PROBE (active mode only; their own clocks, not the help cap) --------------------------------
 
 
+def reply_possible(state: PolicyState, facts: Facts) -> bool:
+    """Whether a REPLY could go out now if the candidate said something: lets the engine start writing one while
+    the classifier is still deciding question vs thinking aloud. No side effects."""
+    if facts.passive or facts.phase not in _PLAN_PHASES or state.replies >= REPLY_MAX:
+        return False
+    return _every(state.last_reply_ms, facts.now_ms, REPLY_EVERY_MS) and _quiet_for(
+        state, facts.now_ms, REPLY_AFTER_MS
+    )
+
+
 def _reply(state: PolicyState, facts: Facts) -> _Candidate | None:
     """A short reply to something the candidate just said that wasn't a question (the model writes it)."""
-    if state.statement is None or facts.phase not in _PLAN_PHASES:
+    if state.statement is None:
         return None
     said, said_ms = state.statement
     if facts.now_ms - said_ms > REPLY_STALE_MS:
         state.statement = None
         return None
-    if state.replies >= REPLY_MAX or not _every(state.last_reply_ms, facts.now_ms, REPLY_EVERY_MS):
-        return None
-    if not _quiet_for(state, facts.now_ms, REPLY_AFTER_MS):
+    if not reply_possible(state, facts):
         return None
     decision = Decision(InterventionTrigger.REPLY, InterventionLevel.INFO, None, None, said=said)
     return _Candidate(decision, f"said at {said_ms}")

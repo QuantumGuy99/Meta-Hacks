@@ -68,8 +68,9 @@ WARM_UP_LIMIT_S = 90
 WARM_UP_WAIT_S = 25  # no answer to a warm-up question by then: move on to the problem
 TIMER_TICK_S = 0.5
 # A spoken answer to a scripted question (warm-up or wrap-up) is over after this long with no new candidate
-# speech (the analyzer's PAUSE_MS, §9.4).
-ANSWER_GAP_MS = 2_500
+# speech. Muse Voice already ends a turn at a pause, so this only catches a second thought; longer and the
+# interviewer feels slow to respond.
+ANSWER_GAP_MS = 1_200
 ANSWER_POLL_S = 0.1
 # Reasons recorded on the phase change into wrap_up; the opener line depends on which one it was.
 REASON_PASSED = "submit passed every test"
@@ -162,6 +163,8 @@ class CodingController:
         self._warm_asked_ms = 0
         self._warm_asked_seq = 0
         self._warm_waiting = False
+        # The warm-up reply written while the pause after an answer runs: ((what they said, kind), task).
+        self._warm_ahead: tuple[tuple[str, str], asyncio.Task[str | None]] | None = None
         self._problem_presented = False
         self._heard_ms: int | None = None  # the open question's spoken answer was last heard then
         self._quiet_wait: asyncio.Task[None] | None = None  # moves on once that answer has gone quiet
@@ -193,6 +196,8 @@ class CodingController:
     async def on_close(self, rt: SessionRuntime) -> None:
         """Optional hub hook (PLAN §9.1): stop the timer and any wrap-up step still running."""
         tasks = [*self._tasks, *([self._timer] if self._timer else [])]
+        if self._warm_ahead is not None:
+            self._warm_ahead[1].cancel()
         for task in tasks:
             task.cancel()
         for task in tasks:
@@ -261,6 +266,7 @@ class CodingController:
                 and self._warm_waiting
                 and p["start_ms"] >= self._warm_asked_ms
             ):
+                self._write_warm_up_reply_ahead(rt)
                 self._answered(
                     rt, p["source"], Phase.INTRO, lambda: self._warm_up_answered(rt, self._warm_asked)
                 )
@@ -328,15 +334,15 @@ class CodingController:
             if not self._warm_waiting or self._warm_asked != answering or rt.session.phase != Phase.INTRO:
                 return  # two answers raced, or the warm-up already ended
             self._warm_waiting, self._heard_ms = False, None
-            said = " ".join(
-                e.payload["text"].strip()
-                for e in rt.timeline.tail([TimelineKind.TRANSCRIPT], since_t=self._warm_asked_ms)
-                if e.seq > self._warm_asked_seq and e.payload["speaker"] == "candidate" and e.payload["final"]
-            )
-            # No follow-up the candidate wouldn't have time to answer.
-            last = answering >= WARM_UP_QUESTIONS or self._warm_up_over(rt, margin_s=self._warm_up_wait_s)
-            kind = "warmup_close" if last else "warmup"
-            line = await reply(rt, rt.model, kind, said) if rt.model is not None and said else None
+            said, kind = self._warm_said(rt), self._warm_kind(rt, answering)
+            ahead, self._warm_ahead = self._warm_ahead, None
+            if ahead is not None and ahead[0] == (said, kind):
+                line = await ahead[1]  # written during the pause
+            else:
+                if ahead is not None:
+                    ahead[1].cancel()
+                line = await reply(rt, rt.model, kind, said) if rt.model is not None and said else None
+            last = kind == "warmup_close"
             if not last:
                 await self._ask_warm_up(rt, line or PHASE_LINES["warmup_follow_up"])
                 return
@@ -344,6 +350,32 @@ class CodingController:
                 rt, line or PHASE_LINES["warmup_thanks"], InterventionTrigger.WARMUP, InterventionLevel.INFO
             )
             await self._start_problem(rt, "warm-up done")
+
+    def _write_warm_up_reply_ahead(self, rt: SessionRuntime) -> None:
+        """Start the reply to the warm-up answer heard so far, so it's ready when the pause after it ends."""
+        said = self._warm_said(rt)
+        if rt.model is None or not said:
+            return
+        key = (said, self._warm_kind(rt, self._warm_asked))
+        if self._warm_ahead is not None:
+            if self._warm_ahead[0] == key:
+                return
+            self._warm_ahead[1].cancel()  # they said more: the reply must hear all of it
+        task = asyncio.create_task(reply(rt, rt.model, key[1], said), name=f"warm-up-reply-{rt.session.id}")  # type: ignore[arg-type]
+        self._warm_ahead = (key, task)
+
+    def _warm_said(self, rt: SessionRuntime) -> str:
+        """What the candidate said since the open warm-up question went out."""
+        return " ".join(
+            e.payload["text"].strip()
+            for e in rt.timeline.tail([TimelineKind.TRANSCRIPT], since_t=self._warm_asked_ms)
+            if e.seq > self._warm_asked_seq and e.payload["speaker"] == "candidate" and e.payload["final"]
+        )
+
+    def _warm_kind(self, rt: SessionRuntime, answering: int) -> str:
+        """A follow-up question, or the closing reaction: no follow-up they wouldn't have time to answer."""
+        last = answering >= WARM_UP_QUESTIONS or self._warm_up_over(rt, margin_s=self._warm_up_wait_s)
+        return "warmup_close" if last else "warmup"
 
     async def _end_warm_up(self, rt: SessionRuntime, reason: str) -> None:
         """The warm-up ran out of time, or a question went unanswered: move on to the problem."""
