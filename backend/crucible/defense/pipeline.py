@@ -195,11 +195,12 @@ class DefensePipeline:
         return v
 
     def _reference_for(self, f: Finding) -> AttackFunctions | None:
-        ref = self.sample.reference_attack
-        if ref is None or self.state.audit is None:
+        if self.state.audit is None:
             return None
-        target = reference_target(self.state.audit.findings, self.sample.flaws, ref.flaw_id)
-        return ref.functions if target == f.id else None
+        for ref in self.sample.reference_attacks:  # one per chaos flaw (ticket-drop has two)
+            if reference_target(self.state.audit.findings, self.sample.flaws, ref.flaw_id) == f.id:
+                return ref.functions
+        return None
 
 
 REFERENCE_LINE_SLACK = 5  # a model's line range may start or end a few lines off the flaw's

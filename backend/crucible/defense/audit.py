@@ -53,7 +53,7 @@ async def run_audit(
     if use_cache and key in _CACHE:
         return _CACHE[key]
     try:
-        result = await _model_audit(sample, llm, sink)
+        result = await audit_with_model(sample, llm, sink)
     except ModelUnavailable as exc:
         if not sample.flaws:
             raise AuditFailed(f"audit models unavailable and no flaws.json: {exc}") from exc
@@ -68,8 +68,10 @@ async def run_audit(
     return result
 
 
-async def _model_audit(sample: Sample, llm: ModelClient, sink: EventSink) -> AuditResult:
-    """One retry when the audit comes back empty: Wonder returned no findings in 2 of 6 live runs (#43)."""
+async def audit_with_model(sample: Sample, llm: ModelClient, sink: EventSink) -> AuditResult:
+    """The model's audit, checked by code, with one retry when it comes back empty: Wonder returned no
+    findings in 2 of 6 live runs (#43). No cache and no flaws.json fallback (raises ModelUnavailable), so
+    the recall eval calls this directly and the ground truth can never pass for the model."""
     raw = await llm.complete_json("audit", _messages(sample), AuditResult, timeout_s=AUDIT_TIMEOUT_S)
     result = check_audit(raw, sample.files)
     if result.findings:
@@ -152,10 +154,14 @@ def audit_from_flaws(sample: Sample) -> AuditResult:
     """Ground-truth fallback for sample apps (logged; never presented as an AI result in the demo)."""
     nodes, edges = derive_topology(sample.files)
     by_file = {n.file: n.id for n in nodes if n.file}
+    first_chaos = next(
+        (f.get("id") for f in sample.flaws if f.get("chaos") or f.get("chaos_invariant")), None
+    )
     findings = []
     for i, flaw in enumerate(sample.flaws):
+        ref = sample.reference_for(flaw.get("id", f"f{i + 1}"), first_chaos)
         try:
-            findings.append(_finding_from_flaw(flaw, i, by_file.get(flaw["file"]), sample.reference_attack))
+            findings.append(_finding_from_flaw(flaw, i, by_file.get(flaw["file"]), ref))
         except (KeyError, ValidationError) as exc:
             logger.error("flaws.json entry %d in %s is invalid: %s", i, sample.project.id, exc)
     result = AuditResult(
@@ -196,7 +202,7 @@ def _imports(source: str, module: str) -> bool:
 
 def _finding_from_flaw(flaw: dict, i: int, node_id: str | None, ref: ReferenceAttack | None) -> Finding:
     chaos_extra = flaw.get("chaos") or {}
-    use_ref = ref is not None and (ref.flaw_id in (None, flaw.get("id")))
+    use_ref = ref is not None  # audit_from_flaws already matched it to this flaw
     chaos = (
         ChaosPlan(
             endpoint=chaos_extra.get("endpoint", flaw.get("endpoint", "")),

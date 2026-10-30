@@ -1,0 +1,8 @@
+{"meta": {"problem_slug": "thermostat-swings", "feedback": "active", "voice": true, "about": "clarifies the edge cases, states a plan, writes a correct solution, then goes quiet; the interviewer should check their understanding, not hint"}}
+{"t": 4000, "do": "chat", "text": "Can the list be empty, and does a change of exactly k count as a swing?"}
+{"t": 14000, "do": "say", "text": "My plan: walk the list once, compare each reading with the one before it using abs, and count the jumps strictly bigger than k."}
+{"t": 35000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps)):\n"}
+{"t": 60000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps)):\n        if abs(temps[i] - temps[i - 1]) > k:\n            swings += 1\n"}
+{"t": 85000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps)):\n        if abs(temps[i] - temps[i - 1]) > k:\n            swings += 1\n    return swings\n"}
+{"t": 210000, "do": "end"}
+{"expect": {"fires": [{"trigger": "probe", "by_t": 210000}], "never": ["missed_step", "bug_suspected", "hint_requested"], "max_shown": 1, "no_leak": true}}

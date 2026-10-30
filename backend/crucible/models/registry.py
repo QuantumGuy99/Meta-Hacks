@@ -13,6 +13,7 @@ ModelRole = Literal[
     "interviewer",
     "classifier",
     "complexity",
+    "conversation",
     "grill_eval",
     "audit",
     "report",
@@ -84,6 +85,10 @@ ROLES: dict[ModelRole, RoleSpec] = {
     "interviewer": RoleSpec(_spark("low"), timeout_s=6),
     "classifier": RoleSpec(_spark("minimal"), timeout_s=3),
     "complexity": RoleSpec(_spark("low"), timeout_s=8),
+    # The interviewer's talk: the warm-up, short replies and check-ins (§9.5). A separate role from `interviewer`
+    # (which answers questions) so the strip says what it's doing and its budget can be tuned on its own.
+    # Minimal effort: these lines are short and every second of thinking is a pause the candidate hears.
+    "conversation": RoleSpec(_spark("minimal"), timeout_s=6),
     "grill_eval": RoleSpec(_spark("medium"), timeout_s=10, fallbacks=(_spark("low"), _SPARK_OPEN)),
     "audit": RoleSpec(_wonder("xhigh"), timeout_s=120, fallbacks=(_spark("high"),)),
     "report": RoleSpec(_wonder("high"), timeout_s=45, fallbacks=(_spark("high"),)),

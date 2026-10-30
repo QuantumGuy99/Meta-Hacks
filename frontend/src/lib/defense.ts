@@ -1,6 +1,5 @@
-// Defense-stage selectors (PLAN §11.2): pure functions over the live session state, for the Defense views.
-// No fetching and no components. Outcomes such as "Broke" or "Merge approved" are data, not phases.
-
+// Defense-stage selectors for the Defense views (PLAN §11.2, §14.3). Pure functions over the session state:
+// no fetching and no components. "Broke" and "Merge approved" are data (runs, verdict), not phases.
 import type {
   AuditPublic,
   ChaosMetric,
@@ -10,7 +9,7 @@ import type {
   GrillTurn,
   Phase,
   Verdict,
-} from "../types/contracts";
+} from "@/types/contracts";
 
 export type DefenseStage = "audit" | "chaos" | "grill" | "fix" | "verify" | "verdict";
 export type StageLabel =
@@ -22,6 +21,9 @@ export type StageLabel =
   | "Verifying"
   | "Merge approved"
   | "Merge rejected";
+export type NodeStatus = "ok" | "flagged" | "broke" | "verified";
+// A graded grill turn arrives with its full Finding (defense.grill.eval), never before.
+export type GrillTurnWithFinding = { turn: GrillTurn; finding: Finding };
 export type ChaosPoint = {
   t: number;
   inFlight: number;
@@ -31,30 +33,19 @@ export type ChaosPoint = {
   errors: number;
   violations: number;
 };
-/** A graded grill: `finding` is null when restored from the timeline, which only holds the turn. */
-export type GradedGrill = { turn: GrillTurn; finding: Finding | null };
-export type NodeStatus = "ok" | "flagged" | "broke" | "verified";
 
-const STAGES: Partial<Record<Phase, DefenseStage>> = {
-  audit: "audit",
-  chaos: "chaos",
-  grill: "grill",
-  fix: "fix",
-  verify: "verify",
-  verdict: "verdict",
-  ended: "verdict",
-  reporting: "verdict",
-  reported: "verdict",
-};
+const STAGES: readonly DefenseStage[] = ["audit", "chaos", "grill", "fix", "verify", "verdict"];
+const AFTER_VERDICT: readonly Phase[] = ["ended", "reporting", "reported"];
 
-/** The stepper's stage for a phase; null before the audit starts (setup) or for coding phases. */
-export function defenseStage(phase: Phase | null): DefenseStage | null {
-  return (phase && STAGES[phase]) ?? null;
+export function defenseStage(phase: Phase): DefenseStage | null {
+  return (STAGES as readonly string[]).includes(phase) ? (phase as DefenseStage) : null;
 }
 
-/** The header label, from the phase plus the latest data. */
-export function stageLabel(phase: Phase | null, runs: ChaosRun[], verdict: Verdict | null): StageLabel | null {
-  switch (defenseStage(phase)) {
+export function stageLabel(phase: Phase, runs: readonly ChaosRun[], verdict: Verdict | null): StageLabel | null {
+  if (verdict && (phase === "verdict" || AFTER_VERDICT.includes(phase))) {
+    return verdict.passed ? "Merge approved" : "Merge rejected";
+  }
+  switch (phase) {
     case "audit":
       return "Auditing";
     case "chaos":
@@ -65,23 +56,19 @@ export function stageLabel(phase: Phase | null, runs: ChaosRun[], verdict: Verdi
       return "Fixing";
     case "verify":
       return "Verifying";
-    case "verdict":
-      return verdict ? (verdict.passed ? "Merge approved" : "Merge rejected") : null;
     default:
       return null;
   }
 }
 
-/** One run's chart points, oldest first: the finished run's own metrics, else the live ones so far. */
-export function chaosSeries(runs: ChaosRun[], live: ChaosMetric[], runId: string): ChaosPoint[] {
+// The chart points for one run: the finished run's own metrics, else the live ones streamed so far.
+export function chaosSeries(runs: readonly ChaosRun[], live: readonly ChaosMetric[], runId: string): ChaosPoint[] {
   const done = runs.find((r) => r.id === runId);
-  const source = done && done.metrics.length > 0 ? done.metrics : live.filter((m) => m.run_id === runId);
-  const byTime = new Map<number, ChaosMetric>();
-  for (const m of source) byTime.set(m.t_ms, m); // a reload can deliver one point twice
-  return [...byTime.values()]
+  const metrics = done && done.metrics.length > 0 ? done.metrics : live.filter((m) => m.run_id === runId);
+  return [...metrics]
     .sort((a, b) => a.t_ms - b.t_ms)
     .map((m) => ({
-      t: m.t_ms,
+      t: m.t_ms / 1000,
       inFlight: m.in_flight,
       rps: m.rps,
       p95: m.p95_ms,
@@ -91,40 +78,46 @@ export function chaosSeries(runs: ChaosRun[], live: ChaosMetric[], runId: string
     }));
 }
 
-/** The latest baseline and verify run for a finding, for the before/after charts. */
-export function beforeAfter(runs: ChaosRun[], findingId: string): { baseline?: ChaosRun; verify?: ChaosRun } {
-  const latest = (kind: ChaosRun["kind"]) =>
-    runs.filter((r) => r.finding_id === findingId && r.kind === kind).sort((a, b) => b.attempt - a.attempt)[0];
-  return { baseline: latest("baseline"), verify: latest("verify") };
+// The latest baseline and the latest verify run for a finding (verify can run up to 3 times).
+export function beforeAfter(runs: readonly ChaosRun[], findingId: string): { baseline?: ChaosRun; verify?: ChaosRun } {
+  return { baseline: latest(runs, findingId, "baseline"), verify: latest(runs, findingId, "verify") };
 }
 
-/** The banner over a finished run. The summary is the server's own sentence with the real numbers. */
-export function verdictBanner(run: ChaosRun): { tone: ChaosRun["verdict"]; text: string } {
+export function verdictBanner(run: ChaosRun): { tone: "broke" | "held" | "error"; text: string } {
   return { tone: run.verdict, text: run.summary };
 }
 
 export function flaggedNodeIds(audit: AuditPublic): Set<string> {
-  return new Set(audit.findings.flatMap((f) => (f.node_id ? [f.node_id] : [])));
+  const ids = new Set(audit.nodes.filter((n) => n.flagged).map((n) => n.id));
+  for (const f of audit.findings) if (f.node_id) ids.add(f.node_id);
+  return ids;
 }
 
-/** The public finding, plus the full one (explanation, points, fix steps) only once its grill is graded. */
 export function findingDetail(
   audit: AuditPublic,
-  grill: GradedGrill[],
+  grill: readonly GrillTurnWithFinding[],
   findingId: string,
-): { public: FindingPublic | null; full: Finding | null } {
-  return {
-    public: audit.findings.find((f) => f.id === findingId) ?? null,
-    full: grill.find((g) => g.turn.finding_id === findingId)?.finding ?? null,
-  };
+): { public: FindingPublic; full: Finding | null } | null {
+  const pub = audit.findings.find((f) => f.id === findingId);
+  if (!pub) return null;
+  const graded = grill.find((g) => g.turn.finding_id === findingId);
+  return { public: pub, full: graded ? graded.finding : null };
 }
 
-/** A topology node's colour: verified once every broken finding in it held, broke if any broke, else
- * flagged if the audit pointed at it. */
-export function nodeStatus(audit: AuditPublic, runs: ChaosRun[], nodeId: string): NodeStatus {
+export function nodeStatus(audit: AuditPublic, runs: readonly ChaosRun[], nodeId: string): NodeStatus {
   const findings = audit.findings.filter((f) => f.node_id === nodeId);
-  if (findings.length === 0) return "ok";
-  const broken = findings.filter((f) => beforeAfter(runs, f.id).baseline?.verdict === "broke");
-  if (broken.length === 0) return "flagged";
-  return broken.every((f) => beforeAfter(runs, f.id).verify?.verdict === "held") ? "verified" : "broke";
+  if (findings.length === 0) {
+    return audit.nodes.some((n) => n.id === nodeId && n.flagged) ? "flagged" : "ok";
+  }
+  if (findings.every((f) => latest(runs, f.id, "verify")?.verdict === "held")) return "verified";
+  if (findings.some((f) => latest(runs, f.id, "baseline")?.verdict === "broke")) return "broke";
+  return "flagged";
+}
+
+function latest(runs: readonly ChaosRun[], findingId: string, kind: ChaosRun["kind"]): ChaosRun | undefined {
+  let best: ChaosRun | undefined;
+  for (const r of runs) {
+    if (r.finding_id === findingId && r.kind === kind && (!best || r.attempt >= best.attempt)) best = r;
+  }
+  return best;
 }

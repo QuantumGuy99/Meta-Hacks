@@ -277,6 +277,7 @@ Owners: **SG** Srinithin Ganesh · **SS** Shreyas Sahoo · **LG** Likhil Gudipat
         │   ├── capture/editor.ts              (SG)  Monaco → EditorEvent batches + snapshots
         │   ├── capture/audio/*                (SG)  mic → AudioWorklet → PCM 24 kHz Int16 frames
         │   ├── replay.ts                      (SG)  code at time t (mirrors engine/codestate.py)
+        │   ├── tts.ts                         (SG)  interviewer voice, speechSynthesis (LG reviews)
         │   └── defense.ts                     (SS)  defense-stage helpers/selectors
         └── types/contracts.ts                 # GENERATED (make contracts); do not edit
 ```
@@ -408,6 +409,7 @@ class InterventionTrigger(StrEnum):
     BUG_SUSPECTED = "bug_suspected"; PLAN_MISMATCH = "plan_mismatch"; CODED_BEFORE_PLAN = "coded_before_plan"
     PASTE = "paste"; ASKED = "asked"; HINT_REQUESTED = "hint_requested"; TIME_WARNING = "time_warning"
     PHASE = "phase"; PRAISE = "praise"; GRILL = "grill"
+    WARMUP = "warmup"; REPLY = "reply"; PROBE = "probe"   # conversation, not help (§10.1, §9.5)
 
 class InterventionLevel(StrEnum):
     INFO = "info"; NUDGE = "nudge"; QUESTION = "question"; HINT = "hint"; CONCEPT = "concept"
@@ -856,7 +858,7 @@ Client → server:
 | `code.run` / `code.submit` | `file`, `code` | Runs tests → `run.result` |
 | `chat.send` | `text` | Text alternative to voice; becomes a candidate `TranscriptTurn` (source=text) addressed to the interviewer |
 | `hint.request` | `step_id?` | Explicit hint (counted) |
-| `phase.advance` | `to: Phase` | Candidate-driven transitions only: clarify → coding ("Start coding") and coding → wrap_up ("I'm done"); the server rejects anything else |
+| `phase.advance` | `to: Phase` | Candidate-driven transitions only: intro → clarify ("Skip intro"), clarify → coding ("Start coding") and coding → wrap_up ("I'm done"); the server rejects anything else |
 | `defense.run_chaos` | `finding_id` | Normally automatic; manual retry button |
 | `defense.verify` | `finding_id`, `files: {path: code}` | Re-run the attack on edited files |
 | `assistant.ask` | `text`, `file: str \| None`, `selection: str \| None` | P1 (§11.9): ask the Muse fix assistant → `assistant.reply` |
@@ -1067,8 +1069,9 @@ request, a run or an analysis.
 - Never deliver within **2.5 s** of the last edit or while candidate speech is in progress. Hold it in a
   one-slot queue, re-check the rules each tick, and deliver when quiet. If it's held for more than **20 s**,
   drop it; the rule then waits for fresh evidence (2 new analyses, or a new run).
-- **45 s** minimum between unsolicited messages; answers (`ASKED`, `HINT_REQUESTED`) restart that clock too,
-  so a nudge never lands right after an answer. At most **8 unsolicited per 30 min**.
+- **45 s** minimum between unsolicited help messages; answers (`ASKED`, `HINT_REQUESTED`) restart that clock
+  too, so a nudge never lands right after an answer. At most **8 unsolicited per 30 min**. Talk (`REPLY`,
+  `PROBE`) uses neither, but every unsolicited line (help or talk) is at least **15 s** after the previous line.
 - Never repeat the same `(trigger, subject)` at the same level. The subject is the step for ladder rules, the
   issue for `BUG_SUSPECTED` and the plan for `PLAN_MISMATCH`. `SILENT` and `IDLE` repeat on their own clocks.
 - An analysis rule fires again for the same step or issue only after **2 analyses newer than its last fire**,
@@ -1085,12 +1088,25 @@ request, a run or an analysis.
 | `PASTE` | paste ≥ 40 chars or ≥ 2 non-blank lines, or a bulk insert (≥ 80 chars in one change) | INFO, text only, neutral ("I noticed a pasted block. I'll focus my feedback on the parts you wrote.") | said once; COD-4 logs every flag |
 | `CODED_BEFORE_PLAN` (P1) | ≥ 3 non-blank lines written beyond the starter code (the editor's first snapshot) while no plan has been stated this session (the policy keeps the latest `stated_plan`, so a plan older than the analyzer's 90 s window still counts), voice on, in `clarify`/`coding` | QUESTION ("Before you go further, what's your approach?") | once |
 | `RUN_FAILED` | the same visible test failed on 2 runs in a row, or 1 failure then 30 s with no edit or speech (hidden tests never count) | ladder for the step: the analyzer's `RUN_FAILED` step, else the first `incorrect` step, else the first required step not done | — |
-| `MISSED_STEP` | a required step is `skipped`/`not_started` while a step with higher `order` is `in_progress`/`done`/`incorrect`, seen in **2 consecutive analyses**; waits while the analyzer's own proposal for it is below 0.7 | ladder | — |
+| `MISSED_STEP` | a required step is `skipped`/`not_started` while a step with higher `order` is `in_progress`/`done`/`incorrect`, seen in **2 consecutive analyses**; waits while the analyzer's own proposal for it is below 0.7 | QUESTION, asked once per step: the interviewer tests, it doesn't hint. HINT and CONCEPT only when the candidate asks (`HINT_REQUESTED`) or is stuck (`RUN_FAILED`) | per step |
 | `BUG_SUSPECTED` | a `bug` or `edge_case` issue with a line and confidence ≥ 0.75, seen in 2 consecutive analyses, its line's text unchanged for 20 s | NUDGE, canned "Take another look around line N" (never the analyzer's draft, which may hint at the fix) | per issue |
 | `PLAN_MISMATCH` (P1) | `plan_matches_code == false` in 2 consecutive analyses, with a stated plan (the latest, or the one the policy remembers) | QUESTION | per plan |
-| `SILENT` (P1, voice on) | in `coding`, ≥ 120 s without a final candidate turn (voice or chat) | NUDGE ("Talk me through what you're doing.") | every 5 min max |
-| `IDLE` | in `coding` (or defense `fix`), no edit and no speech ≥ 75 s | QUESTION ("Where are you at?") | every 3 min max |
+| `SILENT` (P1, voice on) | in `coding`, ≥ 75 s without a final candidate turn (voice or chat) | NUDGE, a check-in the model words from the screen (`reply(kind="checkin")`), canned "Talk me through what you're doing." | every 3 min max |
+| `IDLE` | in `coding` (or defense `fix`), no edit and no speech ≥ 60 s | QUESTION, a model-worded check-in, canned "Where are you at?" | every 2 min max |
+| `REPLY` (talk, active) | in `clarify`/`coding`, the candidate said or typed something that isn't a question (≥ 6 words; a voice turn the classifier labels thinking aloud), the interviewer has been quiet ≥ 20 s (counting from the problem's presentation), within 8 s of it being said. It goes out as soon as it's written: the final transcript already ended their turn, so it skips the quiet window unless they talk or type again | INFO: the model (`reply(kind="reply")`) asks one follow-up that makes them justify it, or acknowledges briefly; never confirms or hints | 1 per 40 s, 12 per session |
+| `PROBE` (talk, active) | in `coding`, a step became `done` that wasn't probed yet, no serious issue open, quiet ≥ 45 s. Code decides when; the model (`reply(kind="probe")`, never shown the rubric) asks why their code works, what a line does for an input, or what a part costs | QUESTION | 4 per session; steps done together get one probe |
 | `PRAISE` | a step marked tricky in the rubric becomes `done` | INFO | max 1 per 10 min |
+
+**Response time (Oct 28).** A real run felt slow (3–4 s), so the engine doesn't make the candidate wait for
+steps in a row: on a final spoken turn it starts writing the answer and, if a reply could go out, the reply
+while the classifier decides which it is, then sends the one that fits (`LiveEngine._write_ahead`). The warm-up
+reply is written during the pause after an answer. Measured before: thinking aloud → reply 3.6 s after the
+final transcript (classifier 0.6 s, quiet window 1.5 s, model 1.3 s); question → answer 2.0 s; warm-up 4.4 s.
+
+**Talk vs help (built Oct 28).** `REPLY`, `PROBE` and the check-ins are the interviewer's side of the
+conversation, not help: they don't count as interventions shown or against independence (`NOT_HELP`), and the
+model writes them on delivery with the `conversation` role (Spark low, 6 s; the strip says "talking with you"),
+falling back to canned lines. They're active-mode only.
 
 `PRAISE` isn't built: `RubricStep` has no "tricky" flag, so it needs a contract change (SG + SS). It's a
 `TODO(ENG-5)` in `policy.py`.
@@ -1227,7 +1243,12 @@ Owner: **SG**. Data: **ST**.
 
 ### 10.1 Phases and timers
 `setup → intro → clarify → coding → wrap_up → ended → reporting → reported`
-- `intro → clarify`: automatically after the intro message (or 30 s).
+- `intro → clarify`: after the warm-up (2 answers, 90 s, 25 s with no answer, or "Skip intro"). The clock
+  doesn't run during the intro: leaving it adds the elapsed time to `time_limit_s`.
+- **Warm-up (built Oct 28):** a greeting that asks about the candidate (`WARMUP`, QUESTION); the model
+  (`interviewer.reply()`, prompt `interviewer_warmup.md`, never shown the problem) reacts with one follow-up,
+  then a closing line; then the problem. Spoken answers wait for the quiet gap, like wrap-up answers. Canned
+  lines when the model fails. `CodingMode(warm_up=False)` goes straight to the problem (engine tests, evals).
 - `clarify → coding`: the candidate clicks **Start coding** (`phase.advance`) or makes the first substantive
   edit (≥ 3 non-blank lines).
 - `coding → wrap_up`: on a submit that passes all hidden tests, when time runs out, or on the candidate's
@@ -1247,6 +1268,14 @@ Owner: **SG**. Data: **ST**.
     "That's time", or a plain one for "I'm done"). The live engine is detached, so chat answers aren't treated
     as questions. The rubric's `wrap_up_questions` are asked one per candidate answer, then the closing line,
     and the session ends. With no answer for 3 min (`wrap_up_limit_s`), it closes anyway.
+  - **When an answer is over:** a typed answer moves on at once. A spoken one moves on after **1.2 s** with no
+    new candidate speech (`ANSWER_GAP_MS`; 2.5 s felt slow in a real run, Oct 28): Muse Voice ends a turn at
+    every pause, so "It's O of n time" [pause] "and O of one space" arrives as two final turns. Each new final
+    turn restarts the wait, and a turn still being spoken (speechStart has set the interviewer state to
+    `listening` and the turn isn't final yet) holds it. A typed answer while a spoken one is waiting moves on at
+    once and drops the wait. Two answers to the same question move on once. The 3-minute limit still closes the
+    session, even mid-sentence. Live check (real Muse Voice, two clips 1.5 s apart with silence streaming
+    between): one next question, 2.5 s after the second half's final turn.
   - **Resuming during the wrap-up** recounts the questions already asked from the timeline and waits for the
     next answer.
   - Phase lines show in passive mode too: they run the interview, they aren't feedback.
@@ -1623,8 +1652,9 @@ style: plausible, readable, subtly wrong), `requirements.txt`, `crucible.json`, 
 | `rate-limiter` | unsynchronized counter + unbounded dict | allowed ≤ limit per window | P1 |
 
 `flaws.json`: `[{id, category, file, line_start, line_end, explanation, expected_fix, grill_expected_points,
-chaos_invariant}]`. `validate_apps` checks: the app boots in the runner, the reference chaos script **breaks**
-the original, and `fix.patch` applied → the same script **holds**.
+chaos_invariant}]`. `reference_attack.json`: `{flaw_id, concurrency, duration_s, functions}`, or a list with one
+per chaos flaw. `validate_apps` (`make validate`) checks: the app boots in the runner, every reference attack
+**breaks** the original, and with the reference fix applied the same attack **holds**.
 
 ### 13.3 Evals (`data/evals/`)
 - **Coding** (`evals/coding/*.jsonl`): scripted timelines (editor events + transcript + runs) with expected
@@ -1740,13 +1770,40 @@ MOCK is only ever switched on explicitly: a timeout, a missing credential or a M
 session never falls back to recorded data (it follows §21: a real fallback model, or an `error` verdict with
 a retry button), because recorded results shown as live would be a faked demo.
 
-### 14.7 Voice: speech to text only
-Voice in the room is **speech to text**: the candidate's mic streams to the audio socket (§8.3), Muse Voice
-Transcribe turns it into `transcript.update` turns, and the room shows them as live captions and chat
-messages. **Hold to Ask** marks a spoken question for the interviewer. The setup forms turn voice on by
-default and fall back to the chat box when the socket closes with 44xx/45xx.
-There is **no text to speech**: the interviewer's replies are shown as text and never read aloud (the
-frontend sends `speak_replies: false`). That also keeps every runtime model call a Meta one.
+### 14.7 TTS (`lib/tts.ts`)
+`speechSynthesis` with a chosen English voice (prefer a natural voice when available), a queue, `cancel()`
+when the candidate starts speaking (barge-in), and an `onstart`/`onend` that drives the speaking indicator.
+No third-party TTS (e.g. ElevenLabs): it would be the only non-Meta model call at runtime, needs another
+key, and `speechSynthesis` has no outage to fall back from.
+- **API:** `createTts({onStart, onEnd, onBlocked, onVoices, voiceName})` → `{speak(text), cancel(),
+  setMuted(bool), setVoice(name | null), warm(), unlock(), dispose(), speaking, blocked, voices, voice,
+  supported}`, plus `rankVoices`, `isNaturalVoice`, `voiceLabel` and `loadVoiceChoice`/`saveVoiceChoice`
+  (localStorage, per browser). Without `speechSynthesis` (or on the server render) every call is a no-op.
+- **Voice, as human as the browser allows:** waits for `voiceschanged` (at most 1.5 s), then ranks the English
+  voices, en-US first within each tier: Edge's neural voices ("… Online (Natural)", Ava, Andrew, Emma and Brian
+  first), macOS "(Premium)" then "(Enhanced)" voices, any other natural or neural voice, Google's ("Google US
+  English", then "Google UK English Female"), then Samantha, Daniel, Karen and Moira, then the rest. The novelty
+  voices (Albert, Bad News, Bells, Zarvox, …) and the robotic Eloquence ones (Eddy, Flo, Grandma, Grandpa, Reed,
+  Rocko, Sandy, Shelley) are never picked or listed. The candidate's own pick wins when it's installed.
+- **Prosody:** rate 1.05, pitch 1. One utterance per sentence, so the first sentence starts at once and nothing
+  breaks mid-phrase; only a sentence over 220 characters (Chrome cuts an utterance off after about 15 s) splits,
+  at its commas, semicolons and colons. Markdown is read as plain text and code blocks are skipped. `warm()`
+  speaks one silent, empty utterance in the default local voice to start the engine (the room calls it on load
+  and on the first click; Google's network voices don't warm up, each sentence is its own request).
+- **Queue:** sentences are spoken one at a time. `onStart` fires when the first one starts and `onEnd` once the
+  queue is empty or cancelled. Chrome can wedge its queue when `speak()` follows `cancel()` at once (seen with
+  the room's remount in development), so the next sentence waits 120 ms after any cancel, and a sentence the
+  busy engine hasn't started within 3 s is cleared and retried once, then skipped. A lost end event is caught
+  once the engine goes idle, and a sentence stuck far past its length is cut, so the mic is never held silent
+  for good.
+- **Blocked:** a browser that refuses to speak before the user has interacted with the page (`not-allowed`, or
+  Safari dropping it silently) sets `blocked` and holds the newest message; the room shows "Turn on voice",
+  whose click calls `unlock()`.
+- **The room:** speaks each new interviewer message with `speak: true` as it appears, and calls the audio
+  capture's `setPaused(true)` from `onStart` until `onEnd`, so the mic sends silence (§8.3). Holding Ask cancels
+  the speech. The header has the mute toggle and a voice picker (the ranked list, remembered per browser). When
+  the best voice installed is Google's or older, a one-line hint suggests Microsoft Edge or a macOS Premium voice
+  (System Settings → Accessibility → Spoken Content).
 
 ---
 
@@ -1774,6 +1831,7 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 | `interviewer` | `muse-spark-1.3` | low | canned/rubric text |
 | `classifier` (P1) | `muse-spark-1.3` | minimal | treat as thinking aloud |
 | `complexity` (P1, COD-5) | `muse-spark-1.3` | low | leave the answer ungraded (null) |
+| `conversation` (warm-up, replies, probes, check-ins) | `muse-spark-1.3` | minimal (short lines; every second is a pause the candidate hears) | the canned line |
 | `grill_eval` | `muse-spark-1.3` | medium | Spark (low) → Spark Open (Baseten) → keyword grading |
 | `audit` | `muse-wonder-1.0` | xhigh | `muse-spark-1.3` (high) → `flaws.json` (samples only) |
 | `report` | `muse-wonder-1.0` | high | `muse-spark-1.3` → metrics-only template |
@@ -2103,7 +2161,7 @@ Record each segment separately on the deployed build, at real speed (speed-ups a
 | Problem text rights | Original statements only + review checklist (§13.1) |
 | Demo-day failure | Pre-recorded takes on the deployed build by Tue Nov 3; never present MOCK as live |
 
-**Timeouts:** analyzer 12 s · interviewer 6 s · classifier 3 s · complexity 8 s (20 s guard, report time) · grill eval 20 s (Spark medium measured 4–15 s) · audit 120 s · report 45 s per model (Wonder measured 15–21 s, once over 90 s; then Spark) ·
+**Timeouts:** analyzer 12 s · interviewer 6 s · conversation 6 s · classifier 3 s · complexity 8 s (20 s guard, report time) · grill eval 20 s (Spark medium measured 4–15 s) · audit 120 s · report 45 s per model (Wonder measured 15–21 s, once over 90 s; then Spark) ·
 attack writer 30 s · test run 10 s · chaos run 60 s · ASR handshake 10 s · SAM 5 s · image 20 s.
 
 ---

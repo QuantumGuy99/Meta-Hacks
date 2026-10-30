@@ -15,7 +15,7 @@
       "Fix it by running the query in a thread pool (run_in_threadpool or asyncio.to_thread), a sync route, or an async client."
     ],
     "chaos_invariant": "/health p95 stays under 200 ms while reports are being generated",
-    "grill_question": "While 100 reports were being generated, even /health took seconds to answer, though it does no work at all. Why?",
+    "grill_question": "While the monthly reports were being generated, even /health took seconds to answer, though it does no work at all. Why?",
     "grill_follow_up": "What does the event loop do while fetch_transactions is waiting on the warehouse?",
     "fix_steps": [
       {
@@ -71,7 +71,7 @@
       "endpoint": "/reports/2026-09",
       "method": "GET",
       "body_example": null,
-      "concurrency": 100,
+      "concurrency": 10,
       "duration_s": 10,
       "invariant": "/health p95 under 200 ms while reports load",
       "p95_threshold_ms": null

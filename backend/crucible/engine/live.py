@@ -28,8 +28,8 @@ from crucible.engine.analyzer import TICK_S, Analyzer, StructuredModel
 from crucible.engine.classifier import CONTEXT_TURNS, is_question_for_interviewer
 from crucible.engine.codestate import TEXT_KINDS
 from crucible.engine.context import RubricContext
-from crucible.engine.interviewer import answer, deliver
-from crucible.engine.policy import Facts, PolicyState, decide, is_question, written_lines
+from crucible.engine.interviewer import answer, deliver, reply
+from crucible.engine.policy import Facts, PolicyState, decide, is_question, reply_possible, written_lines
 
 if TYPE_CHECKING:
     from crucible.engine.hub import SessionRuntime
@@ -37,13 +37,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 MAX_DECISIONS_PER_TICK = 3  # e.g. an answer, a hint and a time warning that came due together
+# Lines the model writes when they go out (REPLY, PROBE), or when the analyzer had no draft (check-ins, §9.5).
+_TALKED = {
+    InterventionTrigger.REPLY: "reply",
+    InterventionTrigger.PROBE: "probe",
+    InterventionTrigger.SILENT: "checkin",
+    InterventionTrigger.IDLE: "checkin",
+}
 
 
 class LiveEngine:
     """The analyzer, policy and interviewer for one attached rubric. Started by `rt.attach()`."""
 
     def __init__(self, rt: SessionRuntime, context: RubricContext, model: StructuredModel) -> None:
-        self.policy = PolicyState()
+        self.policy = PolicyState(attached_ms=rt.now_ms())  # the problem was just presented
         self.analyzer = Analyzer(rt, context, model, self._on_analysis)
         self._model = model
         self._last_question: str | None = None  # what the candidate asked, not yet answered (ASKED)
@@ -51,6 +58,9 @@ class LiveEngine:
         self._asked_turns: set[str] = set()
         self._said: deque[str] = deque(maxlen=CONTEXT_TURNS)
         self._classifying: set[asyncio.Task[None]] = set()
+        # Lines written ahead for a spoken turn while the classifier decides what it is, keyed "answer" or
+        # "reply": (the turn's text, the task writing it). The one that fits is used, the other cancelled.
+        self._ahead: dict[str, tuple[str, asyncio.Task[str | None]]] = {}
         self._rt = rt
         self._context = context
         self._main = context.files[0] if context.files else "solution.py"
@@ -69,9 +79,10 @@ class LiveEngine:
             self._task = asyncio.create_task(self._loop(), name=f"policy-{self._rt.session.id}")
 
     async def stop(self) -> None:
-        for task in list(self._classifying):
+        for task in [*self._classifying, *(task for _, task in self._ahead.values())]:
             task.cancel()
         self._classifying.clear()
+        self._ahead.clear()
         await self.analyzer.stop()
         if self._task is not None:
             self._task.cancel()
@@ -124,9 +135,16 @@ class LiveEngine:
                 and self._last_question
             ):
                 question, self._last_question = self._last_question, None
-                reply = await answer(self._rt, self._model, self._context, question)
-                if reply is not None:  # otherwise deliver() sends the canned line
-                    decision = replace(decision, draft=reply)
+                ahead = self._take("answer", question)
+                text = await ahead if ahead else await answer(self._rt, self._model, self._context, question)
+                if text is not None:  # otherwise deliver() sends the canned line
+                    decision = replace(decision, draft=text)
+            elif not decision.suppressed and decision.draft is None and decision.trigger in _TALKED:
+                kind, said = _TALKED[decision.trigger], decision.said or ""
+                ahead = self._take("reply", said) if kind == "reply" else None
+                text = await ahead if ahead else await reply(self._rt, self._model, kind, said, self._context)
+                if text is not None:
+                    decision = replace(decision, draft=text)
             await deliver(self._rt, decision, self._context)
 
     async def _on_analysis(self, analysis: Analysis) -> None:
@@ -157,18 +175,28 @@ class LiveEngine:
             ):
                 turn = TranscriptTurn.model_validate(event.payload)
                 self._last_speech_ms = now
-                if turn.source == "text" and is_question(turn.text):
-                    self.ask(turn.text)
-                elif turn.source == "voice":
+                if turn.source == "voice":
                     self._classify(turn)
+                elif is_question(turn.text):
+                    self.ask(turn.text)
+                else:
+                    self.policy.observe_statement(turn.text, now)
+                    self._wake.set()
             case TimelineKind.RUN:
                 self.policy.observe_run(RunResult.model_validate(event.payload))
                 self._wake.set()
 
     def _classify(self, turn: TranscriptTurn) -> None:
-        """Ask the classifier about a spoken turn in the background, so the transcript never waits on it."""
+        """Ask the classifier about a spoken turn in the background, so the transcript never waits on it.
+
+        Meanwhile the answer (and the reply, if one could go out) is already being written, so the candidate
+        waits for one model call, not a classifier call and then a model call.
+        """
         earlier = list(self._said)
         self._said.append(turn.text)
+        self._write_ahead("answer", turn.text)
+        if reply_possible(self.policy, self._facts()):
+            self._write_ahead("reply", turn.text)
         task = asyncio.create_task(self._classify_turn(turn, earlier), name=f"classify-{turn.turn_id}")
         self._classifying.add(task)
         task.add_done_callback(self._classifying.discard)
@@ -179,12 +207,39 @@ class LiveEngine:
         verdict = await is_question_for_interviewer(
             self._model, turn.text, earlier, session_id=self._rt.session.id
         )
+        if verdict:
+            self._drop("reply", turn.text)
+            self.ask(turn.text, turn.turn_id)
+            return
+        self._drop("answer", turn.text)
         if verdict is None:
             await self._rt.note(
                 "warning", "the voice classifier didn't answer; treated the turn as thinking aloud"
             )
-        elif verdict:
-            self.ask(turn.text, turn.turn_id)
+        self.policy.observe_statement(turn.text, self._rt.now_ms())  # thinking aloud: REPLY may answer it
+        self._wake.set()
+
+    def _write_ahead(self, kind: str, text: str) -> None:
+        self._drop(kind)
+        rt, model, context = self._rt, self._model, self._context
+        line = (
+            answer(rt, model, context, text) if kind == "answer" else reply(rt, model, "reply", text, context)
+        )
+        self._ahead[kind] = (text, asyncio.create_task(line, name=f"{kind}-ahead-{rt.session.id}"))
+
+    def _take(self, kind: str, text: str) -> asyncio.Task[str | None] | None:
+        """The line written ahead for exactly this text, if there is one (a merged question isn't)."""
+        ahead = self._ahead.get(kind)
+        if ahead is None or ahead[0] != text:
+            return None
+        del self._ahead[kind]
+        return ahead[1]
+
+    def _drop(self, kind: str, text: str | None = None) -> None:
+        ahead = self._ahead.get(kind)
+        if ahead is not None and (text is None or ahead[0] == text):
+            del self._ahead[kind]
+            ahead[1].cancel()
 
     def _facts(self) -> Facts:
         rt = self._rt

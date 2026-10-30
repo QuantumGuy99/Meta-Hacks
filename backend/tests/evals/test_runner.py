@@ -136,6 +136,9 @@ TIMELINE = [
         ({"limits": [{"trigger": "missed_step", "max": 1}, {"trigger": "idle", "max": 0}]}, [True, False]),
         ({"max_shown": 1}, [False]),  # missed_step + bug_suspected shown; phase and suppressed don't count
         ({"max_shown": 2}, [True]),
+        # missed_step at 20 s and bug_suspected at 30 s; scripted and suppressed lines don't count as talk
+        ({"talk": {"min_gap_s": 15, "max_per_5min": 8}}, [False, True]),
+        ({"talk": {"min_gap_s": 10, "max_per_5min": 1}}, [True, False]),
         ({"no_leak": True}, [False]),
         ({"flags": ["paste"]}, [True]),
         ({"flags": ["tab_hidden"]}, [False]),
