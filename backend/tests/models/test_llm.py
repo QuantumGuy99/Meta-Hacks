@@ -283,3 +283,10 @@ async def test_module_functions_need_configure_first(monkeypatch: pytest.MonkeyP
 
     wrapper = llm.configure(LLMSettings(api_key="k"))
     assert llm.default_llm() is wrapper
+
+
+def test_a_hanging_connection_gives_up_after_two_seconds() -> None:
+    from crucible.models.llm import CONNECT_TIMEOUT_S, _build_clients
+
+    clients = _build_clients(LLMSettings(api_key="k", base_url="https://example.invalid/v1"))
+    assert clients["meta"].timeout.connect == CONNECT_TIMEOUT_S == 2.0  # type: ignore[union-attr]

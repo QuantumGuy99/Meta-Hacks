@@ -2,6 +2,8 @@
 
 Each line is `{"dt_ms": <ms since the previous line>, "msg": <ServerMessage>}`. In MOCK mode a session's id is
 its scenario name (`/defense/defense-bank-transfer`). Client messages are accepted and logged, not answered.
+A finished session's report page (`/report/report-defense`) is served from `fixtures/rest/<name>.json`:
+`{"session", "report", "timeline"}`, recorded by crucible.mock.record --report.
 """
 
 from __future__ import annotations
@@ -18,11 +20,14 @@ from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
 
 from crucible.contracts.common import Mode, Session, SessionConfig
+from crucible.contracts.events import TimelineEvent
+from crucible.contracts.report import Report
 from crucible.contracts.ws import ServerMessage
 
 logger = logging.getLogger(__name__)
 
 FIXTURES = Path(__file__).parent / "fixtures"
+REST_FIXTURES = FIXTURES / "rest"
 DEFAULT_SCENARIO = {Mode.CODING: "coding-active", Mode.DEFENSE: "defense-bank-transfer"}
 UNKNOWN_SESSION_CLOSE = 4404
 SERVER_MESSAGE: TypeAdapter[ServerMessage] = TypeAdapter(ServerMessage)
@@ -43,6 +48,21 @@ def load_scenario(name: str) -> list[tuple[int, dict]]:
             SERVER_MESSAGE.validate_python(item["msg"])
             lines.append((int(item["dt_ms"]), item["msg"]))
     return lines
+
+
+@lru_cache
+def load_report_fixture(name: str) -> tuple[Session, Report, list[TimelineEvent]]:
+    """A recorded report page, validated against the contracts. KeyError if it doesn't exist."""
+    path = REST_FIXTURES / f"{name}.json"
+    if not path.is_file():
+        raise KeyError(name)
+    raw = json.loads(path.read_text())
+    timeline = [TimelineEvent.model_validate(e) for e in raw["timeline"]]
+    return Session.model_validate(raw["session"]), Report.model_validate(raw["report"]), timeline
+
+
+def report_fixtures() -> list[str]:
+    return sorted(p.stem for p in REST_FIXTURES.glob("*.json"))
 
 
 def scenarios() -> list[str]:
@@ -71,7 +91,27 @@ async def get_session(session_id: str) -> Session | JSONResponse:
     try:
         return scenario_session(session_id)
     except KeyError:
-        return _error(404, "not_found", f"no MOCK scenario {session_id!r}; have {scenarios()}")
+        pass
+    try:
+        return load_report_fixture(session_id)[0]
+    except KeyError:
+        return _not_found(session_id)
+
+
+@router.get("/api/sessions/{session_id}/report", response_model=Report)
+async def get_report(session_id: str) -> Report | JSONResponse:
+    try:
+        return load_report_fixture(session_id)[1]
+    except KeyError:
+        return _not_found(session_id)
+
+
+@router.get("/api/sessions/{session_id}/timeline", response_model=list[TimelineEvent])
+async def get_timeline(session_id: str) -> list[TimelineEvent] | JSONResponse:
+    try:
+        return load_report_fixture(session_id)[2]
+    except KeyError:
+        return _not_found(session_id)
 
 
 @router.websocket("/ws/sessions/{session_id}")
@@ -110,8 +150,13 @@ def _renamed(msg: dict, session_id: str) -> dict:
     return msg
 
 
+def _not_found(session_id: str) -> JSONResponse:
+    have = scenarios() + report_fixtures()
+    return _error(404, "not_found", f"no MOCK scenario {session_id!r}; have {have}")
+
+
 def _error(status: int, code: str, message: str) -> JSONResponse:
     return JSONResponse(status_code=status, content={"error": {"code": code, "message": message}})
 
 
-__all__ = ["load_scenario", "router", "scenarios"]
+__all__ = ["load_report_fixture", "load_scenario", "report_fixtures", "router", "scenarios"]

@@ -178,6 +178,24 @@ def test_unfixed_code_breaks_again_then_the_fix_passes(client, bank):
         assert log.until(typed("defense.verdict"))["verdict"]["passed"]
 
 
+def test_a_double_clicked_verify_runs_one_attack(client, bank):
+    session_id = start(client, bank)
+    with client.websocket_connect(f"/ws/sessions/{session_id}") as ws:
+        log = Log(ws)
+        ws.send_json({"type": "hello", "client_now_ms": 0})
+        through_grill(log)
+        ws.send_json({"type": "chat.send", "text": GOOD_ANSWER})
+        log.until(phase("fix"))
+        verify = {"type": "defense.verify", "finding_id": "f1", "files": bank.fixed_files}
+        ws.send_json(verify)
+        ws.send_json(verify)  # a second click while the first attack runs
+        busy = log.until(typed("error"))
+        assert busy["code"] == "busy", busy
+        log.until(phase("ended"))
+    runs = [e for e in client.get(f"/api/sessions/{session_id}/timeline").json() if e["kind"] == "chaos_run"]
+    assert [r["payload"]["kind"] for r in runs] == ["baseline", "verify"]
+
+
 def test_unknown_project_is_a_400(client):
     r = client.post("/api/sessions", json={"mode": "defense", "project_id": "nope"})
     assert r.status_code == 400 and r.json()["error"]["code"] == "bad_config"
