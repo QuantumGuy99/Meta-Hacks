@@ -1555,6 +1555,17 @@ proof (the failing check and its detail instead of a load chart) and the "clean"
 one non-app sample (a vibe-coded CLI or library with `flaws.json` probe plans and `fixed/`) by Sat Oct 31.
 The demo still uses `bank-transfer`; this widens what judges can bring.
 
+### 11.11 P1: Meta's models in ways nobody expected (DEF-13..16, decided 2026-10-29)
+Judges score "Use of Meta AI Tooling" on going beyond a basic integration (§2). Each of these gives a Meta model
+a job the candidate can watch, and each keeps the rule: the model suggests, code decides.
+
+| WP | What | Models | Proof it works | When |
+|---|---|---|---|---|
+| **DEF-13 Two graders must agree** | Every grill answer is graded by two Meta models in parallel; a point counts only when both mark it. A split on the root cause asks the follow-up instead of failing the candidate. The strip lights both. | Muse Spark (`grill_eval`) + Muse Wonder low (`grill_check`); Spark Open replaces Wonder once Baseten is configured | Unit tests for agree / split / one model down; one live run | Thu Oct 29 |
+| **DEF-14 Replay the race step by step** | After a race breaks, Muse Wonder writes the exact interleaving that loses money (A reads, B reads, A writes, B writes) as a small schedule; code replays that schedule deterministically in the sandbox and shows it as a two-lane timeline with the balance after each step. A schedule that doesn't reproduce the loss is never shown. | Muse Wonder (`replay`) | The replayed schedule loses the same money on `bank-transfer` and holds on `fixed/` | Fri Oct 30 |
+| **DEF-15 Vibe-code an app on demand** | "Defend a fresh app": Muse Spark writes a small web app from a one-line idea, the runner checks it boots, Muse Wonder audits it, and Crucible attacks it. AI wrote it, AI breaks it, the human proves they understand it. Only apps that boot and pass a smoke request are offered. | Muse Spark (`drafter`) + the Defense pipeline | 3 of 5 generated apps boot and break under their own attack | Sat Oct 31 (after DEF-12 project kinds) |
+| **DEF-16 Circle the flaw with SAM** | §11.7 (DEF-9) pulled forward: the candidate circles a node on the diagram (or a sketch on webcam); SAM 3.1 finds it; code picks the node. | SAM 3.1 | ≥ 4 of 5 circles select the right node | Sun Nov 1, with Likhil's pen |
+
 ## 12. Runner
 
 Owner: **SS**. Shared by both modes.
