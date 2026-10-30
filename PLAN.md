@@ -1832,7 +1832,8 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 | `classifier` (P1) | `muse-spark-1.3` | minimal | treat as thinking aloud |
 | `complexity` (P1, COD-5) | `muse-spark-1.3` | low | leave the answer ungraded (null) |
 | `conversation` (warm-up, replies, probes, check-ins) | `muse-spark-1.3` | minimal (short lines; every second is a pause the candidate hears) | the canned line |
-| `grill_eval` | `muse-spark-1.3` | medium | Spark (low) → Spark Open (Baseten) → keyword grading |
+| `grill_eval` | `muse-spark-1.3` | low | Spark (minimal) → Spark Open (Baseten) |
+| `grill_check` (DEF-13) | `muse-wonder-1.0` | low | Spark Open; runs in parallel with `grill_eval`, and only points both mark count (§11.5) |
 | `audit` | `muse-wonder-1.0` | xhigh | `muse-spark-1.3` (high) → `flaws.json` (samples only) |
 | `report` | `muse-wonder-1.0` | high | `muse-spark-1.3` → metrics-only template |
 | `attacker` | `muse-spark-1.3` | low | Spark (medium) → reference attack (sample apps only) |
