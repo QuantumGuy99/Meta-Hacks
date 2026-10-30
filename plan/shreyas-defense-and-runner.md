@@ -32,10 +32,10 @@ a second interviewer. Your job is to feed it a `RubricContext` and drive the sta
 `data/` (Sharvil). If you need a change there, note it in your PR or ask the owner. Exception to agree with
 Srinithin: you write `models/sam.py` and `models/image.py` for DEF-9 / DEF-10 if he's OK with it.
 
-**Agent docs** (for Claude Code and Muse Code on this area): `backend/crucible/defense/CLAUDE.md` (area
+**Agent docs** (for coding agents on this area): `backend/crucible/defense/AGENTS.md` (area
 rules; also loaded from `runner/`), `docs/defense/DEFENSE_AGENT_SPEC.txt` (Defense briefing + the decision log for
 how it was reconciled with PLAN), `docs/defense/MEMORY.md` (shared working memory: file claims, status,
-handoff). Team-wide: root `CLAUDE.md`, `backend/CLAUDE.md` (code style), `.claude/skills/crucible-code/`.
+handoff). Team-wide: root `AGENTS.md`, `backend/AGENTS.md` (code style), `docs/agents/code-templates.md`.
 
 ## Setup (Day 0, Mon Oct 26)
 
@@ -134,7 +134,7 @@ export function nodeStatus(audit: AuditPublic, runs: ChaosRun[], nodeId: string)
 ## Work packages, in build order
 
 Each one lists what to read, the files, the steps and the "done when". Hand any of them to an agent with the
-prompt in [plan/README.md](README.md#using-a-coding-agent-muse-code-claude-code).
+prompt in [plan/README.md](README.md#using-a-coding-agent-muse-code).
 
 ### S-0 — Scaffold
 **P0 · Mon–Tue morning** · Read: PLAN §5, §6, §19.2
