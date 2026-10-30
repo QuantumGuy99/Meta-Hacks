@@ -17,11 +17,13 @@ from crucible.contracts.defense import (
     ChaosRun,
     Finding,
     GrillTurn,
+    RaceReplay,
     Verdict,
 )
 from crucible.contracts.events import PhaseChange, TimelineKind
 from crucible.defense import audit as audit_mod
 from crucible.defense import grill as grill_mod
+from crucible.defense import replay as replay_mod
 from crucible.defense import verdict as verdict_mod
 from crucible.defense.attack_writer import write_attack
 from crucible.defense.chaos import run_attack
@@ -194,6 +196,17 @@ class DefensePipeline:
         await self.sink.emit(TimelineKind.VERDICT, v)
         return v
 
+    async def prepare_replay(self, finding_id: str) -> RaceReplay | None:
+        """DEF-14: the race step by step, for a race finding that broke. Not emitted here: it explains the
+        cause, so the caller sends it once the finding's grill is final."""
+        f = self.finding(finding_id)
+        fn = self.state.attacks.get(finding_id)
+        if f.category != "race_condition" or fn is None or finding_id not in self.state.broken:
+            return None
+        return await replay_mod.race_replay(
+            f, self.sample.project, self.sample.files, fn, self.runner, self.llm, self.sink
+        )
+
     def _reference_for(self, f: Finding) -> AttackFunctions | None:
         if self.state.audit is None:
             return None
@@ -234,15 +247,21 @@ def _overlaps(f: Finding, flaw: dict) -> bool:
 
 
 async def run_scripted(
-    p: DefensePipeline, answers: dict[str, str] | str, edited_files: dict[str, str] | None
+    p: DefensePipeline,
+    answers: dict[str, str] | str,
+    edited_files: dict[str, str] | None,
+    *,
+    with_replay: bool = False,
 ) -> Verdict:
     """Drive every stage with scripted inputs: dev API, CLI and end-to-end tests. The real session gets
-    answers and edits from the room instead."""
+    answers and edits from the room instead. `with_replay` adds DEF-14's replay after each grill."""
     await p.run_audit()
     await p.run_baselines()
     for fid in p.state.broken:
         answer = answers if isinstance(answers, str) else answers.get(fid, "")
         await p.answer_grill(fid, answer)
+        if with_replay and (replay := await p.prepare_replay(fid)) is not None:
+            await p.sink.emit(TimelineKind.REPLAY, replay)
         if edited_files is not None:
             await p.verify(fid, {k: v for k, v in edited_files.items() if p.sample.files.get(k) != v})
     return await p.decide()

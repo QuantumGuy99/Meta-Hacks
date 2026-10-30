@@ -20,6 +20,7 @@ ModelRole = Literal[
     "attacker",
     "drafter",
     "vision",
+    "replay",
 ]
 # "none" returns 400 on Spark and Wonder (PLAN §15.2).
 Effort = Literal["minimal", "low", "medium", "high", "xhigh", "max"]
@@ -95,6 +96,8 @@ ROLES: dict[ModelRole, RoleSpec] = {
     "attacker": RoleSpec(_spark("low"), timeout_s=30, fallbacks=(_spark("medium"),)),
     "drafter": RoleSpec(_wonder("high"), timeout_s=120, fallbacks=(_spark("medium"), _SPARK_OPEN)),
     "vision": RoleSpec(_spark("low"), timeout_s=10),
+    # DEF-14: narrates a race step by step after it's reproduced; runs in the background during the grill.
+    "replay": RoleSpec(_wonder("medium"), timeout_s=60, fallbacks=(_spark("high"),)),
 }
 
 PRICES: dict[str, Price] = {
