@@ -102,11 +102,16 @@ These are where UI choices touch the spec. Breaking one breaks a design rule or 
   the text) go inside the capture lib's `programmatic(() => …)`. Otherwise they look like typing or a
   bulk paste, and the candidate gets an integrity note they didn't earn. Switching defense tabs is
   `setFile(path)`.
-- **Voice is speech to text only** (PLAN §14.7): the mic streams to the audio socket and the turns come back
-  as captions and chat messages; Hold to Ask sends `ask` frames. No TTS: the interviewer's replies stay text.
+- **Voice** (PLAN §14.7): the mic streams to the audio socket and the turns come back as captions and chat
+  messages; Hold to Ask sends `ask` frames. The interviewer's replies with `speak: true` are read aloud by
+  `lib/tts.ts` (SG builds it, you review). While it speaks, the room calls the audio capture's `setPaused(true)`,
+  so the mic sends silence instead of transcribing the interviewer; holding Ask cancels the speech (barge-in).
+  The header has the mute toggle and a voice picker (remembered per browser), and a one-line hint suggests
+  Edge or a macOS Premium voice when only Google's or older voices are installed.
 - **Monaco:** Python, `quickSuggestions: false`, `wordBasedSuggestions: "off"`, minimap off (PLAN §14.2).
 - **`/coding` setup** pre-fills from the `?topic=&feedback=` your landing start dialog sends, and adds
-  difficulty and voice (speech to text, on by default; `speak_replies: false`) → `POST /api/sessions`.
+  difficulty, voice (speech to text) and read replies aloud (`speak_replies`), both on by default →
+  `POST /api/sessions`.
 - **No MOCK or fixtures in the demo video,** ever.
 
 ## Dependencies to add, by work package

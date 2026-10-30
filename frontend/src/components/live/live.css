@@ -297,6 +297,54 @@
   font-size: 12px;
   line-height: 1.4;
 }
+/* the interviewer's voice in the room header: mute toggle and voice picker */
+.rm-voice-ctl {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.rm-voice-pick {
+  min-height: 34px;
+  max-width: 220px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-line-2);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 500 13px/1 var(--font-sans), sans-serif;
+  cursor: pointer;
+}
+.rm-voice-pick:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+/* one line under the header when only Google's or older voices are installed */
+.rm-voice-hint {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 6px var(--margin);
+  border-bottom: 1px solid var(--ui-line);
+  color: var(--muted-ink);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.rm-voice-hint span {
+  flex: 1;
+  min-width: 0;
+}
+.rm-voice-hint-close {
+  border: 0;
+  background: none;
+  color: var(--muted-ink);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.rm-voice-hint-close:hover {
+  color: var(--ink);
+}
 .msg-caption {
   margin-top: 4px;
   padding: 8px 10px;

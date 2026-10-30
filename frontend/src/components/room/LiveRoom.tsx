@@ -30,6 +30,8 @@ import { NotesPanel } from "./NotesPanel";
 import { TestPanel } from "./TestPanel";
 import { UnderTheHood } from "./UnderTheHood";
 import { useMic } from "./useMic";
+import { useVoice } from "./useVoice";
+import { VoiceControls, VoiceHint } from "./VoiceControls";
 
 // The live coding room (/coding/[id], PLAN §14.2): everything on screen comes from the session socket.
 // Edits go out through the capture lib; Run/Submit, Ask, Hint and the phase buttons are ClientMessages.
@@ -77,7 +79,8 @@ export function LiveRoom({ id }: { id: string }) {
   const { state, send, streamDone } = useLiveSession(id);
   const remaining = useRemaining(state);
   const caption = liveCaption(state);
-  const { mic, toggleMic, setAsking } = useMic(id);
+  const { mic, toggleMic, setAsking, setPaused } = useMic(id);
+  const voice = useVoice(state, setPaused);
   const [problem, setProblem] = useState<ProblemPublic | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -198,8 +201,10 @@ export function LiveRoom({ id }: { id: string }) {
     }
   };
 
-  // Skip Intro: straight to the problem. The button goes once pressed; a server that refuses it just carries on.
+  // Skip Intro: straight to the problem, with the interviewer stopped mid-sentence. The button goes once pressed;
+  // a server that refuses it just carries on.
   const skipIntro = () => {
+    voice.interrupt();
     skippedAt.current = performance.now();
     setSkipped(true);
     send({ type: "phase.advance", to: "clarify" });
@@ -241,6 +246,7 @@ export function LiveRoom({ id }: { id: string }) {
             </NumberFlowGroup>
           </span>
         )}
+        <VoiceControls voice={voice} />
         <button type="button" className="ui-btn" aria-pressed={showNotes} onClick={() => setShowNotes((v) => !v)}>
           Notes
         </button>
@@ -276,6 +282,7 @@ export function LiveRoom({ id }: { id: string }) {
           </button>
         )}
       </header>
+      <VoiceHint voice={voice} />
 
       <ResizablePanelGroup orientation="horizontal" className="rm-body">
         <ResizablePanel defaultSize="26%" minSize="18%">
@@ -347,7 +354,7 @@ export function LiveRoom({ id }: { id: string }) {
         <ResizablePanel defaultSize="26%" minSize="20%">
           <InterviewerPanel
             messages={feedMessages(state)}
-            state={state.interviewer}
+            state={voice.speaking ? "speaking" : state.interviewer}
             streamingId={state.streamingId}
             onStreamDone={streamDone}
             onAsk={(text) => send({ type: "chat.send", text })}
@@ -357,7 +364,15 @@ export function LiveRoom({ id }: { id: string }) {
             caption={caption}
             extra={
               state.session?.config.voice ? (
-                <MicControls mic={mic} onToggle={toggleMic} onAsking={setAsking} disabled={ended} />
+                <MicControls
+                  mic={mic}
+                  onToggle={toggleMic}
+                  onAsking={(holding) => {
+                    if (holding) voice.interrupt(); // barge-in: the candidate wants the floor
+                    setAsking(holding);
+                  }}
+                  disabled={ended}
+                />
               ) : null
             }
           />
