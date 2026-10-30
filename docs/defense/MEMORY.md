@@ -25,7 +25,7 @@ session. Update it before you finish any session that changed code, decisions or
 |---|---|---|---|
 | S-0, store | Scaffold, Makefile, CI, SQLite store | merged (#10) | main.py import guard can go once nothing needs it |
 | RUN-1 | Harness + LocalRunner.run_tests | merged (#15) | Checked on a real problem; re-run on Sharvil's gold problems |
-| RUN-3 | ModalRunner for projects | merged (#15), gaps open | Real Modal: race reproduces, egress blocked (V7). Every Modal call now has a deadline (`claude/brave-brahmagupta-tafp0a`). Still open (#22 item 8): image built lazily, sample requirements.txt not installed |
+| RUN-3 | ModalRunner for projects | merged (#15), gaps open | Real Modal: race reproduces, egress blocked (V7). Every Modal call now has a deadline (#73). Still open (#22 item 8): image built lazily, sample requirements.txt not installed |
 | RUN-2 | Warm Modal sandbox for coding tests | Thu | ModalRunner.run_tests raises a clear RUN-2 error until then |
 | DEF-1..6 | Defense pipeline + DefenseController | merged (#15), review fixes open | 7 WebSocket e2e tests; resume works. Blockers 1-4 of #22 fixed in #29; items 5, 7, 9, 10 open |
 | OPS-2 | MOCK replay + recorder | merged (#15); re-recorded | `defense-bank-transfer.jsonl` now from the real `bank-transfer`; `rest/report-defense.json` serves the report page |
@@ -36,7 +36,7 @@ session. Update it before you finish any session that changed code, decisions or
 | DEF-2 recall | `python -m crucible.defense.recall` over `data/evals/defense/` | built, not run live | Needs MODEL_API_KEY; the flaws.json fallback never counts |
 
 ## Handoff (overwrite every session)
-- **Last done:** 2026-10-29 [claude] On `claude/brave-brahmagupta-tafp0a`: one reference attack per flaw
+- **Last done:** 2026-10-29 [agent] In #73: one reference attack per flaw
   (ticket-drop f2 no longer needs the model), Sharvil's DATA-2 tools (`make validate`), validator corpus,
   recall eval, MOCK re-recorded from the real app + `report-defense`, `lib/defense.ts`, Modal deadlines,
   the Verify busy-check race, two loopback-hook bypasses closed (`type(client)()`, `event_hooks`), and the
@@ -59,7 +59,7 @@ session. Update it before you finish any session that changed code, decisions or
   the session id is the scenario name (PLAN §14.6).
 
 ## Session log (keep the last 10, newest first)
-- 2026-10-29 [claude] Data/Defense weak spots fixed and Thursday leftovers built (see Handoff); 600+ tests pass.
+- 2026-10-29 [agent] Data/Defense weak spots fixed and Thursday leftovers built (see Handoff); 600+ tests pass.
 - 2026-10-27 [claude] Merged #13–#15; opened #17, #18; docs refreshed (README status, role plan, spec).
 - 2026-10-28 [claude] #35 + #43 Defense fixes (reference attack matched by file/lines, keyword root-cause floor, p95 0 = no check, race load floor 50, empty-audit retry, harness configures models, stages cancelled on end). Live run on bank-transfer-min: attacker timed out twice (pre-#43 registry) → reference attack matched → broke $11,249 → grill 10/10 → held → PASS.
 - 2026-10-27 [claude] SG approved #13–#15. Attack containment in 3 layers (validator bans, loopback hook, Modal block_network); V7 done; samples load once.
