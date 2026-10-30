@@ -4,7 +4,8 @@
 - **intro → clarify:** the interviewer presents the problem, then the rubric is attached so the analyzer runs;
 - **clarify → coding:** "Start coding", or the first 3 new non-blank lines;
 - **coding → wrap_up:** a submit that passes every test, "I'm done", or the time limit;
-- **wrap_up → ended:** after the rubric's wrap-up questions are answered, or 3 minutes;
+- **wrap_up → ended:** after the rubric's wrap-up questions are answered, or 3 minutes; a typed answer moves on
+  at once, a spoken one after a quiet gap, because Muse Voice ends a turn at every pause;
 - along the way: Run/Submit (COD-3) and integrity notes for pastes and tab switches (COD-4).
 """
 
@@ -59,6 +60,9 @@ _CAN_RUN = {Phase.CLARIFY, Phase.CODING, Phase.WRAP_UP}
 STARTED_CODING_LINES = 3  # new non-blank lines that count as "started coding" (§10.1)
 WRAP_UP_LIMIT_S = 180
 TIMER_TICK_S = 0.5
+# A spoken wrap-up answer is over after this long with no new candidate speech (the analyzer's PAUSE_MS, §9.4).
+ANSWER_GAP_MS = 2_500
+ANSWER_POLL_S = 0.1
 # Reasons recorded on the phase change into wrap_up; the opener line depends on which one it was.
 REASON_PASSED = "submit passed every test"
 REASON_TIME = "time's up"
@@ -123,6 +127,8 @@ class CodingController:
         self._wrap_started_ms: int | None = None
         self._wrap_asked = 0  # wrap-up questions asked so far
         self._wrap_waiting = False  # a question is out and the next candidate turn answers it
+        self._heard_ms: int | None = None  # the open question's spoken answer was last heard then
+        self._quiet_wait: asyncio.Task[None] | None = None  # moves on once that answer has gone quiet
 
     # --- ModeController -------------------------------------------------------------------------------
 
@@ -192,7 +198,7 @@ class CodingController:
         elif event.kind == TimelineKind.TRANSCRIPT and rt.session.phase == Phase.WRAP_UP:
             p = event.payload
             if p["speaker"] == "candidate" and p["final"] and p["text"].strip() and self._wrap_waiting:
-                self._spawn(rt, self._next_wrap_up_question(rt))
+                self._answered(rt, p["source"])
 
     async def report_extra(self, rt: SessionRuntime) -> CodingExtra:
         """The latest analysis's step statuses; the approach: the one the analyzer named, else the plan the
@@ -254,11 +260,41 @@ class CodingController:
             )
             await self._ask_or_close(rt)
 
-    async def _next_wrap_up_question(self, rt: SessionRuntime) -> None:
+    def _answered(self, rt: SessionRuntime, source: str) -> None:
+        """A final candidate turn while a question is out (§10.1). A typed answer moves on at once; a spoken one
+        once it has gone quiet, since Muse Voice ends a turn at every pause: "O of n time" [pause] "and O of one
+        space" comes as two turns, and each new one restarts the wait."""
+        if source != "voice":
+            self._spawn(rt, self._next_wrap_up_question(rt, self._wrap_asked))
+            return
+        self._heard_ms = rt.now_ms()
+        if self._quiet_wait is None or self._quiet_wait.done():
+            self._quiet_wait = self._spawn(rt, self._move_on_when_quiet(rt))
+
+    async def _move_on_when_quiet(self, rt: SessionRuntime) -> None:
+        """Ask the next question (or close) after ANSWER_GAP_MS with no new candidate speech.
+
+        A turn still being spoken (the voice bridge's speechStart set "listening" and it isn't final yet) holds the
+        wait. Stops once nothing is pending: something else moved on (a typed answer, the wrap-up limit). It
+        exits only at the loop check, so an answer to the next question that lands meanwhile is never dropped.
+        """
+        while self._heard_ms is not None and rt.session.phase == Phase.WRAP_UP:
+            if rt.interviewer_state == "listening":
+                self._heard_ms = rt.now_ms()
+            wait_ms = self._heard_ms + ANSWER_GAP_MS - rt.now_ms()
+            if wait_ms > 0:
+                await asyncio.sleep(min(wait_ms / 1000, ANSWER_POLL_S))
+            else:
+                self._heard_ms = None
+                await self._next_wrap_up_question(rt, self._wrap_asked)
+
+    async def _next_wrap_up_question(self, rt: SessionRuntime, answering: int) -> None:
+        """Move on from question number `answering`, unless another answer to it already did."""
         async with self._wrap_lock:
-            if not self._wrap_waiting or rt.session.phase != Phase.WRAP_UP:
+            if not self._wrap_waiting or self._wrap_asked != answering or rt.session.phase != Phase.WRAP_UP:
                 return  # two answers raced; the first one already moved on
             self._wrap_waiting = False
+            self._heard_ms = None
             await self._ask_or_close(rt)
 
     async def _ask_or_close(self, rt: SessionRuntime) -> None:
@@ -272,6 +308,7 @@ class CodingController:
 
     async def _close(self, rt: SessionRuntime, reason: str) -> None:
         self._wrap_waiting = False
+        self._heard_ms = None
         await say(rt, PHASE_LINES["closing"], InterventionTrigger.PHASE, InterventionLevel.INFO)
         await rt.end(reason)
 
@@ -334,10 +371,11 @@ class CodingController:
         if spec is not None:
             await rt.attach(RubricContext.from_problem(spec))
 
-    def _spawn(self, rt: SessionRuntime, coro: Coroutine[Any, Any, None]) -> None:
+    def _spawn(self, rt: SessionRuntime, coro: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
         task = asyncio.create_task(self._guard(rt, coro), name=f"coding-{rt.session.id}")
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+        return task
 
     async def _guard(self, rt: SessionRuntime, coro: Coroutine[Any, Any, None]) -> None:
         try:
