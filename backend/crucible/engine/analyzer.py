@@ -43,7 +43,7 @@ class StructuredModel(Protocol):
 
     async def complete_json[T: BaseModel](
         self,
-        role: Literal["analyzer", "interviewer", "classifier", "complexity"],
+        role: Literal["analyzer", "interviewer", "classifier", "complexity", "conversation"],
         messages: Sequence[Mapping[str, Any]],
         schema: type[T],
         *,

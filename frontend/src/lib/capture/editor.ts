@@ -51,6 +51,7 @@ export const BATCH_MS = 500;
 export const SNAPSHOT_EVERY_CHANGES = 20;
 export const SNAPSHOT_IDLE_MS = 15_000;
 
+/** Starts capturing, and snapshots the editor's current code at once: the baseline for later edits. */
 export function attachEditorCapture(
   editor: CapturableEditor,
   send: (msg: ClientMessage) => void,
@@ -134,6 +135,10 @@ export function attachEditorCapture(
     flush();
     if (changesSinceSnapshot > 0 && now() - lastSnapshotAt >= SNAPSHOT_IDLE_MS) snapshot();
   }, BATCH_MS);
+
+  // The editor opens on code nobody typed here (the starter code, or the code restored after a reload), so
+  // the backend needs it before the first edit: edits are offsets into it (PLAN §9.3, §14.3).
+  snapshot();
 
   return {
     snapshot,

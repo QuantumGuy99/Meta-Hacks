@@ -261,7 +261,7 @@ def test_moments_are_capped_keeping_the_most_important() -> None:
         phase(0, Phase.CODING),
         edit(1_000),
         *(
-            said(10_000 + i * 1_000, InterventionLevel.NUDGE, InterventionTrigger.IDLE, step_id=None)
+            said(10_000 + i * 1_000, InterventionLevel.NUDGE, InterventionTrigger.RUN_FAILED, step_id=None)
             for i in range(20)
         ),
         run(80_000, visible=(2, 2)),
@@ -491,7 +491,7 @@ def make_client(tmp_path: Path, model: FakeModel | None, store: MemoryStore | No
     write_quiet_streak(tmp_path)
     app = FastAPI()
     app.include_router(router)
-    modes = {Mode.CODING: CodingMode(ProblemBank.load(tmp_path))}
+    modes = {Mode.CODING: CodingMode(ProblemBank.load(tmp_path), warm_up=False)}
     app.state.hub = SessionHub(store or MemoryStore(), modes, model=model)
     return TestClient(app)
 

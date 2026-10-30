@@ -163,6 +163,9 @@ class DefenseController:
         self.mode = mode
         self.pipeline: DefensePipeline | None = None
         self._lock = asyncio.Lock()  # one stage at a time
+        # Set when an attack task is spawned, before it can take the lock: a second Verify or re-run sent in
+        # the meantime would otherwise pass the `locked()` check and queue a second attack.
+        self._attack_pending = False
         self._tasks: set[asyncio.Task[None]] = set()
         self._queue: list[str] = []  # broken findings still to be grilled, in order
         self._current: str | None = None  # the finding the candidate is answering now
@@ -201,9 +204,10 @@ class DefenseController:
                     or self._current
                 ):
                     await self._error(rt, "bad_phase", "Finish the grill before verifying a fix.")
-                elif self._lock.locked():
+                elif self._lock.locked() or self._attack_pending:
                     await self._error(rt, "busy", "An attack is still running.", retryable=True)
                 else:
+                    self._attack_pending = True
                     self._spawn(rt, self._verify(rt, fid, files))
                 return True
             case DefenseRunChaos(finding_id=fid):
@@ -211,9 +215,10 @@ class DefenseController:
                 run = p.state.baseline.get(fid) if p else None
                 if run is None or run.verdict != "error":
                     await self._error(rt, "bad_request", "Only a baseline attack that errored can be re-run.")
-                elif self._lock.locked():
+                elif self._lock.locked() or self._attack_pending:
                     await self._error(rt, "busy", "An attack is still running.", retryable=True)
                 else:
+                    self._attack_pending = True
                     self._spawn(rt, self._rerun_baseline(rt, fid))
                 return True
         return False  # defense.circle (DEF-9) and anything else: unsupported for now
@@ -286,8 +291,11 @@ class DefenseController:
         await self._ask_next(rt)
 
     async def _verify(self, rt: SessionRuntime, fid: str, files: dict[str, str]) -> None:
-        p = self._pipeline(rt)
         async with self._lock:
+            self._attack_pending = False
+            p = self._pipeline(rt)
+            if rt.session.phase not in (Phase.FIX, Phase.VERIFY, Phase.GRILL):
+                return  # the session finished while this waited
             try:
                 run = await p.verify(fid, files)
             except (LookupError, ValueError) as exc:
@@ -306,8 +314,9 @@ class DefenseController:
             await self._say(rt, f"Still breaking: {run.summary}. Take another look.", InterventionLevel.NUDGE)
 
     async def _rerun_baseline(self, rt: SessionRuntime, fid: str) -> None:
-        p = self._pipeline(rt)
         async with self._lock:
+            self._attack_pending = False
+            p = self._pipeline(rt)
             fn = p.state.attacks.get(fid)
             if fn is None:
                 await self._error(rt, "bad_request", f"{fid} has no attack to re-run")

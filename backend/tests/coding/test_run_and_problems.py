@@ -81,6 +81,15 @@ def in_phase(phase: str) -> Callable[[dict[str, Any]], bool]:
     return lambda m: m["type"] == "session.state" and m["phase"] == phase
 
 
+def skip_warm_up(ws: Any) -> None:
+    """Wait for the warm-up's greeting, press "Skip intro", then wait for clarify (the warm-up has its own tests)."""
+    receive_until(
+        ws, lambda m: m["type"] == "interviewer.message" and m["intervention"]["trigger"] == "warmup"
+    )
+    ws.send_json({"type": "phase.advance", "to": "clarify"})
+    receive_until(ws, in_phase("clarify"))
+
+
 # --- COD-1: problem API -------------------------------------------------------------------------------------
 
 
@@ -108,7 +117,7 @@ def test_an_unknown_problem_is_a_404_envelope(client: TestClient) -> None:
 def test_run_executes_only_the_visible_tests(client: TestClient) -> None:
     _, socket = join(client)
     with socket as ws:
-        receive_until(ws, in_phase("clarify"))
+        skip_warm_up(ws)
         ws.send_json({"type": "code.run", "file": "solution.py", "code": QUIET_STREAK_REFERENCE})
         result = receive_until(ws, lambda m: m["type"] == "run.result")["result"]
     assert (result["kind"], result["passed"], result["total"]) == ("run", 1, 1)
@@ -118,7 +127,7 @@ def test_run_executes_only_the_visible_tests(client: TestClient) -> None:
 def test_submit_hides_hidden_test_details_from_the_browser(client: TestClient) -> None:
     sid, socket = join(client)
     with socket as ws:
-        receive_until(ws, in_phase("clarify"))
+        skip_warm_up(ws)
         ws.send_json({"type": "code.submit", "file": "solution.py", "code": BUGGY})
         result = receive_until(ws, lambda m: m["type"] == "run.result")["result"]
     hidden = [c for c in result["cases"] if not c["visible"]]
@@ -135,7 +144,7 @@ def test_submit_hides_hidden_test_details_from_the_browser(client: TestClient) -
 def test_run_records_the_exact_code_it_ran(client: TestClient) -> None:
     sid, socket = join(client)
     with socket as ws:
-        receive_until(ws, in_phase("clarify"))
+        skip_warm_up(ws)
         ws.send_json({"type": "code.run", "file": "solution.py", "code": QUIET_STREAK_REFERENCE})
         receive_until(ws, lambda m: m["type"] == "run.result")
     runtime = client.app.state.hub.runtimes[sid]
@@ -147,7 +156,7 @@ def test_run_records_the_exact_code_it_ran(client: TestClient) -> None:
 def test_a_passing_submit_while_coding_moves_to_wrap_up(client: TestClient) -> None:
     _, socket = join(client)
     with socket as ws:
-        receive_until(ws, in_phase("clarify"))
+        skip_warm_up(ws)
         ws.send_json({"type": "phase.advance", "to": "coding"})
         receive_until(ws, in_phase("coding"))
         ws.send_json({"type": "code.submit", "file": "solution.py", "code": QUIET_STREAK_REFERENCE})
@@ -163,7 +172,7 @@ def test_a_runner_failure_tells_the_sender_and_leaves_a_note(tmp_path: Path) -> 
     with make_client(tmp_path, broken) as client:
         sid, socket = join(client)
         with socket as ws:
-            receive_until(ws, in_phase("clarify"))
+            skip_warm_up(ws)
             ws.send_json({"type": "code.run", "file": "solution.py", "code": "x = 1\n"})
             error = receive_until(ws, lambda m: m["type"] == "error")
         assert error["code"] == "runner_unavailable" and error["retryable"] is True
@@ -176,6 +185,6 @@ def test_a_session_without_a_runner_says_it_cannot_run(tmp_path: Path) -> None:
     with make_client(tmp_path, None) as client:
         _, socket = join(client)
         with socket as ws:
-            receive_until(ws, in_phase("clarify"))
+            skip_warm_up(ws)
             ws.send_json({"type": "code.run", "file": "solution.py", "code": "x = 1\n"})
             assert receive_until(ws, lambda m: m["type"] == "error")["code"] == "cannot_run"

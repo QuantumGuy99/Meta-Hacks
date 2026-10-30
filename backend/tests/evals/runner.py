@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import itertools
 import json
 import logging
 import sys
@@ -66,7 +67,14 @@ TAIL_MS = 30_000  # time after the last step for pending nudges to land
 TYPE_CHUNK = 60  # characters per simulated keystroke batch; under the bulk-insert flag's 80
 RUNS = 3
 PASS_RUNS = 2
-NOT_UNSOLICITED = frozenset({"phase", "asked", "hint_requested", "grill"})
+# `max_shown` counts help. Scripted lines, answers and talk (replies, probes, check-ins) aren't help (§9.5).
+NOT_UNSOLICITED = frozenset(
+    {"phase", "warmup", "asked", "hint_requested", "grill", "reply", "probe", "silent", "idle"}
+)
+# Every eval checks the interviewer stays controlled: unsolicited lines (help and talk) at least `min_gap_s` apart
+# and at most `max_per_5min` in any 5 minutes. An eval can override it with its own `talk`.
+SCRIPTED = frozenset({"phase", "warmup", "asked", "hint_requested", "grill", "time_warning"})
+DEFAULT_TALK = {"min_gap_s": 15, "max_per_5min": 8}
 SPEAKING_MS_PER_CHAR = 60
 
 
@@ -328,7 +336,7 @@ async def run_once(
     clock, tab = SimClock(), Tab()
     hub = SessionHub(
         MemoryStore(),
-        {Mode.CODING: CodingMode(bank, runner=runner)},
+        {Mode.CODING: CodingMode(bank, runner=runner, warm_up=False)},  # evals start at the problem
         model=model,
         monotonic=clock.monotonic,
         wall=clock.wall,
@@ -346,7 +354,7 @@ async def run_once(
                 break
         await play.advance_to(play.now_ms() + TAIL_MS)
         events = await play.rt.timeline.read()
-        report.checks = check(spec.expect, events, problem.reference_solution)
+        report.checks = check({"talk": DEFAULT_TALK} | spec.expect, events, problem.reference_solution)
         report.interventions = [e.payload | {"t": e.t} for e in events if e.kind == TimelineKind.INTERVENTION]
         report.analyses = sum(e.kind == TimelineKind.ANALYSIS for e in events)
     except Exception as exc:  # one broken run is reported, not raised, so the other runs still count
@@ -382,7 +390,7 @@ async def open_play(hub: SessionHub, spec: Eval, clock: SimClock, tab: Tab, prob
 def check(
     expect: dict[str, Any], events: Sequence[TimelineEvent], reference: str | None
 ) -> list[tuple[str, bool, str]]:
-    """Each expectation as (name, ok, detail). Keys: fires, never, limits, max_shown, no_leak, flags, saw."""
+    """Each expectation as (name, ok, detail). Keys: fires, never, limits, max_shown, talk, no_leak, flags, saw."""
     interventions = [e for e in events if e.kind == TimelineKind.INTERVENTION]
     results: list[tuple[str, bool, str]] = []
     for want in expect.get("fires", []):
@@ -401,6 +409,8 @@ def check(
         shown = [e for e in interventions if _unsolicited(e) and not e.payload["suppressed"]]
         ok = len(shown) <= expect["max_shown"]
         results.append((f"at most {expect['max_shown']} shown", ok, f"{len(shown)} shown"))
+    if "talk" in expect:
+        results.extend(_talk(expect["talk"], interventions))
     if expect.get("no_leak") and reference:
         leaks = [e.payload["text"] for e in interventions if leak_reason(e.payload["text"], reference)]
         results.append(("no leak", not leaks, f"leaked: {leaks[:1]}" if leaks else "ok"))
@@ -413,6 +423,21 @@ def check(
         detail = f"at {hit.t // 1000} s" if hit else "no analysis showed it"
         results.append((f"analyzer saw {_describe(want)}", hit is not None, detail))
     return results
+
+
+def _talk(limits: dict[str, int], interventions: Sequence[TimelineEvent]) -> list[tuple[str, bool, str]]:
+    times = [
+        e.t for e in interventions if e.payload["trigger"] not in SCRIPTED and not e.payload["suppressed"]
+    ]
+    gaps = [b - a for a, b in itertools.pairwise(times)]
+    closest = min(gaps, default=None)
+    busiest = max((sum(1 for t in times if start <= t < start + 300_000) for start in times), default=0)
+    gap_ok = closest is None or closest >= limits["min_gap_s"] * 1000
+    gap_detail = f"closest {closest / 1000:.0f} s apart" if closest is not None else "fewer than 2 lines"
+    return [
+        (f"lines at least {limits['min_gap_s']} s apart", gap_ok, gap_detail),
+        (f"at most {limits['max_per_5min']} lines in 5 min", busiest <= limits["max_per_5min"], f"{busiest}"),
+    ]
 
 
 def _as_set(value: Any) -> set[str]:

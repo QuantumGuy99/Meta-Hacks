@@ -20,27 +20,29 @@ session. Update it before you finish any session that changed code, decisions or
 |---|---|---|
 | — | — | — |
 
-## Status (end of 2026-10-27)
+## Status (2026-10-29)
 | WP | What | State | Notes |
 |---|---|---|---|
 | S-0, store | Scaffold, Makefile, CI, SQLite store | merged (#10) | main.py import guard can go once nothing needs it |
 | RUN-1 | Harness + LocalRunner.run_tests | merged (#15) | Checked on a real problem; re-run on Sharvil's gold problems |
-| RUN-3 | ModalRunner for projects | merged (#15), gaps open | Real Modal: race reproduces, egress blocked (V7). Open (#22 item 8): image built lazily, sample requirements.txt not installed, no asyncio timeouts on Modal calls |
+| RUN-3 | ModalRunner for projects | merged (#15), gaps open | Real Modal: race reproduces, egress blocked (V7). Every Modal call now has a deadline (#73). Still open (#22 item 8): image built lazily, sample requirements.txt not installed |
 | RUN-2 | Warm Modal sandbox for coding tests | Thu | ModalRunner.run_tests raises a clear RUN-2 error until then |
 | DEF-1..6 | Defense pipeline + DefenseController | merged (#15), review fixes open | 7 WebSocket e2e tests; resume works. Blockers 1-4 of #22 fixed in #29; items 5, 7, 9, 10 open |
-| OPS-2 | MOCK replay + recorder | merged (#15) | `defense-bank-transfer.jsonl` |
+| OPS-2 | MOCK replay + recorder | merged (#15); re-recorded | `defense-bank-transfer.jsonl` now from the real `bank-transfer`; `rest/report-defense.json` serves the report page |
 | OPS-1 | Deploy | prep merged (#14); deploy Sat | Railway signup was down; Render/Fly take the same Dockerfile; free credit only |
 | DEF-11 | Muse fix assistant (full coding assistant, logged) | spec in #17 | Build after IC2 |
 | — | Attacker prompt knows the new validator rules | #18 | Waiting on SG |
-| lib/defense.ts | Selectors for Likhil's views | Thu | Shape in the role plan |
+| lib/defense.ts | Selectors for Likhil's views | built, with Node tests | Shape as in the role plan |
+| DEF-2 recall | `python -m crucible.defense.recall` over `data/evals/defense/` | built, not run live | Needs MODEL_API_KEY; the flaws.json fallback never counts |
 
 ## Handoff (overwrite every session)
-- **Last done:** 2026-10-27 [claude] Merged #13 (Glimmer dropped), #14 (deploy), #15 (Defense end to end) into
-  main; main green (backend, contracts, docker, frontend). Opened #17 (assistant spec) and #18 (prompt rules).
-  Replied to every review; issues #11 (Sharvil) and #12 (Likhil) updated.
-- **Next step:** Wed morning: if `data/defense_apps/bank-transfer` isn't up, build it from
-  `backend/tests/fixtures/apps/bank-transfer-min` (Sharvil owns data/; say so in #11). Then IC1 with Likhil.
-- **Blocked on:** Sharvil (#11), Likhil's PR (#12), reviews of #16/#17/#18.
+- **Last done:** 2026-10-29 [agent] In #73: one reference attack per flaw
+  (ticket-drop f2 no longer needs the model), Sharvil's DATA-2 tools (`make validate`), validator corpus,
+  recall eval, MOCK re-recorded from the real app + `report-defense`, `lib/defense.ts`, Modal deadlines,
+  the Verify busy-check race, two loopback-hook bypasses closed (`type(client)()`, `event_hooks`), and the
+  grill/audit/attacker prompts now treat candidate and project text as data.
+- **Next step:** run `python -m crucible.defense.recall` with a key (DEF-2 done-when); RUN-2.
+- **Blocked on:** a MODEL_API_KEY for the recall eval; Likhil's Defense views (FE-6) to show any of it.
 
 ## Open questions for teammates
 - SG: `models/registry.py` still lists a Glimmer provider (harmless); drop it when convenient (#13).
@@ -60,6 +62,7 @@ session. Update it before you finish any session that changed code, decisions or
   the session id is the scenario name (PLAN §14.6).
 
 ## Session log (keep the last 10, newest first)
+- 2026-10-29 [agent] Data/Defense weak spots fixed and Thursday leftovers built (see Handoff); 600+ tests pass.
 - 2026-10-28 [claude] for LG: every text read/write names encoding="utf-8" (Windows defaulted to cp1252: "→" in a problem was served as "â†’"), with `tests/test_text_encoding.py` as a guard. The full backend suite passes on Windows.
 - 2026-10-28 [claude] for LG: the harness's per-test timer works on Windows (a timer thread raises SIGINT; the SIGALRM path is unchanged). `test_harness.py` and `test_problem_run.py` pass on Windows.
 - 2026-10-28 [claude, for Likhil] `fix/windows-runner-cleanup`: LocalRunner stops the whole process tree on Windows and removes the app log best-effort; `run_attack` keeps a finished run when cleanup fails (a locked log crashed the stage and left sessions stuck in chaos). The 5 pipeline e2e tests now pass on Windows. Needs Shreyas's review.
@@ -69,6 +72,3 @@ session. Update it before you finish any session that changed code, decisions or
 - 2026-10-27 [claude] Day 0 + Day 1 checklist complete; RUN-1 "done when" checked on a real problem.
 - 2026-10-27 [claude] DEF-6, RUN-1, OPS-2 built; Modal verified; deploy config PR #14; Glimmer dropped PR #13; folders consolidated.
 - 2026-10-27 [claude] S-0 PR #10 (CI green); Defense built on SG's stack in `feat/defense`, 194 tests pass; reviews posted on #5–#7.
-- 2026-10-27 [claude] Merged main into PR #4, resolved conflicts, controller.py rename, role plan + README synced.
-- 2026-10-27 [claude] Cloned repo; wrote CLAUDE.md + DEFENSE_AGENT_SPEC.txt; reconciled 24 conflicts
-  with PLAN.md; opened PR #4; added agent memory, coding rules and code-format skill.

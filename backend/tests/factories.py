@@ -48,9 +48,10 @@ def analysis(
     proposal: bool = True,
     confidence: float = 0.8,
     text: str = "Before you go further, what should an empty list give you?",
-    level: str = "nudge",
+    level: str = "question",
 ) -> dict[str, Any]:
-    """An `Analysis` for quiet-streak. By default s1 (clarify the input) is missed while s2 is under way."""
+    """An `Analysis` for quiet-streak. By default s1 (clarify the input) is missed while s2 is under way, and the
+    analyzer proposes asking about it (missed steps are asked as questions, §9.5)."""
     return {
         "steps": [
             {"step_id": "s1", "status": s1, "evidence": "no mention of the empty list"},

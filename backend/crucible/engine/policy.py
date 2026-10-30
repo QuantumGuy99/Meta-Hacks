@@ -1,8 +1,14 @@
 """Code decides when the interviewer speaks and how much it helps (PLAN §9.5).
 
-`PolicyState` collects what happened (analyses, runs, pastes, questions, hint requests) and what was already
-said. `decide()` turns it and a `Facts` snapshot into at most one `Decision`. Neither does I/O or reads a
-clock, so tests drive them with numbers; `engine/live.py` feeds the state and calls `decide()` every tick.
+`PolicyState` collects what happened (analyses, runs, pastes, questions, hint requests, things the candidate said)
+and what was already said. `decide()` turns it and a `Facts` snapshot into at most one `Decision`. Neither does
+I/O or reads a clock, so tests drive them with numbers; `engine/live.py` feeds the state and calls `decide()` every
+tick.
+
+The interviewer tests more than it helps: help (nudges, questions, hints) is capped at a question unless the
+candidate is stuck or asks, and in active mode it also talks: a short reply to what the candidate says, a
+question that checks they understand what they wrote, and check-ins when they go quiet. Talk isn't help, so it
+has its own clocks and never counts against independence.
 """
 
 from collections import deque
@@ -29,10 +35,20 @@ PASTE_MIN_CHARS = 40
 PASTE_MIN_LINES = 2
 PLAN_MIN_LINES = 3
 RUN_IDLE_MS = 30_000
-SILENT_AFTER_MS = 120_000
-SILENT_EVERY_MS = 5 * 60_000
-IDLE_AFTER_MS = 75_000
-IDLE_EVERY_MS = 3 * 60_000
+# Check-ins: a real interviewer doesn't let a candidate go quiet for long.
+SILENT_AFTER_MS = 75_000
+SILENT_EVERY_MS = 3 * 60_000
+IDLE_AFTER_MS = 60_000
+IDLE_EVERY_MS = 2 * 60_000
+# Talk (REPLY, PROBE): frequent enough to feel like a conversation, never so often it interrupts the work.
+TALK_GAP_MS = 15_000  # no two interviewer lines closer than this (answers excepted)
+REPLY_AFTER_MS = 20_000  # reply only when the interviewer has been quiet this long
+REPLY_EVERY_MS = 40_000
+REPLY_MAX = 12
+REPLY_MIN_WORDS = 6  # "okay", "hmm, let me see" don't need an answer
+REPLY_STALE_MS = 8_000  # a reply to something said longer ago than this would sound odd: drop it
+PROBE_AFTER_MS = 45_000
+PROBE_MAX = 4
 
 LADDER = (
     InterventionLevel.NUDGE,
@@ -49,6 +65,8 @@ PASSIVE_DELIVERED = frozenset(
 )
 
 _RECURRING = frozenset({InterventionTrigger.SILENT, InterventionTrigger.IDLE})  # limited by their own clocks
+# The interviewer's side of the conversation: not help, so no help cooldown, cap or independence cost.
+TALK = frozenset({InterventionTrigger.REPLY, InterventionTrigger.PROBE})
 _BUG_KINDS = frozenset({"bug", "edge_case"})
 _PLAN_PHASES = frozenset({Phase.CLARIFY, Phase.CODING})
 _IDLE_PHASES = frozenset({Phase.CODING, Phase.FIX})
@@ -68,11 +86,11 @@ class Decision:
     trigger: InterventionTrigger
     level: InterventionLevel
     step_id: str | None
-    draft: (
-        str | None
-    )  # the analyzer's wording, if it matches; the interviewer falls back to rubric or canned text
+    # The analyzer's wording, if it matches; the interviewer falls back to rubric or canned text.
+    draft: str | None
     line: int | None = None  # BUG_SUSPECTED: the line to point at
     suppressed: bool = False  # passive mode: logged for the report, never shown
+    said: str | None = None  # REPLY: what the candidate said, for the model to reply to
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,7 +132,8 @@ class PolicyState:
     # What the interviewer did
     ladder: dict[str | None, int] = field(default_factory=dict)  # step → ladder levels shown
     hints_by_level: dict[str, int] = field(default_factory=dict)  # the report's independence score
-    last_message_ms: int | None = None  # the cooldown clock: unsolicited messages and answers
+    last_help_ms: int | None = None  # the help cooldown's clock: help and answers, not talk
+    last_message_ms: int | None = None  # any line (TALK_GAP_MS, REPLY_AFTER_MS, PROBE_AFTER_MS)
     unsolicited_ms: deque[int] = field(default_factory=deque)  # for the 8-per-30-min cap
     fired: set[RepeatKey] = field(default_factory=set)
     acted: dict[EvidenceKey, int] = field(default_factory=dict)  # evidence count at the last fire or drop
@@ -125,6 +144,13 @@ class PolicyState:
     plan: str | None = None
     last_silent_ms: int | None = None
     last_idle_ms: int | None = None
+    # The engine attached then, right after the problem was presented: talk counts from it, like a line.
+    attached_ms: int | None = None
+    statement: tuple[str, int] | None = None  # something the candidate said that isn't a question, and when
+    replies: int = 0
+    last_reply_ms: int | None = None
+    probes: int = 0
+    probed: set[str] = field(default_factory=set)  # steps already done when a probe went out
     issue_watch: dict[str, tuple[str | None, int]] = field(default_factory=dict)  # issue → (line, since)
     held: _Held | None = None
 
@@ -152,6 +178,11 @@ class PolicyState:
     def ask(self) -> None:
         self.asks += 1
 
+    def observe_statement(self, text: str, now_ms: int) -> None:
+        """Something the candidate said or typed that isn't a question: REPLY may answer it."""
+        if len(text.split()) >= REPLY_MIN_WORDS:
+            self.statement = (text, now_ms)
+
     def request_hint(self, step_id: str | None) -> None:
         self.hint_requests.append(step_id)
 
@@ -166,7 +197,11 @@ def decide(state: PolicyState, facts: Facts) -> Decision | None:
     if answer is not None:
         return _commit(state, facts, answer)
     _watch_issues(state, facts)
+    if not _every(state.last_message_ms, facts.now_ms, TALK_GAP_MS):
+        return _hold_or_deliver(state, facts, None)
     candidate = _first_unsolicited(state, facts) if _may_interrupt(state, facts.now_ms) else None
+    if candidate is None and not facts.passive:
+        candidate = _reply(state, facts) or _probe(state, facts)
     return _hold_or_deliver(state, facts, candidate)
 
 
@@ -223,7 +258,7 @@ class _Candidate:
 def _may_interrupt(state: PolicyState, now_ms: int) -> bool:
     while state.unsolicited_ms and now_ms - state.unsolicited_ms[0] >= CAP_WINDOW_MS:
         state.unsolicited_ms.popleft()
-    cooled = state.last_message_ms is None or now_ms - state.last_message_ms >= COOLDOWN_MS
+    cooled = state.last_help_ms is None or now_ms - state.last_help_ms >= COOLDOWN_MS
     return cooled and len(state.unsolicited_ms) < CAP_COUNT
 
 
@@ -241,10 +276,19 @@ def _hold_or_deliver(state: PolicyState, facts: Facts, candidate: _Candidate | N
         if candidate.decision.trigger == InterventionTrigger.PASTE:
             state.paste_pending = False
         return None
-    if not _quiet(facts):
+    if not _quiet(facts) and not _reply_to_a_finished_turn(state, facts, candidate):
         return None
     state.held = None
     return _commit(state, facts, candidate)
+
+
+def _reply_to_a_finished_turn(state: PolicyState, facts: Facts, candidate: _Candidate) -> bool:
+    """A reply to what the candidate just finished saying doesn't wait out the quiet window: the final transcript
+    already says their turn is over. Unless they've started talking or typing again since (§9.5)."""
+    if candidate.decision.trigger != InterventionTrigger.REPLY or state.statement is None:
+        return False
+    said_ms = state.statement[1]
+    return (facts.last_partial_ms or 0) <= said_ms and (facts.last_edit_ms or 0) <= said_ms
 
 
 def _quiet(facts: Facts) -> bool:
@@ -263,11 +307,15 @@ def _commit(state: PolicyState, facts: Facts, candidate: _Candidate) -> Decision
     _mark(state, candidate)
     _remember_once(state, trigger, now)
     if trigger != InterventionTrigger.TIME_WARNING:
-        state.last_message_ms = now  # answers restart the cooldown too, so no nudge lands right after one
-    if trigger not in PASSIVE_DELIVERED:
+        state.last_message_ms = now
+        if trigger not in TALK:  # answers restart the help cooldown too, so no nudge lands right after one
+            state.last_help_ms = now
+    if trigger not in PASSIVE_DELIVERED and trigger not in TALK:
         state.unsolicited_ms.append(now)
     if trigger in LADDER_TRIGGERS and not suppressed:
-        state.ladder[decision.step_id] = state.ladder.get(decision.step_id, 0) + 1
+        # Past the level given: a missed step asked as a question means an asked-for hint starts at HINT.
+        given = LADDER.index(decision.level) + 1
+        state.ladder[decision.step_id] = max(state.ladder.get(decision.step_id, 0) + 1, given)
         state.hints_by_level[decision.level.value] = state.hints_by_level.get(decision.level.value, 0) + 1
     return replace(decision, suppressed=suppressed)
 
@@ -282,6 +330,11 @@ def _remember_once(state: PolicyState, trigger: InterventionTrigger, now_ms: int
             state.last_silent_ms = now_ms
         case InterventionTrigger.IDLE:
             state.last_idle_ms = now_ms
+        case InterventionTrigger.REPLY:
+            state.replies, state.last_reply_ms, state.statement = state.replies + 1, now_ms, None
+        case InterventionTrigger.PROBE:
+            state.probes += 1
+            state.probed |= _done(state.latest)
 
 
 def _mark(state: PolicyState, candidate: _Candidate) -> None:
@@ -393,7 +446,7 @@ def _missed_step(state: PolicyState, facts: Facts) -> _Candidate | None:
     trigger, proposal = InterventionTrigger.MISSED_STEP, latest.proposal
     persistent = missed_steps(latest, facts.steps) & missed_steps(previous, facts.steps)
     for step in sorted((s for s in facts.steps if s.id in persistent), key=lambda s: s.order):
-        level = _next_level(state, step.id)
+        level = InterventionLevel.QUESTION  # asked, never hinted: more only if they're stuck or ask (§9.5)
         if not _fresh(state, (trigger, step.id), state.analyses, 2) or not _new(
             state, (trigger, step.id, level)
         ):
@@ -448,7 +501,8 @@ def _plan_mismatch(state: PolicyState, facts: Facts) -> _Candidate | None:
 def _silent(state: PolicyState, facts: Facts) -> _Candidate | None:
     if not facts.voice or facts.phase != Phase.CODING:
         return None
-    since = max(facts.phase_started_ms, facts.last_speech_ms or 0)
+    # Quiet since the candidate last spoke, or since the interviewer did: an open question gets time.
+    since = max(facts.phase_started_ms, facts.last_speech_ms or 0, state.last_message_ms or 0)
     if facts.now_ms - since < SILENT_AFTER_MS or not _every(
         state.last_silent_ms, facts.now_ms, SILENT_EVERY_MS
     ):
@@ -460,11 +514,52 @@ def _silent(state: PolicyState, facts: Facts) -> _Candidate | None:
 def _idle(state: PolicyState, facts: Facts) -> _Candidate | None:
     if facts.phase not in _IDLE_PHASES:
         return None
-    since = max(facts.phase_started_ms, _last_activity(facts))
+    since = max(facts.phase_started_ms, _last_activity(facts), state.last_message_ms or 0)
     if facts.now_ms - since < IDLE_AFTER_MS or not _every(state.last_idle_ms, facts.now_ms, IDLE_EVERY_MS):
         return None
     trigger, level = InterventionTrigger.IDLE, InterventionLevel.QUESTION
     return _Candidate(Decision(trigger, level, None, _draft(state.latest, trigger, level)), None)
+
+
+# --- talk: REPLY, PROBE (active mode only; their own clocks, not the help cap) --------------------------------
+
+
+def reply_possible(state: PolicyState, facts: Facts) -> bool:
+    """Whether a REPLY could go out now if the candidate said something: lets the engine start writing one while
+    the classifier is still deciding question vs thinking aloud. No side effects."""
+    if facts.passive or facts.phase not in _PLAN_PHASES or state.replies >= REPLY_MAX:
+        return False
+    return _every(state.last_reply_ms, facts.now_ms, REPLY_EVERY_MS) and _quiet_for(
+        state, facts.now_ms, REPLY_AFTER_MS
+    )
+
+
+def _reply(state: PolicyState, facts: Facts) -> _Candidate | None:
+    """A short reply to something the candidate just said that wasn't a question (the model writes it)."""
+    if state.statement is None:
+        return None
+    said, said_ms = state.statement
+    if facts.now_ms - said_ms > REPLY_STALE_MS:
+        state.statement = None
+        return None
+    if not reply_possible(state, facts):
+        return None
+    decision = Decision(InterventionTrigger.REPLY, InterventionLevel.INFO, None, None, said=said)
+    return _Candidate(decision, f"said at {said_ms}")
+
+
+def _probe(state: PolicyState, facts: Facts) -> _Candidate | None:
+    """A step just got done: ask a question that checks the candidate understands what they wrote (the model
+    words it from their code). Code decides when, so it never depends on the analyzer proposing one."""
+    if facts.phase != Phase.CODING or state.probes >= PROBE_MAX:
+        return None
+    if state.latest is not None and any(_serious(issue) for issue in state.latest.issues):
+        return None  # only when nothing is wrong: a "why does this work?" on buggy code would hint at the bug
+    fresh = sorted(_done(state.latest) - state.probed)
+    if not fresh or not _quiet_for(state, facts.now_ms, PROBE_AFTER_MS):
+        return None
+    decision = Decision(InterventionTrigger.PROBE, InterventionLevel.QUESTION, fresh[0], None)
+    return _Candidate(decision, fresh[0])
 
 
 # TODO(ENG-5): PRAISE ("a step marked tricky becomes done", max 1 per 10 min) needs a `tricky` flag on
@@ -503,6 +598,17 @@ def _draft(
     ):
         return None
     return proposal.text
+
+
+def _quiet_for(state: PolicyState, now_ms: int, gap_ms: int) -> bool:
+    """The interviewer's last line (or presenting the problem) was at least `gap_ms` ago. Talk needs that
+    moment: before the engine knows it, there's no talk."""
+    since = state.last_message_ms if state.last_message_ms is not None else state.attached_ms
+    return since is not None and now_ms - since >= gap_ms
+
+
+def _done(analysis: Analysis | None) -> set[str]:
+    return {p.step_id for p in analysis.steps if p.status == StepStatus.DONE} if analysis else set()
 
 
 def _statuses(analysis: Analysis | None) -> dict[str, StepStatus]:
