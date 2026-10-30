@@ -28,7 +28,7 @@ def make_client(tmp_path: Path, model: FakeModel) -> TestClient:
     write_quiet_streak(tmp_path)
     app = FastAPI()
     app.include_router(router)
-    modes = {Mode.CODING: CodingMode(ProblemBank.load(tmp_path))}
+    modes = {Mode.CODING: CodingMode(ProblemBank.load(tmp_path), warm_up=False)}
     app.state.hub = SessionHub(MemoryStore(), modes, model=model)
     return TestClient(app)
 

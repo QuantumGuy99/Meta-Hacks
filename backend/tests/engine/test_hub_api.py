@@ -27,7 +27,7 @@ def client() -> Iterator[TestClient]:
     app = FastAPI()
     app.include_router(router)
     app.state.hub = SessionHub(
-        MemoryStore(), {Mode.CODING: CodingMode(ProblemBank([]))}, idle_ttl_s=IDLE_TTL_S
+        MemoryStore(), {Mode.CODING: CodingMode(ProblemBank([]), warm_up=False)}, idle_ttl_s=IDLE_TTL_S
     )
     with TestClient(app) as test_client:
         yield test_client

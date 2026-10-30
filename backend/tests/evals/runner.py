@@ -66,7 +66,7 @@ TAIL_MS = 30_000  # time after the last step for pending nudges to land
 TYPE_CHUNK = 60  # characters per simulated keystroke batch; under the bulk-insert flag's 80
 RUNS = 3
 PASS_RUNS = 2
-NOT_UNSOLICITED = frozenset({"phase", "asked", "hint_requested", "grill"})
+NOT_UNSOLICITED = frozenset({"phase", "warmup", "asked", "hint_requested", "grill"})
 SPEAKING_MS_PER_CHAR = 60
 
 
@@ -328,7 +328,7 @@ async def run_once(
     clock, tab = SimClock(), Tab()
     hub = SessionHub(
         MemoryStore(),
-        {Mode.CODING: CodingMode(bank, runner=runner)},
+        {Mode.CODING: CodingMode(bank, runner=runner, warm_up=False)},  # evals start at the problem
         model=model,
         monotonic=clock.monotonic,
         wall=clock.wall,
