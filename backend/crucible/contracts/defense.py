@@ -109,6 +109,32 @@ class AttackFunctions(Strict):  # LLM output (Spark): bodies for the template (�
     rationale: str
 
 
+class ReplayStep(Strict):  # one step of a race, in one request's lane (DEF-14)
+    lane: Literal["A", "B"]
+    action: str  # plain words, e.g. "reads the receiver's balance: $1,000.00"
+    line: int | None  # the line of the finding's file this step runs, if one
+
+
+class ReplayNarrative(Strict):  # LLM output (Wonder): the interleaving that loses the update (§11.11)
+    steps: list[ReplayStep]
+
+
+class ReplayLane(Strict):  # one of the two requests the sandbox replayed, as measured
+    lane: Literal["A", "B"]
+    start_ms: float
+    end_ms: float
+    status: int  # HTTP status; 0 if the request failed
+
+
+class RaceReplay(Strict):  # WS defense.replay: sent only once the finding's grill is final (§11.11)
+    finding_id: str
+    file: str
+    lanes: list[ReplayLane]
+    steps: list[ReplayStep]
+    detail: str  # the invariant's own headline for two requests, e.g. "$1.00 disappeared"
+    attempts: int  # how many two-request runs it took to reproduce
+
+
 class ChaosMetric(Strict):
     run_id: str
     t_ms: int  # ms since the attack started
