@@ -854,7 +854,7 @@ Client → server:
 |---|---|---|
 | `hello` | `client_now_ms` | Server replies `session.state` (includes `started_at`) |
 | `editor.events` | `events: EditorEvent[]` | Sent every 500 ms when non-empty |
-| `editor.snapshot` | `CodeSnapshot` | Every 20 changes, every 15 s with changes, and before run/submit |
+| `editor.snapshot` | `CodeSnapshot` | Once on attach (the baseline), every 20 changes, every 15 s with changes, and before run/submit |
 | `code.run` / `code.submit` | `file`, `code` | Runs tests → `run.result` |
 | `chat.send` | `text` | Text alternative to voice; becomes a candidate `TranscriptTurn` (source=text) addressed to the interviewer |
 | `hint.request` | `step_id?` | Explicit hint (counted) |
@@ -1712,6 +1712,8 @@ Layout (desktop ≥ 1280 px):
   - A flush (`setValue`) and anything inside `programmatic(edit)` (resetting to starter code, loading a file)
     become a snapshot, never typing, so they can't trigger paste or bulk-insert notes.
   - `document.visibilitychange` → `hidden` / `visible`; `window.blur` / `window.focus` → `blur` / `focus`.
+  - Attaching sends one snapshot of the editor's current code (the starter code, or the code restored after
+    a reload): the baseline that later edits apply to (§9.3) and that CODED_BEFORE_PLAN counts from (§9.5).
   - Batch every 500 ms; snapshot every 20 changes, every 15 s with changes, and before run/submit/verify
     (the room calls `snapshot()`).
   - `t` comes from `performance.now()`, aligned once to `session.started_at`, so system clock changes don't
