@@ -30,6 +30,8 @@ import { NotesPanel } from "./NotesPanel";
 import { TestPanel } from "./TestPanel";
 import { UnderTheHood } from "./UnderTheHood";
 import { useMic } from "./useMic";
+import { useVoice } from "./useVoice";
+import { VoiceControls, VoiceHint } from "./VoiceControls";
 
 // The live coding room (/coding/[id], PLAN §14.2): everything on screen comes from the session socket.
 // Edits go out through the capture lib; Run/Submit, Ask, Hint and the phase buttons are ClientMessages.
@@ -77,7 +79,13 @@ export function LiveRoom({ id }: { id: string }) {
   const { state, send, streamDone } = useLiveSession(id);
   const remaining = useRemaining(state);
   const caption = liveCaption(state);
-  const { mic, toggleMic, setAsking } = useMic(id);
+  const { mic, toggleMic, setAsking, setPaused } = useMic(id);
+  const voice = useVoice(state, setPaused);
+  // Holding Ask is a barge-in: the interviewer stops talking
+  const ask = (holding: boolean) => {
+    if (holding) voice.cancel();
+    setAsking(holding);
+  };
   const [problem, setProblem] = useState<ProblemPublic | null>(null);
   const [code, setCode] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -241,6 +249,7 @@ export function LiveRoom({ id }: { id: string }) {
             </NumberFlowGroup>
           </span>
         )}
+        <VoiceControls voice={voice} />
         <button type="button" className="ui-btn" aria-pressed={showNotes} onClick={() => setShowNotes((v) => !v)}>
           Notes
         </button>
@@ -347,7 +356,7 @@ export function LiveRoom({ id }: { id: string }) {
         <ResizablePanel defaultSize="26%" minSize="20%">
           <InterviewerPanel
             messages={feedMessages(state)}
-            state={state.interviewer}
+            state={voice.speaking ? "speaking" : state.interviewer}
             streamingId={state.streamingId}
             onStreamDone={streamDone}
             onAsk={(text) => send({ type: "chat.send", text })}
@@ -356,9 +365,12 @@ export function LiveRoom({ id }: { id: string }) {
             panel={showNotes ? <NotesPanel notes={state.notes} flags={state.flags} /> : null}
             caption={caption}
             extra={
-              state.session?.config.voice ? (
-                <MicControls mic={mic} onToggle={toggleMic} onAsking={setAsking} disabled={ended} />
-              ) : null
+              <>
+                <VoiceHint voice={voice} />
+                {state.session?.config.voice && (
+                  <MicControls mic={mic} onToggle={toggleMic} onAsking={ask} disabled={ended} />
+                )}
+              </>
             }
           />
         </ResizablePanel>

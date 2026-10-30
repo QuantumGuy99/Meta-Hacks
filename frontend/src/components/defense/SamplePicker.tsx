@@ -39,8 +39,7 @@ export function SamplePicker() {
     setStarting(true);
     setError(null);
     try {
-      // voice is speech to text only: the interviewer's replies stay text
-      const session = await api.createSession({ mode: "defense", project_id: projectId, feedback, voice, speak_replies: false });
+      const session = await api.createSession({ mode: "defense", project_id: projectId, feedback, voice });
       router.push(`/defense/${session.id}`);
     } catch (err) {
       setError(errorText(err));

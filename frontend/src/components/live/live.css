@@ -297,6 +297,35 @@
   font-size: 12px;
   line-height: 1.4;
 }
+
+/* the interviewer's voice: mute and the voice picker in the header, a hint above the chat box */
+.rm-tts {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.rm-tts select {
+  max-width: 200px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-line-2);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 500 13px/1 var(--font-sans), sans-serif;
+  text-overflow: ellipsis;
+}
+.rm-tts select:disabled {
+  opacity: 0.5;
+}
+.rm-tts-hint {
+  margin: 0;
+  padding: 8px 12px;
+  border-top: 1px solid var(--ui-line);
+  color: var(--muted-ink);
+  font-size: 12px;
+  line-height: 1.4;
+}
 .msg-caption {
   margin-top: 4px;
   padding: 8px 10px;

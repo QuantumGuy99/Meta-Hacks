@@ -57,7 +57,6 @@ export function SetupForm() {
         mode: "coding",
         feedback,
         voice,
-        speak_replies: false, // voice is speech to text only: the interviewer's replies stay text
         problem_slug: slug || null,
         difficulty: slug || difficulty === "any" ? null : difficulty,
         topic: slug || !topic ? null : topic,

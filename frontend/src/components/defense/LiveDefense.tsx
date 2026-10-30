@@ -11,6 +11,8 @@ import { InterviewerPanel } from "@/components/room/InterviewerPanel";
 import { MicControls } from "@/components/room/MicControls";
 import { UnderTheHood } from "@/components/room/UnderTheHood";
 import { useMic } from "@/components/room/useMic";
+import { useVoice } from "@/components/room/useVoice";
+import { VoiceControls, VoiceHint } from "@/components/room/VoiceControls";
 import { api, errorText } from "@/lib/api";
 import { attachEditorCapture, type EditorCapture } from "@/lib/capture/editor";
 import { clock, levelLabel, severityLabel } from "@/lib/fixtures";
@@ -69,7 +71,13 @@ export function LiveDefense({ id }: { id: string }) {
   const { state, send, streamDone } = useLiveSession(id);
   const remaining = useRemaining(state);
   const caption = liveCaption(state);
-  const { mic, toggleMic, setAsking } = useMic(id);
+  const { mic, toggleMic, setAsking, setPaused } = useMic(id);
+  const voice = useVoice(state, setPaused);
+  // Holding Ask is a barge-in: the interviewer stops talking
+  const ask = (holding: boolean) => {
+    if (holding) voice.cancel();
+    setAsking(holding);
+  };
   const [picked, setPicked] = useState<{ stage: Phase; at: Phase | null } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   // The finding whose file is open under the topology (the audit's file preview, PLAN §14.4).
@@ -285,6 +293,7 @@ export function LiveDefense({ id }: { id: string }) {
             {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, "0")}
           </span>
         )}
+        <VoiceControls voice={voice} />
         {finished ? (
           <Link href={`/report/${id}`} className="ui-btn ui-btn-primary">
             See Report
@@ -658,15 +667,18 @@ export function LiveDefense({ id }: { id: string }) {
 
         <InterviewerPanel
           messages={feedMessages(state)}
-          state={state.interviewer}
+          state={voice.speaking ? "speaking" : state.interviewer}
           streamingId={state.streamingId}
           onStreamDone={streamDone}
           onAsk={(text) => send({ type: "chat.send", text })}
           caption={caption}
           extra={
-            state.session?.config.voice ? (
-              <MicControls mic={mic} onToggle={toggleMic} onAsking={setAsking} disabled={finished} />
-            ) : null
+            <>
+              <VoiceHint voice={voice} />
+              {state.session?.config.voice && (
+                <MicControls mic={mic} onToggle={toggleMic} onAsking={ask} disabled={finished} />
+              )}
+            </>
           }
         />
       </div>
