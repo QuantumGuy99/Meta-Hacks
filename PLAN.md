@@ -1306,8 +1306,9 @@ Owner: **SG**. Data: **ST**.
   failure leaves a `system` note and sends `runner_unavailable` (retryable) to the tab that pressed Run, via
   `rt.sender` (the connection whose message the mode is handling). Run works from `clarify` on; a submit that
   passes every test during `coding` moves to `wrap_up` (§10.1).
-- The Modal runner's `run_tests` is RUN-2. Until then, coding sessions need `RUNNER=local` +
-  `ALLOW_LOCAL_RUNNER=1` (dev).
+- The Modal runner's `run_tests` is RUN-2 (#67). COD-3 step 3: `CodingController.on_start` warms the
+  session's sandbox in a background task (`RunService.open_session`; a failure is logged and ignored, Run
+  opens it lazily), and `close_session` runs once when the session ends or the runtime closes.
 
 ### 10.4 Integrity (`integrity.py`)
 - Editor `paste` with ≥ 40 chars or ≥ 2 lines → `IntegrityFlag(kind="paste")`.
