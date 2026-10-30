@@ -168,14 +168,20 @@ async def answer(
     messages: list[dict[str, str]] = [
         {"role": "system", "content": PROMPTS["interviewer_answer"]},
         {"role": "user", "content": f"# Problem: {context.title}\n\n{context.brief_md}"},
-        {"role": "user", "content": _answer_state(rt, context, question)},
+        {"role": "user", "content": _session_state(rt, context, "Their question", question)},
     ]
     return await _spoken_line(
-        rt, model, messages, "answer", "one short Socratic question", reference=context.reference_text
+        rt,
+        model,
+        messages,
+        "answer",
+        "one short Socratic question",
+        role="interviewer",
+        reference=context.reference_text,
     )
 
 
-ReplyKind = Literal["warmup", "warmup_close"]
+ReplyKind = Literal["warmup", "warmup_close", "reply", "checkin", "probe"]
 # What the warm-up reply ends with: a light follow-up, or nothing because the problem comes next (§3.1).
 _WARMUP_ENDINGS: dict[ReplyKind, str] = {
     "warmup": "one light, friendly follow-up question about what they shared",
@@ -183,18 +189,52 @@ _WARMUP_ENDINGS: dict[ReplyKind, str] = {
 }
 
 
-async def reply(rt: SessionRuntime, model: StructuredModel, kind: ReplyKind, said: str) -> str | None:
+async def reply(
+    rt: SessionRuntime,
+    model: StructuredModel,
+    kind: ReplyKind,
+    said: str,
+    context: RubricContext | None = None,
+) -> str | None:
     """A short conversational line from the model (§9.6), or None so the caller uses its canned line.
 
-    The warm-up reacts to what the candidate shared about themselves; the model never sees the problem then.
+    - `warmup`, `warmup_close`: a reaction to what the candidate shared about themselves; the model never sees
+      the problem then.
+    - `reply`: a reply to something the candidate said while solving (REPLY); `checkin`: a check-in after they've
+      gone quiet (SILENT, IDLE); `probe`: a question that checks they understand the code they just wrote
+      (PROBE). The model sees what the candidate sees (`context` is required), like `answer()`, never the rubric.
     Same leak guard and single retry as `answer()`.
     """
-    user = json.dumps({"candidate_said": said, "end_with": _WARMUP_ENDINGS[kind]})
+    if kind in _WARMUP_ENDINGS:
+        user = json.dumps({"candidate_said": said, "end_with": _WARMUP_ENDINGS[kind]})
+        messages = [
+            {"role": "system", "content": PROMPTS["interviewer_warmup"]},
+            {"role": "user", "content": user},
+        ]
+        return await _spoken_line(
+            rt, model, messages, "warm-up reply", "one short, friendly sentence", role="conversation"
+        )
+    if context is None:
+        raise ValueError(f"a {kind} needs the problem's context")
+    last = {
+        "reply": ("What they just said", said),
+        "checkin": ("Now", "They've gone quiet for a while."),
+        "probe": ("Now", "They've just finished a part of their solution."),
+    }[kind]
     messages = [
-        {"role": "system", "content": PROMPTS["interviewer_warmup"]},
-        {"role": "user", "content": user},
+        {"role": "system", "content": PROMPTS[f"interviewer_{kind}"]},
+        {"role": "user", "content": f"# Problem: {context.title}\n\n{context.brief_md}"},
+        {"role": "user", "content": _session_state(rt, context, *last)},
     ]
-    return await _spoken_line(rt, model, messages, "warm-up reply", "one short, friendly sentence")
+    return await _spoken_line(
+        rt,
+        model,
+        messages,
+        kind,
+        "one short question about their thinking",
+        role="conversation",
+        reference=context.reference_text,
+    )
 
 
 async def _spoken_line(
@@ -204,6 +244,7 @@ async def _spoken_line(
     what: str,
     instead: str,
     *,
+    role: Literal["interviewer", "conversation"],
     reference: str | None = None,
 ) -> str | None:
     """One interviewer line from the model, through the leak guard. A rejected line gets one retry asking for
@@ -211,9 +252,7 @@ async def _spoken_line(
     for _attempt in range(2):
         try:
             async with asyncio.timeout(ANSWER_DEADLINE_S):
-                result = await model.complete_json(
-                    "interviewer", messages, InterventionText, session_id=rt.session.id
-                )
+                result = await model.complete_json(role, messages, InterventionText, session_id=rt.session.id)
         except Exception:  # task boundary: no line from the model means the canned one
             logger.exception("interviewer %s failed in %s", what, rt.session.id)
             await rt.note(
@@ -235,7 +274,8 @@ async def _spoken_line(
     return None
 
 
-def _answer_state(rt: SessionRuntime, context: RubricContext, question: str) -> str:
+def _session_state(rt: SessionRuntime, context: RubricContext, heading: str, last: str) -> str:
+    """What the candidate can see now (their code, the recent conversation), then `last` under `heading`."""
     main = context.files[0] if context.files else "solution.py"
     code = rt.code.code(main)
     numbered = "\n".join(f"{i:>3} | {line}" for i, line in enumerate(code.splitlines(), start=1)) or "(empty)"
@@ -246,7 +286,7 @@ def _answer_state(rt: SessionRuntime, context: RubricContext, question: str) -> 
     conversation = "\n".join(f"- {t['speaker']}: {t['text']}" for t in turns) or "(nothing yet)"
     return (
         f"# Now\nPhase: {rt.session.phase}.\n\n## Their code ({main})\n```python\n{numbered}\n```\n\n"
-        f"## Recent conversation\n{conversation}\n\n## Their question\n{question}"
+        f"## Recent conversation\n{conversation}\n\n## {heading}\n{last}"
     )
 
 

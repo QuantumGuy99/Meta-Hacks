@@ -259,7 +259,7 @@ def test_moments_are_capped_keeping_the_most_important() -> None:
         phase(0, Phase.CODING),
         edit(1_000),
         *(
-            said(10_000 + i * 1_000, InterventionLevel.NUDGE, InterventionTrigger.IDLE, step_id=None)
+            said(10_000 + i * 1_000, InterventionLevel.NUDGE, InterventionTrigger.RUN_FAILED, step_id=None)
             for i in range(20)
         ),
         run(80_000, visible=(2, 2)),

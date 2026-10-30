@@ -87,7 +87,7 @@ def test_an_unknown_problem_is_a_bad_config(client: TestClient) -> None:
     assert response.status_code == 400 and response.json()["error"]["code"] == "bad_config"
 
 
-def test_a_missed_step_seen_twice_becomes_a_nudge(client: TestClient, model: FakeModel) -> None:
+def test_a_missed_step_seen_twice_becomes_a_question(client: TestClient, model: FakeModel) -> None:
     _, socket = join(client)
     with socket as ws:
         receive_until(ws, lambda m: m["type"] == "session.state" and m["phase"] == "clarify")
@@ -100,7 +100,7 @@ def test_a_missed_step_seen_twice_becomes_a_nudge(client: TestClient, model: Fak
     assert intervention["text"] == DRAFT
     assert (intervention["trigger"], intervention["level"], intervention["step_id"]) == (
         "missed_step",
-        "nudge",
+        "question",
         "s1",
     )
     assert len(model.calls) == 2

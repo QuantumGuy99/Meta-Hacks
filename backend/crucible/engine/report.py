@@ -64,12 +64,17 @@ HINT_LEVELS = (
     InterventionLevel.HINT,
     InterventionLevel.CONCEPT,
 )
-# Interventions that aren't help: phase lines, the warm-up and grill questions run the interview; paste and time
-# notes are reminders. They don't count as interventions shown, nor against independence.
+# Interventions that aren't help: phase lines, the warm-up and grill questions run the interview; replies, probes
+# and check-ins are the interviewer's side of the conversation (§9.5); paste and time notes are reminders. They
+# don't count as interventions shown, nor against independence.
 NOT_HELP = frozenset(
     {
         InterventionTrigger.PHASE,
         InterventionTrigger.WARMUP,
+        InterventionTrigger.REPLY,
+        InterventionTrigger.PROBE,
+        InterventionTrigger.SILENT,
+        InterventionTrigger.IDLE,
         InterventionTrigger.GRILL,
         InterventionTrigger.PASTE,
         InterventionTrigger.TIME_WARNING,

@@ -11,6 +11,7 @@ TASKS: dict[str, str] = {
     "interviewer": "answering your question",
     "classifier": "listening for questions",
     "complexity": "checking your complexity answer",
+    "conversation": "talking with you",
     "grill_eval": "grading your answer",
     "audit": "reading your project",
     "report": "writing your report",

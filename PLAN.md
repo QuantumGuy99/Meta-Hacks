@@ -1069,8 +1069,9 @@ request, a run or an analysis.
 - Never deliver within **2.5 s** of the last edit or while candidate speech is in progress. Hold it in a
   one-slot queue, re-check the rules each tick, and deliver when quiet. If it's held for more than **20 s**,
   drop it; the rule then waits for fresh evidence (2 new analyses, or a new run).
-- **45 s** minimum between unsolicited messages; answers (`ASKED`, `HINT_REQUESTED`) restart that clock too,
-  so a nudge never lands right after an answer. At most **8 unsolicited per 30 min**.
+- **45 s** minimum between unsolicited help messages; answers (`ASKED`, `HINT_REQUESTED`) restart that clock
+  too, so a nudge never lands right after an answer. At most **8 unsolicited per 30 min**. Talk (`REPLY`,
+  `PROBE`) uses neither, but every unsolicited line (help or talk) is at least **15 s** after the previous line.
 - Never repeat the same `(trigger, subject)` at the same level. The subject is the step for ladder rules, the
   issue for `BUG_SUSPECTED` and the plan for `PLAN_MISMATCH`. `SILENT` and `IDLE` repeat on their own clocks.
 - An analysis rule fires again for the same step or issue only after **2 analyses newer than its last fire**,
@@ -1087,12 +1088,19 @@ request, a run or an analysis.
 | `PASTE` | paste ≥ 40 chars or ≥ 2 non-blank lines, or a bulk insert (≥ 80 chars in one change) | INFO, text only, neutral ("I noticed a pasted block. I'll focus my feedback on the parts you wrote.") | said once; COD-4 logs every flag |
 | `CODED_BEFORE_PLAN` (P1) | ≥ 3 non-blank lines written beyond the starter code (the editor's first snapshot) while no plan has been stated this session (the policy keeps the latest `stated_plan`, so a plan older than the analyzer's 90 s window still counts), voice on, in `clarify`/`coding` | QUESTION ("Before you go further, what's your approach?") | once |
 | `RUN_FAILED` | the same visible test failed on 2 runs in a row, or 1 failure then 30 s with no edit or speech (hidden tests never count) | ladder for the step: the analyzer's `RUN_FAILED` step, else the first `incorrect` step, else the first required step not done | — |
-| `MISSED_STEP` | a required step is `skipped`/`not_started` while a step with higher `order` is `in_progress`/`done`/`incorrect`, seen in **2 consecutive analyses**; waits while the analyzer's own proposal for it is below 0.7 | ladder | — |
+| `MISSED_STEP` | a required step is `skipped`/`not_started` while a step with higher `order` is `in_progress`/`done`/`incorrect`, seen in **2 consecutive analyses**; waits while the analyzer's own proposal for it is below 0.7 | QUESTION, asked once per step: the interviewer tests, it doesn't hint. HINT and CONCEPT only when the candidate asks (`HINT_REQUESTED`) or is stuck (`RUN_FAILED`) | per step |
 | `BUG_SUSPECTED` | a `bug` or `edge_case` issue with a line and confidence ≥ 0.75, seen in 2 consecutive analyses, its line's text unchanged for 20 s | NUDGE, canned "Take another look around line N" (never the analyzer's draft, which may hint at the fix) | per issue |
 | `PLAN_MISMATCH` (P1) | `plan_matches_code == false` in 2 consecutive analyses, with a stated plan (the latest, or the one the policy remembers) | QUESTION | per plan |
-| `SILENT` (P1, voice on) | in `coding`, ≥ 120 s without a final candidate turn (voice or chat) | NUDGE ("Talk me through what you're doing.") | every 5 min max |
-| `IDLE` | in `coding` (or defense `fix`), no edit and no speech ≥ 75 s | QUESTION ("Where are you at?") | every 3 min max |
+| `SILENT` (P1, voice on) | in `coding`, ≥ 75 s without a final candidate turn (voice or chat) | NUDGE, a check-in the model words from the screen (`reply(kind="checkin")`), canned "Talk me through what you're doing." | every 3 min max |
+| `IDLE` | in `coding` (or defense `fix`), no edit and no speech ≥ 60 s | QUESTION, a model-worded check-in, canned "Where are you at?" | every 2 min max |
+| `REPLY` (talk, active) | in `clarify`/`coding`, the candidate said or typed something that isn't a question (≥ 6 words; a voice turn the classifier labels thinking aloud), the interviewer has been quiet ≥ 20 s (counting from the problem's presentation), within 8 s of it being said | INFO: the model (`reply(kind="reply")`) asks one follow-up that makes them justify it, or acknowledges briefly; never confirms or hints | 1 per 40 s, 12 per session |
+| `PROBE` (talk, active) | in `coding`, a step became `done` that wasn't probed yet, no serious issue open, quiet ≥ 45 s. Code decides when; the model (`reply(kind="probe")`, never shown the rubric) asks why their code works, what a line does for an input, or what a part costs | QUESTION | 4 per session; steps done together get one probe |
 | `PRAISE` | a step marked tricky in the rubric becomes `done` | INFO | max 1 per 10 min |
+
+**Talk vs help (built Oct 28).** `REPLY`, `PROBE` and the check-ins are the interviewer's side of the
+conversation, not help: they don't count as interventions shown or against independence (`NOT_HELP`), and the
+model writes them on delivery with the `conversation` role (Spark low, 6 s; the strip says "talking with you"),
+falling back to canned lines. They're active-mode only.
 
 `PRAISE` isn't built: `RubricStep` has no "tricky" flag, so it needs a contract change (SG + SS). It's a
 `TODO(ENG-5)` in `policy.py`.
@@ -1785,6 +1793,7 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 | `interviewer` | `muse-spark-1.3` | low | canned/rubric text |
 | `classifier` (P1) | `muse-spark-1.3` | minimal | treat as thinking aloud |
 | `complexity` (P1, COD-5) | `muse-spark-1.3` | low | leave the answer ungraded (null) |
+| `conversation` (warm-up, replies, probes, check-ins) | `muse-spark-1.3` | low | the canned line |
 | `grill_eval` | `muse-spark-1.3` | medium | Spark (low) → Spark Open (Baseten) → keyword grading |
 | `audit` | `muse-wonder-1.0` | xhigh | `muse-spark-1.3` (high) → `flaws.json` (samples only) |
 | `report` | `muse-wonder-1.0` | high | `muse-spark-1.3` → metrics-only template |
@@ -2114,7 +2123,7 @@ Record each segment separately on the deployed build, at real speed (speed-ups a
 | Problem text rights | Original statements only + review checklist (§13.1) |
 | Demo-day failure | Pre-recorded takes on the deployed build by Tue Nov 3; never present MOCK as live |
 
-**Timeouts:** analyzer 12 s · interviewer 6 s · classifier 3 s · complexity 8 s (20 s guard, report time) · grill eval 20 s (Spark medium measured 4–15 s) · audit 120 s · report 45 s per model (Wonder measured 15–21 s, once over 90 s; then Spark) ·
+**Timeouts:** analyzer 12 s · interviewer 6 s · conversation 6 s · classifier 3 s · complexity 8 s (20 s guard, report time) · grill eval 20 s (Spark medium measured 4–15 s) · audit 120 s · report 45 s per model (Wonder measured 15–21 s, once over 90 s; then Spark) ·
 attack writer 30 s · test run 10 s · chaos run 60 s · ASR handshake 10 s · SAM 5 s · image 20 s.
 
 ---
