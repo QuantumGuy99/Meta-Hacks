@@ -1,11 +1,24 @@
-{
-  "flaw_id": "f1",
-  "concurrency": 200,
-  "duration_s": 10,
-  "functions": {
-    "setup_body": "    resp = await client.get(BASE + \"/sections\")\n    sections = resp.json()\n    return {\n        \"sections\": [s[\"section\"] for s in sections],\n        \"start_gap\": sum(s[\"orders\"] for s in sections) - sum(s[\"seats_sold\"] for s in sections),\n    }\n",
-    "request_body": "    sections = ctx[\"sections\"]\n    body = {\n        \"section\": sections[i % len(sections)],\n        \"buyer_email\": \"fan\" + str(i) + \"@example.com\",\n    }\n    return await client.post(BASE + \"/checkout\", json=body)\n",
-    "invariant_body": "    resp = await client.get(BASE + \"/sections\")\n    sections = resp.json()\n    orders = sum(s[\"orders\"] for s in sections)\n    sold = sum(s[\"seats_sold\"] for s in sections)\n    double_booked = orders - sold - ctx[\"start_gap\"]\n    if double_booked <= 0:\n        return True, 0, f\"All {orders:,} orders got their own seat\"\n    return False, double_booked, f\"Under {CONCURRENCY} concurrent checkouts, {double_booked:,} seats were double-booked\"\n",
-    "rationale": "Checkouts are spread across all 100 sections so the 100,000-seat arena can't sell out during the run. Each checkout picks the best open seat, awaits the 30 ms payment call, and only then marks the seat sold, so overlapping checkouts in the same section are handed the same seat. Every extra order for a seat that's already sold is a double booking: orders minus seats sold."
+[
+  {
+    "flaw_id": "f1",
+    "concurrency": 200,
+    "duration_s": 10,
+    "functions": {
+      "setup_body": "    resp = await client.get(BASE + \"/sections\")\n    sections = resp.json()\n    return {\n        \"sections\": [s[\"section\"] for s in sections],\n        \"start_gap\": sum(s[\"orders\"] for s in sections) - sum(s[\"seats_sold\"] for s in sections),\n    }\n",
+      "request_body": "    sections = ctx[\"sections\"]\n    body = {\n        \"section\": sections[i % len(sections)],\n        \"buyer_email\": \"fan\" + str(i) + \"@example.com\",\n    }\n    return await client.post(BASE + \"/checkout\", json=body)\n",
+      "invariant_body": "    resp = await client.get(BASE + \"/sections\")\n    sections = resp.json()\n    orders = sum(s[\"orders\"] for s in sections)\n    sold = sum(s[\"seats_sold\"] for s in sections)\n    double_booked = orders - sold - ctx[\"start_gap\"]\n    if double_booked <= 0:\n        return True, 0, f\"All {orders:,} orders got their own seat\"\n    return False, double_booked, f\"Under {CONCURRENCY} concurrent checkouts, {double_booked:,} seats were double-booked\"\n",
+      "rationale": "Checkouts are spread across all 100 sections so the 100,000-seat arena can't sell out during the run. Each checkout picks the best open seat, awaits the 30 ms payment call, and only then marks the seat sold, so overlapping checkouts in the same section are handed the same seat. Every extra order for a seat that's already sold is a double booking: orders minus seats sold."
+    }
+  },
+  {
+    "flaw_id": "f2",
+    "concurrency": 10,
+    "duration_s": 10,
+    "functions": {
+      "setup_body": "    resp = await client.get(BASE + \"/sections\")\n    return {\"sections\": [s[\"section\"] for s in resp.json()], \"latency_ms\": []}\n",
+      "request_body": "    sections = ctx[\"sections\"]\n    started = time.monotonic()\n    resp = await client.get(BASE + \"/sections/\" + sections[i % len(sections)] + \"/recommendations?party_size=8\")\n    ctx[\"latency_ms\"].append((time.monotonic() - started) * 1000)\n    return resp\n",
+      "invariant_body": "    samples = ctx[\"latency_ms\"]\n    if not samples:\n        return True, 0, \"No recommendation requests have finished yet\"\n    ordered = sorted(samples)\n    p95 = ordered[min(len(ordered) - 1, int(len(ordered) * 0.95))]\n    slow = sum(1 for s in samples if s > 1000)\n    if p95 <= 1000:\n        return True, slow, f\"Seat recommendations p95 stayed at {p95:,.0f} ms under {CONCURRENCY} concurrent requests\"\n    return False, slow, f\"Under {CONCURRENCY} concurrent requests, seat recommendations p95 hit {p95:,.0f} ms ({slow:,} of {len(samples):,} requests over 1 s)\"\n",
+      "rationale": "Asks for blocks of eight seats across every section at 10 concurrent and times each request. find_adjacent_blocks scans every open seat for each neighbour, so one 1,000-seat section costs millions of comparisons of CPU work on the event loop, and concurrent requests queue behind each other. Ten at a time keeps every request inside the client's 10 s timeout, so the run breaks on latency alone. The invariant reports the p95 of the attack's own recommendation requests and fails over 1,000 ms; violations counts requests over 1 s."
+    }
   }
-}
+]

@@ -204,7 +204,7 @@ One folder per app, `data/defense_apps/<slug>/`:
 | `crucible.json` | `{"entrypoint": "uvicorn app.main:app --host 127.0.0.1 --port 8080", "port": 8080}` (8080 keeps clear of the backend's :8000 when LocalRunner runs the app) |
 | `flaws.json` | Ground truth: `[{id, category, file, line_start, line_end, explanation, expected_fix, grill_expected_points, chaos_invariant}]` |
 | `fix.patch` | The reference fix, as a unified diff that `git apply` accepts |
-| `reference_attack.json` | Proposed (agree with Shreyas): `{"concurrency": 200, "duration_s": 10, "functions": <AttackFunctions>}`, the three template bodies that prove the flaw (PLAN §11.4) |
+| `reference_attack.json` | `{"flaw_id": "f1", "concurrency": 200, "duration_s": 10, "functions": <AttackFunctions>}`, the three template bodies that prove the flaw (PLAN §11.4). An app with several chaos flaws holds a list, one attack per `flaw_id` (`ticket-drop`) |
 
 `reference_attack.json` goes through the same template and validator as the AI-written attacks, so it also
 proves the validator accepts a good script.

@@ -1,0 +1,14 @@
+{
+  "app": "bank-transfer",
+  "expected_findings": [
+    {
+      "flaw_id": "f1",
+      "file": "app/services.py",
+      "line_start": 30,
+      "line_end": 52,
+      "category": "race_condition"
+    }
+  ],
+  "baseline": "broke",
+  "verify_with_fix_patch": "held"
+}

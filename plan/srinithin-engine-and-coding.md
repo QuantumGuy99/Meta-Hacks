@@ -356,6 +356,9 @@ with Wonder disabled, Spark 1.3 in 14.9 s.
   matched an acceptable approach. Step statuses and approach came with ENG-8 (from the latest analyses).
   **Built Oct 28**: the complexity answer is graded at report time (Spark writes down the stated bounds, code
   matches them against the rubric's acceptable approaches; PLAN §10.5).
+- **Interviewer, not tutor** (from Srinithin's own run, Oct 28): a warm-up before the problem (#57), then talk
+  in active mode: replies to what the candidate says, probes when a step gets done, model-worded check-ins, and
+  missed steps asked as questions rather than hinted (PLAN §9.5). Voice output is #55/#56.
 - **COD-6 — Classifier, `PLAN_MISMATCH`, `CODED_BEFORE_PLAN`** (P1 · Sun · needs ENG-7). **Built Oct 28**: the voice
   classifier (spoken questions without Ask are answered), and plan memory (the policy and the analyzer keep the
   stated plan past the 90 s window, which fixed a false "what's your approach?"). Evals: coded-before-plan,
