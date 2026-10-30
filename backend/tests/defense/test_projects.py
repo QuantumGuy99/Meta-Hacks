@@ -56,15 +56,15 @@ def test_missing_patch_program_is_a_clear_project_error(monkeypatch):
 def _two_flaw_sample(root: Path) -> Path:
     """The fixture app with a second flaw, and reference_attack.json as a list (one attack per flaw)."""
     d = _copy_sample(root, "two")
-    flaws = json.loads((d / "flaws.json").read_text())
+    flaws = json.loads((d / "flaws.json").read_text(encoding="utf-8"))
     # A different category, like ticket-drop's O(n²) loop: a same-category overlap would be merged as one bug.
     flaws.append(
         {**flaws[0], "id": "f2", "category": "complexity", "chaos": {"concurrency": 40, "duration_s": 5}}
     )
-    (d / "flaws.json").write_text(json.dumps(flaws))
-    ref = json.loads((d / "reference_attack.json").read_text())
+    (d / "flaws.json").write_text(json.dumps(flaws), encoding="utf-8")
+    ref = json.loads((d / "reference_attack.json").read_text(encoding="utf-8"))
     second = {**ref, "flaw_id": "f2", "concurrency": 50, "duration_s": 7}
-    (d / "reference_attack.json").write_text(json.dumps([{**ref, "flaw_id": "f1"}, second]))
+    (d / "reference_attack.json").write_text(json.dumps([{**ref, "flaw_id": "f1"}, second]), encoding="utf-8")
     return d
 
 
@@ -80,9 +80,9 @@ def test_a_list_of_reference_attacks_gives_each_flaw_its_own(tmp_path):
 
 def test_an_attack_without_a_flaw_id_belongs_to_the_first_chaos_finding_only(tmp_path):
     d = _two_flaw_sample(tmp_path)
-    ref = json.loads((d / "reference_attack.json").read_text())[0]
+    ref = json.loads((d / "reference_attack.json").read_text(encoding="utf-8"))[0]
     del ref["flaw_id"]
-    (d / "reference_attack.json").write_text(json.dumps(ref))
+    (d / "reference_attack.json").write_text(json.dumps(ref), encoding="utf-8")
     sample = load_samples(tmp_path)["two"]
     assert sample.reference_for("f1", "f1") is sample.reference_attack
     assert sample.reference_for("f2", "f1") is None
@@ -92,6 +92,6 @@ def test_an_attack_without_a_flaw_id_belongs_to_the_first_chaos_finding_only(tmp
 
 def test_two_attacks_for_one_flaw_skip_the_sample(tmp_path):
     d = _copy_sample(tmp_path, "dup")
-    ref = json.loads((d / "reference_attack.json").read_text())
-    (d / "reference_attack.json").write_text(json.dumps([ref, ref]))
+    ref = json.loads((d / "reference_attack.json").read_text(encoding="utf-8"))
+    (d / "reference_attack.json").write_text(json.dumps([ref, ref]), encoding="utf-8")
     assert load_samples(tmp_path) == {}

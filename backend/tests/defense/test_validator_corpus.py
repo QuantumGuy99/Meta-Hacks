@@ -15,7 +15,7 @@ GOOD = sorted(CORPUS.glob("good_*.json"))
 
 
 def _load(path: Path) -> AttackFunctions:
-    return AttackFunctions.model_validate(json.loads(path.read_text()))
+    return AttackFunctions.model_validate(json.loads(path.read_text(encoding="utf-8")))
 
 
 def test_the_corpus_has_the_planned_size():

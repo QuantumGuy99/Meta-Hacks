@@ -42,7 +42,7 @@ async def test_a_client_the_bodies_build_themselves_is_still_loopback_only():
 
     from crucible.runner.harness import HARNESS_DIR
 
-    src = (HARNESS_DIR / "chaos_template.py").read_text()
+    src = (HARNESS_DIR / "chaos_template.py").read_text(encoding="utf-8")
     ns: dict = {"httpx": httpx}
     original = httpx.AsyncClient.send
     try:

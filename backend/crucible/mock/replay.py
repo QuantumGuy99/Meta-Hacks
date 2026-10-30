@@ -56,7 +56,7 @@ def load_report_fixture(name: str) -> tuple[Session, Report, list[TimelineEvent]
     path = REST_FIXTURES / f"{name}.json"
     if not path.is_file():
         raise KeyError(name)
-    raw = json.loads(path.read_text())
+    raw = json.loads(path.read_text(encoding="utf-8"))
     timeline = [TimelineEvent.model_validate(e) for e in raw["timeline"]]
     return Session.model_validate(raw["session"]), Report.model_validate(raw["report"]), timeline
 

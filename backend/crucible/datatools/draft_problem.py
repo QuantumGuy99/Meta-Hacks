@@ -71,7 +71,7 @@ def write_draft(slug: str, files: dict[str, str], root: Path = DRAFTS) -> Path:
         raise DraftInvalid(f"{slug} already exists; draft again or rename it")
     folder.mkdir(parents=True)
     for name, content in files.items():
-        (folder / name).write_text(content)
+        (folder / name).write_text(content, encoding="utf-8")
     return folder
 
 
@@ -82,7 +82,7 @@ async def draft(pattern: str, difficulty: str) -> str:
         {"role": "system", "content": PROMPTS["drafter_system"]},
         {
             "role": "user",
-            "content": f"Pattern: {pattern}\nDifficulty: {difficulty}\n\nTemplate problem.json:\n{TEMPLATE.read_text()}",
+            "content": f"Pattern: {pattern}\nDifficulty: {difficulty}\n\nTemplate problem.json:\n{TEMPLATE.read_text(encoding='utf-8')}",
         },
     ]
     async with asyncio.timeout(DRAFT_TIMEOUT_S):

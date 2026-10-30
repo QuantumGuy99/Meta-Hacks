@@ -2,4 +2,6 @@
 
 from pathlib import Path
 
-PROMPTS: dict[str, str] = {path.stem: path.read_text() for path in sorted(Path(__file__).parent.glob("*.md"))}
+PROMPTS: dict[str, str] = {
+    path.stem: path.read_text(encoding="utf-8") for path in sorted(Path(__file__).parent.glob("*.md"))
+}
