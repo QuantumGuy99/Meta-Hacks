@@ -75,6 +75,12 @@ async def note(sink: EventSink, level: str, message: str) -> None:
 
 
 def _brief(d: dict) -> str:
+    if "steps" in d and "lanes" in d:  # DEF-14's race replay, one line per step
+        steps = "".join(
+            f"\n          {s['lane']}{' ' * 4 if s['lane'] == 'A' else ' ' * 40}{s['action']}"
+            for s in d["steps"]
+        )
+        return f"{d['detail']} (reproduced with 2 requests in {d['attempts']} tries){steps}"
     for key in ("message", "summary", "to_phase"):
         if key in d:
             return str(d[key])[:140]
