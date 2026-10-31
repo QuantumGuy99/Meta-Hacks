@@ -1,12 +1,10 @@
----
-name: crucible-code
-description: File templates and the layout every Crucible backend file follows (Defense, Runner, models, mock, contracts, tests, prompts). Use before creating any new Python module, contract model, model call, policy/decision function, runner/streaming code, prompt file or test in backend/, and when finishing a work package.
----
-
 # Crucible code format
 
+Use before creating any new Python module, contract model, model call, decision function, runner or
+streaming code, prompt file or test in `backend/`, and when finishing a work package.
+
 Templates for the shapes that recur in this codebase. Copy the closest one, then fill it in. The rules
-behind them are in `backend/CLAUDE.md`; the architecture is in `PLAN.md`. Where a template calls a shared
+behind them are in `backend/AGENTS.md`; the architecture is in `PLAN.md`. Where a template calls a shared
 API (`Timeline.append`, `hub.broadcast`, `llm.complete_json`), the signature comes from PLAN §9.2 / §9.1
 / §15.1. Once that code exists, read it and match the real signature instead.
 
@@ -230,7 +228,7 @@ Shared builders go in `tests/factories.py`; fakes (`fake_llm`, `fake_runner`, `t
 
 ## 10. Finishing a work package
 
-1. Run the checks in `backend/CLAUDE.md` ("Before you say you're done").
+1. Run the checks in `backend/AGENTS.md` ("Before you say you're done").
 2. If your area keeps a working-memory file (Defense + Runner: `docs/defense/MEMORY.md`), update its
    status row, handoff and session log, and release your claim. Add any
    ⚠️ VERIFY results to PLAN.md §23 as well.

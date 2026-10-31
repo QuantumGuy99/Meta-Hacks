@@ -3,7 +3,7 @@
 This is the single source of truth for building Crucible during the Meta Global AI Developer Hackathon
 (building period **Tue Oct 27 – Wed Nov 4, 2026; submission due Wed Nov 4, 9:00 PM ET**). The
 [README](README.md) says *what* Crucible is; this file says *how*: scope, architecture, contracts, algorithms,
-work packages, owners and schedule. It is written so a coding agent (Muse Code, Claude Code) can pick up any
+work packages, owners and schedule. It is written so a coding agent (such as Muse Code) can pick up any
 work package and build it.
 
 **Coding agents: read §0 and §22 before writing any code.**
@@ -2219,7 +2219,7 @@ attack writer 30 s · test run 10 s · chaos run 60 s · ASR handshake 10 s · S
 
 ## 22. Rules for coding agents
 
-These apply to Muse Code, Claude Code and humans alike.
+These apply to coding agents and humans alike.
 
 1. **Stay in your work package.** Touch only the directories its owner owns (§6) plus tests. If you need a
    change elsewhere, note it in the PR description instead of making it.
