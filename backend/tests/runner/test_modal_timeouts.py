@@ -21,7 +21,12 @@ def _runner(monkeypatch) -> ModalRunner:
         monkeypatch.setattr(modal_runner, name, 0.05)
     r = ModalRunner.__new__(ModalRunner)
     r._settings = SimpleNamespace(MODAL_APP_NAME="crucible-test")
-    r._image = None
+    image = SimpleNamespace()
+    image.pip_install = lambda *pkgs: image  # project images derive from the base
+    r._base = image
+    r._images = {}
+    r._test_sandboxes = {}
+    r._session_locks = {}
     r._app = None
     r._sandboxes = {}
     r._modal = SimpleNamespace(

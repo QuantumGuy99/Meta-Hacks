@@ -15,6 +15,22 @@ from crucible.contracts.defense import Project
 from crucible.contracts.events import RunResult
 
 
+def stopped_run(req: RunRequest, message: str) -> RunResult:
+    """A run the runner had to stop or couldn't read (too slow, crashed): no cases, the reason in stderr."""
+    return RunResult(
+        run_id=req.run_id,
+        t=req.t,
+        kind=req.kind,
+        passed=0,
+        total=len(req.cases),
+        cases=[],
+        stdout="",
+        stderr=message[:4096],
+        timed_out=True,
+        compile_error=None,
+    )
+
+
 class RunnerError(Exception):
     """The runner couldn't start or run something (boot failure, readiness timeout, missing credentials)."""
 
