@@ -7,6 +7,7 @@ client messages to these methods. Standalone, the dev API and the CLI drive it d
 from __future__ import annotations
 
 import logging
+import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
@@ -17,17 +18,20 @@ from crucible.contracts.defense import (
     ChaosRun,
     Finding,
     GrillTurn,
+    RaceReplay,
     Verdict,
 )
-from crucible.contracts.events import PhaseChange, TimelineKind
+from crucible.contracts.events import ModelActivity, PhaseChange, TimelineKind
 from crucible.defense import audit as audit_mod
 from crucible.defense import grill as grill_mod
+from crucible.defense import replay as replay_mod
 from crucible.defense import verdict as verdict_mod
 from crucible.defense.attack_writer import write_attack
 from crucible.defense.chaos import run_attack
 from crucible.defense.ports import EventSink, ModelClient, note
 from crucible.defense.projects import Sample
 from crucible.defense.validator import AttackRejected
+from crucible.engine.activity import TASKS
 from crucible.engine.timeline import public_audit
 from crucible.runner.base import Runner
 
@@ -96,7 +100,10 @@ class DefensePipeline:
 
     async def run_audit(self) -> AuditResult:
         await self.set_phase(Phase.AUDIT, "session started")
+        cached = audit_mod.is_cached(self.sample)
         result = await audit_mod.run_audit(self.sample, self.llm, self.sink)
+        if cached:  # no model call was made, but the strip should still say who read the project
+            await self.sink.emit(TimelineKind.MODEL_ACTIVITY, cached_audit_activity())
         self.state.audit = result
         await self.sink.emit(TimelineKind.AUDIT, result, public=public_audit(result))
         return result
@@ -194,6 +201,17 @@ class DefensePipeline:
         await self.sink.emit(TimelineKind.VERDICT, v)
         return v
 
+    async def prepare_replay(self, finding_id: str) -> RaceReplay | None:
+        """DEF-14: the race step by step, for a race finding that broke. Not emitted here: it explains the
+        cause, so the caller sends it once the finding's grill is final."""
+        f = self.finding(finding_id)
+        fn = self.state.attacks.get(finding_id)
+        if f.category != "race_condition" or fn is None or finding_id not in self.state.broken:
+            return None
+        return await replay_mod.race_replay(
+            f, self.sample.project, self.sample.files, fn, self.runner, self.llm, self.sink
+        )
+
     def _reference_for(self, f: Finding) -> AttackFunctions | None:
         if self.state.audit is None:
             return None
@@ -201,6 +219,18 @@ class DefensePipeline:
             if reference_target(self.state.audit.findings, self.sample.flaws, ref.flaw_id) == f.id:
                 return ref.functions
         return None
+
+
+def cached_audit_activity() -> ModelActivity:
+    """Muse Wonder's audit came from the cache: "cached" on the strip (STORY.md). `t` is set by the sink."""
+    return ModelActivity(
+        call_id=uuid.uuid4().hex[:12],
+        t=0,
+        model_name="Muse Wonder",
+        task=TASKS["audit"],
+        status="cached",
+        latency_ms=0,
+    )
 
 
 REFERENCE_LINE_SLACK = 5  # a model's line range may start or end a few lines off the flaw's
@@ -234,15 +264,21 @@ def _overlaps(f: Finding, flaw: dict) -> bool:
 
 
 async def run_scripted(
-    p: DefensePipeline, answers: dict[str, str] | str, edited_files: dict[str, str] | None
+    p: DefensePipeline,
+    answers: dict[str, str] | str,
+    edited_files: dict[str, str] | None,
+    *,
+    with_replay: bool = False,
 ) -> Verdict:
     """Drive every stage with scripted inputs: dev API, CLI and end-to-end tests. The real session gets
-    answers and edits from the room instead."""
+    answers and edits from the room instead. `with_replay` adds DEF-14's replay after each grill."""
     await p.run_audit()
     await p.run_baselines()
     for fid in p.state.broken:
         answer = answers if isinstance(answers, str) else answers.get(fid, "")
         await p.answer_grill(fid, answer)
+        if with_replay and (replay := await p.prepare_replay(fid)) is not None:
+            await p.sink.emit(TimelineKind.REPLAY, replay)
         if edited_files is not None:
             await p.verify(fid, {k: v for k, v in edited_files.items() if p.sample.files.get(k) != v})
     return await p.decide()

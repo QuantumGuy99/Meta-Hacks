@@ -122,6 +122,21 @@ async def startup(app: FastAPI, settings: Settings) -> None:
     app.state.dev_runs = {}
     app.state.tasks = set()
     logger.info("loaded %d defense sample(s)", len(app.state.samples))
+    if settings.RUNNER == "modal" and settings.has_modal and not settings.MOCK:
+        task = asyncio.create_task(_prebuild_images(settings, list(app.state.samples.values())))
+        app.state.tasks.add(task)
+        task.add_done_callback(app.state.tasks.discard)
+
+
+async def _prebuild_images(settings: Settings, samples: list[Sample]) -> None:
+    """Build the Modal images in the background at startup, so the first session doesn't wait minutes for
+    one (#22 item 8). A failure only means the first session builds it instead."""
+    from crucible.runner.modal_runner import ModalRunner
+
+    try:
+        await ModalRunner(settings).prebuild(s.files for s in samples)
+    except Exception:  # background task boundary: log and let sessions build on demand
+        logger.exception("modal: prebuilding images failed; sessions will build them on demand")
 
 
 async def shutdown(app: FastAPI) -> None:

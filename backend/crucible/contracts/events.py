@@ -169,6 +169,7 @@ class TimelineKind(StrEnum):
     VERDICT = "verdict"
     SYSTEM = "system"
     MODEL_ACTIVITY = "model_activity"
+    REPLAY = "replay"
 
 
 class TimelineEvent(Strict):
