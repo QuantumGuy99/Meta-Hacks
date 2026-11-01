@@ -49,7 +49,7 @@ def _modal_settings() -> Settings:
 async def test_coding_runs_reuse_one_warm_sandbox_and_stop_runaway_code():
     """RUN-2: the contracts fixture problem in a session sandbox; the reference passes, the starter fails, an
     infinite loop is stopped, and every run reuses the one sandbox."""
-    spec = ProblemSpec.model_validate(json.loads(FIXTURE.read_text()))
+    spec = ProblemSpec.model_validate(json.loads(FIXTURE.read_text(encoding="utf-8")))
     runner = ModalRunner(_modal_settings())
     try:
         await runner.open_session("it-session")
