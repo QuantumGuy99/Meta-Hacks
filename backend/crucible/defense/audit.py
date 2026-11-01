@@ -46,6 +46,10 @@ class AuditFailed(Exception):
 _CACHE: dict[str, AuditResult] = {}  # content_hash → result; store/ persists this later (DEF-2)
 
 
+def is_cached(sample: Sample) -> bool:
+    return sample.project.content_hash in _CACHE
+
+
 async def run_audit(
     sample: Sample, llm: ModelClient, sink: EventSink, *, use_cache: bool = True
 ) -> AuditResult:
@@ -74,11 +78,26 @@ async def audit_with_model(sample: Sample, llm: ModelClient, sink: EventSink) ->
     the recall eval calls this directly and the ground truth can never pass for the model."""
     raw = await llm.complete_json("audit", _messages(sample), AuditResult, timeout_s=AUDIT_TIMEOUT_S)
     result = check_audit(raw, sample.files)
-    if result.findings:
+    stray = unknown_files(raw, sample.files)
+    if result.findings and not stray:
         return result
-    await note(sink, "warning", "The audit found nothing; asking once more.")
-    raw = await llm.complete_json("audit", _messages(sample), AuditResult, timeout_s=AUDIT_TIMEOUT_S)
-    return check_audit(raw, sample.files)
+    # A finding in a file that doesn't exist is a garbled answer, not a judgement: a live run got the race
+    # back with file "hello world", dropped it, and attacked nothing. Ask again instead of losing it.
+    why = f"named files that don't exist ({', '.join(stray)})" if stray else "found nothing"
+    await note(sink, "warning", f"The audit {why}; asking once more.")
+    try:
+        raw = await llm.complete_json("audit", _messages(sample), AuditResult, timeout_s=AUDIT_TIMEOUT_S)
+    except ModelUnavailable:
+        if result.findings:
+            return result  # the first answer still has usable findings
+        raise
+    retry = check_audit(raw, sample.files)
+    return retry if len(retry.findings) >= len(result.findings) else result
+
+
+def unknown_files(a: AuditResult, files: dict[str, str]) -> list[str]:
+    """Files the model's findings point at that aren't in the project, in order, without repeats."""
+    return list(dict.fromkeys(f.file for f in a.findings if f.file not in files))
 
 
 def check_audit(a: AuditResult, files: dict[str, str]) -> AuditResult:
