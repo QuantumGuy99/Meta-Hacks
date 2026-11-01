@@ -17,7 +17,7 @@ from pathlib import Path
 from crucible.config import Settings, get_settings
 from crucible.contracts.defense import Project
 from crucible.contracts.events import RunResult
-from crucible.runner.base import ProjectHandle, RunnerError, RunRequest, uvicorn_args
+from crucible.runner.base import ProjectHandle, RunnerError, RunRequest, stopped_run, uvicorn_args
 from crucible.runner.harness import HARNESS_DIR
 
 logger = logging.getLogger(__name__)
@@ -78,12 +78,12 @@ class LocalRunner:
         except TimeoutError:
             proc.kill()
             await proc.wait()
-            return _killed(req, "the run took too long and was stopped")
+            return stopped_run(req, "the run took too long and was stopped")
         finally:
             await asyncio.to_thread(shutil.rmtree, workdir, True)
         if proc.returncode != 0 or not out:
             tail = err.decode(errors="replace")[-STDERR_TAIL_BYTES:]
-            return _killed(req, f"the test process crashed (exit {proc.returncode}): {tail}".strip())
+            return stopped_run(req, f"the test process crashed (exit {proc.returncode}): {tail}".strip())
         return RunResult.model_validate(
             {**json.loads(out), "run_id": req.run_id, "t": req.t, "kind": req.kind}
         )
@@ -263,18 +263,3 @@ async def _wait_ready(port: int, proc: asyncio.subprocess.Process, log_path: Pat
             return
         await asyncio.sleep(0.1)
     raise RunnerError(f"app didn't open port {port} within {timeout_s:.0f} s")
-
-
-def _killed(req: RunRequest, message: str) -> RunResult:
-    return RunResult(
-        run_id=req.run_id,
-        t=req.t,
-        kind=req.kind,
-        passed=0,
-        total=len(req.cases),
-        cases=[],
-        stdout="",
-        stderr=message[:4096],
-        timed_out=True,
-        compile_error=None,
-    )

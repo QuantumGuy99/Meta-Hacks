@@ -1306,8 +1306,9 @@ Owner: **SG**. Data: **ST**.
   failure leaves a `system` note and sends `runner_unavailable` (retryable) to the tab that pressed Run, via
   `rt.sender` (the connection whose message the mode is handling). Run works from `clarify` on; a submit that
   passes every test during `coding` moves to `wrap_up` (§10.1).
-- The Modal runner's `run_tests` is RUN-2. Until then, coding sessions need `RUNNER=local` +
-  `ALLOW_LOCAL_RUNNER=1` (dev).
+- The Modal runner's `run_tests` is RUN-2 (#67). COD-3 step 3: `CodingController.on_start` warms the
+  session's sandbox in a background task (`RunService.open_session`; a failure is logged and ignored, Run
+  opens it lazily), and `close_session` runs once when the session ends or the runtime closes.
 
 ### 10.4 Integrity (`integrity.py`)
 - Editor `paste` with ≥ 40 chars or ≥ 2 lines → `IntegrityFlag(kind="paste")`.
@@ -1516,6 +1517,55 @@ the AI wrote.
   on failure the panel says the assistant is unavailable and the session continues.
 
 ---
+
+### 11.10 P1: Any vibe-coded project, not only web apps (DEF-12, after IC2)
+Decided by Shreyas on 2026-10-29. Not every project a candidate brings is a web app: many are scripts, CLIs or
+small libraries. Defense audits the **whole project** and proves what it can.
+
+**1. Project kinds** (`projects.py`): `web_app` when `crucible.json` has a uvicorn `entrypoint` or a FastAPI/Flask
+app is auto-detected (§11.1); otherwise `python_project` (any Python files; same size limits). A
+`python_project` sandbox gets the files and its `requirements.txt` image but starts no server.
+
+**2. The audit is project-level** (`audit.py`, Muse Wonder): up to 5 ranked weaknesses across correctness,
+security, error handling, concurrency, performance and structure, not only load bugs. **If it finds none, the
+audit says so and lists 3 future improvements instead** (code shows improvements only when there are no
+findings). Each finding carries at most one proof plan:
+- `chaos` (load test, §11.4): web apps only, as today.
+- `probe` (targeted test): any project. What to call, with what input, and what must hold.
+- neither: reported, graded in the report, but not attacked or grilled.
+
+**3. Proof by test** (`probe_writer.py`, `harness/probe_template.py`, Muse Spark): the same idea as the attack
+template. The model fills `setup_body` and `probe_body` (returns `(ok, violations, detail)`) in a fixed
+template that imports the project's modules from `/work/app`, runs the probe (with threads for concurrency
+claims) and prints the same `{"done": ...}` line as a chaos run, so `chaos.py` parsing and `decide_verdict`
+are reused. The validator allows imports of the project's own top-level modules plus a stdlib allowlist; it
+still bans network, subprocess, `os`, files outside `/work` and dunder access. Verify re-runs the same probe on
+the candidate's fix. `ChaosRun` gains `method: "load" | "test"`.
+
+**4. Flow and verdict**: audit → proofs (load or test) → grill on what broke → fix → verify → verdict, as §11.2.
+New outcome **clean**: the audit found no weaknesses, so there is nothing to defend. The verdict shows the
+improvements and no merge gate. (Weaknesses found but none proven stays FAIL, "nothing was proven".)
+
+**5. Contract changes** (SG + SS): `Project.kind`; `Finding.probe: ProbePlan | None`;
+`AuditResult.improvements` and `AuditPublic.improvements: list[Improvement {title, why}]`; `FindingCategory`
+gains `correctness` and `design`; `ChaosRun.method`; `ProbeFunctions` (LLM output); `Verdict.outcome:
+"pass" | "fail" | "clean"`; `DefenseExtra.improvements`.
+
+**6. Work**: SS backend Sat Oct 31 (with OPS-1); SG approves the contracts; LG shows the improvements, a test
+proof (the failing check and its detail instead of a load chart) and the "clean" verdict, Sun Nov 1; ST adds
+one non-app sample (a vibe-coded CLI or library with `flaws.json` probe plans and `fixed/`) by Sat Oct 31.
+The demo still uses `bank-transfer`; this widens what judges can bring.
+
+### 11.11 P1: Meta's models in ways nobody expected (DEF-13..16, decided 2026-10-29)
+Judges score "Use of Meta AI Tooling" on going beyond a basic integration (§2). Each of these gives a Meta model
+a job the candidate can watch, and each keeps the rule: the model suggests, code decides.
+
+| WP | What | Models | Proof it works | When |
+|---|---|---|---|---|
+| **DEF-13 Two graders must agree** | Every grill answer is graded by two Meta models in parallel; a point counts only when both mark it. A split on the root cause asks the follow-up instead of failing the candidate. The strip lights both. | Muse Spark (`grill_eval`) + Muse Wonder low (`grill_check`); Spark Open replaces Wonder once Baseten is configured | Unit tests for agree / split / one model down; one live run | Thu Oct 29 |
+| **DEF-14 Replay the race step by step** | After a race breaks, Muse Wonder writes the exact interleaving that loses money (A reads, B reads, A writes, B writes) as a small schedule; code replays that schedule deterministically in the sandbox and shows it as a two-lane timeline with the balance after each step. A schedule that doesn't reproduce the loss is never shown. | Muse Wonder (`replay`) | The replayed schedule loses the same money on `bank-transfer` and holds on `fixed/` | Fri Oct 30 |
+| **DEF-15 Vibe-code an app on demand** | "Defend a fresh app": Muse Spark writes a small web app from a one-line idea, the runner checks it boots, Muse Wonder audits it, and Crucible attacks it. AI wrote it, AI breaks it, the human proves they understand it. Only apps that boot and pass a smoke request are offered. | Muse Spark (`drafter`) + the Defense pipeline | 3 of 5 generated apps boot and break under their own attack | Sat Oct 31 (after DEF-12 project kinds) |
+| **DEF-16 Circle the flaw with SAM** | §11.7 (DEF-9) pulled forward: the candidate circles a node on the diagram (or a sketch on webcam); SAM 3.1 finds it; code picks the node. | SAM 3.1 | ≥ 4 of 5 circles select the right node | Sun Nov 1, with Likhil's pen |
 
 ## 12. Runner
 
@@ -1832,7 +1882,8 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 | `classifier` (P1) | `muse-spark-1.3` | minimal | treat as thinking aloud |
 | `complexity` (P1, COD-5) | `muse-spark-1.3` | low | leave the answer ungraded (null) |
 | `conversation` (warm-up, replies, probes, check-ins) | `muse-spark-1.3` | minimal (short lines; every second is a pause the candidate hears) | the canned line |
-| `grill_eval` | `muse-spark-1.3` | medium | Spark (low) → Spark Open (Baseten) → keyword grading |
+| `grill_eval` | `muse-spark-1.3` | low | Spark (minimal) → Spark Open (Baseten) |
+| `grill_check` (DEF-13) | `muse-wonder-1.0` | low | Spark Open; runs in parallel with `grill_eval`, and only points both mark count (§11.5) |
 | `audit` | `muse-wonder-1.0` | xhigh | `muse-spark-1.3` (high) → `flaws.json` (samples only) |
 | `report` | `muse-wonder-1.0` | high | `muse-spark-1.3` → metrics-only template |
 | `attacker` | `muse-spark-1.3` | low | Spark (medium) → reference attack (sample apps only) |

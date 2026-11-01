@@ -13,10 +13,12 @@ TASKS: dict[str, str] = {
     "complexity": "checking your complexity answer",
     "conversation": "talking with you",
     "grill_eval": "grading your answer",
+    "grill_check": "double-checking your answer",
     "audit": "reading your project",
     "report": "writing your report",
     "attacker": "writing an attack",
     "vision": "finding what you circled",
+    "replay": "replaying the race step by step",
     "drafter": "drafting problems",
 }
 VOICE: ModelName = "Muse Voice"

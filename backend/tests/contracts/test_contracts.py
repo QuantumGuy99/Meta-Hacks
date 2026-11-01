@@ -43,6 +43,7 @@ LLM_OUTPUT_MODELS: list[type[BaseModel]] = [
     report.ReportDraft,
     events.TurnLabel,
     coding.ComplexityClaim,
+    defense.ReplayNarrative,
 ]
 
 # TODO(ENG-1): replace with engine.timeline.PAYLOAD_MODELS once it exists.

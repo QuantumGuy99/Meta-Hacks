@@ -59,6 +59,7 @@ export type ServerMessage =
   | DefenseChaosDone
   | DefenseGrillEval
   | DefenseSamHighlight
+  | DefenseReplay
   | DefenseVerdict
   | ModelActivityMsg
   | ReportReady
@@ -126,7 +127,8 @@ export type TimelineKind =
   | "sam_highlight"
   | "verdict"
   | "system"
-  | "model_activity";
+  | "model_activity"
+  | "replay";
 /**
  * This interface was referenced by `CrucibleContracts`'s JSON-Schema
  * via the `definition` "FeedbackLevel".
@@ -668,6 +670,45 @@ export interface SamHighlight {
   source: "canvas" | "webcam";
   box: number[] | null;
   node_id: string | null;
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "DefenseReplay".
+ */
+export interface DefenseReplay {
+  type: "defense.replay";
+  replay: RaceReplay;
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "RaceReplay".
+ */
+export interface RaceReplay {
+  finding_id: string;
+  file: string;
+  lanes: ReplayLane[];
+  steps: ReplayStep[];
+  detail: string;
+  attempts: number;
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "ReplayLane".
+ */
+export interface ReplayLane {
+  lane: "A" | "B";
+  start_ms: number;
+  end_ms: number;
+  status: number;
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "ReplayStep".
+ */
+export interface ReplayStep {
+  lane: "A" | "B";
+  action: string;
+  line: number | null;
 }
 /**
  * This interface was referenced by `CrucibleContracts`'s JSON-Schema

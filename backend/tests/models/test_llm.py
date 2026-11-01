@@ -148,7 +148,7 @@ async def test_bad_requests_and_refusals_fall_back_without_retrying() -> None:
 async def test_raises_all_models_failed_when_every_model_fails() -> None:
     meta = FakeClient(
         {SPARK: [http_error(openai.InternalServerError, 502)] * 4}
-    )  # medium, then low, each retried
+    )  # low, then minimal, each retried
     baseten = FakeClient({SPARK_OPEN: [invalid_output()]})
     wrapper, _, _ = make_llm({"meta": meta, "baseten": baseten})
 
@@ -160,7 +160,7 @@ async def test_raises_all_models_failed_when_every_model_fails() -> None:
         f"{SPARK}: HTTP 502",
         f"{SPARK_OPEN}: ValidationError",
     ]
-    assert sent(meta) == [(SPARK, "medium")] * 2 + [(SPARK, "low")] * 2
+    assert sent(meta) == [(SPARK, "low")] * 2 + [(SPARK, "minimal")] * 2
     assert sent(baseten) == [(SPARK_OPEN, None)]  # Spark Open never gets reasoning_effort
 
 

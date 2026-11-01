@@ -20,11 +20,12 @@ from pydantic import BaseModel
 
 from crucible.config import Settings, get_settings
 from crucible.contracts.common import Phase, SessionConfig
-from crucible.contracts.defense import AuditResult, ChaosRun, GrillTurn
+from crucible.contracts.defense import AuditResult, ChaosRun, GrillTurn, RaceReplay
 from crucible.contracts.events import (
     Intervention,
     InterventionLevel,
     InterventionTrigger,
+    ModelActivity,
     PhaseChange,
     TimelineEvent,
     TimelineKind,
@@ -37,6 +38,7 @@ from crucible.contracts.ws import (
     DefenseChaosDone,
     DefenseChaosMetric,
     DefenseGrillEval,
+    DefenseReplay,
     DefenseRunChaos,
     DefenseVerdict,
     DefenseVerify,
@@ -144,6 +146,10 @@ class HubSink:
         self.rt = rt
 
     async def emit(self, kind: TimelineKind, payload: BaseModel, *, public: BaseModel | None = None) -> None:
+        if kind == TimelineKind.MODEL_ACTIVITY and isinstance(payload, ModelActivity):
+            # The strip's own path records and broadcasts it, stamped with the session clock.
+            await self.rt.show_activity(payload.model_copy(update={"t": self.rt.now_ms()}))
+            return
         await self.rt.record(kind, payload)
         message: BaseModel | None = None
         if kind == TimelineKind.AUDIT and isinstance(payload, AuditResult):
@@ -152,6 +158,8 @@ class HubSink:
             message = DefenseChaosMetric(type="defense.chaos.metric", metric=payload)
         elif kind == TimelineKind.CHAOS_RUN:
             message = DefenseChaosDone(type="defense.chaos.done", run=payload)
+        elif kind == TimelineKind.REPLAY:
+            message = DefenseReplay(type="defense.replay", replay=payload)
         elif kind == TimelineKind.VERDICT:
             message = DefenseVerdict(type="defense.verdict", verdict=payload)
         if message is not None:
@@ -169,6 +177,10 @@ class DefenseController:
         self._tasks: set[asyncio.Task[None]] = set()
         self._queue: list[str] = []  # broken findings still to be grilled, in order
         self._current: str | None = None  # the finding the candidate is answering now
+        # DEF-14: replays computed in the background, sent once their finding's grill is final.
+        self._replays: dict[str, RaceReplay | None] = {}
+        self._graded: set[str] = set()
+        self._revealed: set[str] = set()
 
     # --- ModeController ---------------------------------------------------------------------------------
 
@@ -265,6 +277,7 @@ class DefenseController:
                 await rt.set_phase(Phase.FAILED, "audit failed")
                 return
             await p.run_baselines()
+        self._spawn(rt, self._prepare_replays(rt))
         if not p.state.broken:
             await self._finish(rt, "nothing broke under load")
             return
@@ -287,6 +300,8 @@ class DefenseController:
             await self._say(rt, finding.grill.follow_up, InterventionLevel.QUESTION)
             return
         await rt.broadcast(DefenseGrillEval(type="defense.grill.eval", turn=turn, finding=finding))
+        self._graded.add(fid)
+        await self._reveal_replay(rt, fid)
         self._current = None
         await self._ask_next(rt)
 
@@ -423,16 +438,33 @@ class DefenseController:
     def _pipeline(self, rt: SessionRuntime) -> DefensePipeline:
         if self.pipeline is None:
             sample = self.mode.samples[rt.session.project_id or ""]
+            # Bound to this session, so its model calls light up its "Under the hood" strip (#39).
+            bind = getattr(self.mode.llm, "for_session", None)
             self.pipeline = DefensePipeline(
                 sample,
                 self.mode.runner,
-                self.mode.llm,
+                bind(rt.session.id) if bind else self.mode.llm,
                 HubSink(rt),
                 duration_override_s=self.mode.duration_override_s,
                 phase_setter=rt.set_phase,
             )
             self.pipeline.state.phase = rt.session.phase
         return self.pipeline
+
+    async def _prepare_replays(self, rt: SessionRuntime) -> None:
+        """DEF-14, in the background while the grill runs: one replay per broken race finding."""
+        p = self._pipeline(rt)
+        for fid in list(p.state.broken):
+            self._replays[fid] = await p.prepare_replay(fid)
+            await self._reveal_replay(rt, fid)
+
+    async def _reveal_replay(self, rt: SessionRuntime, fid: str) -> None:
+        """The replay explains the cause, so it goes out only after the finding's grill is final (§11.11)."""
+        replay = self._replays.get(fid)
+        if replay is None or fid not in self._graded or fid in self._revealed:
+            return
+        self._revealed.add(fid)
+        await self._pipeline(rt).sink.emit(TimelineKind.REPLAY, replay)
 
     async def on_close(self, rt: SessionRuntime) -> None:
         """Hub hook (PLAN §9.1): the runtime is closing, so stop every stage still running."""

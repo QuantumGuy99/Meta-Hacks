@@ -166,6 +166,7 @@ class CodingController:
         # The warm-up reply written while the pause after an answer runs: ((what they said, kind), task).
         self._warm_ahead: tuple[tuple[str, str], asyncio.Task[str | None]] | None = None
         self._problem_presented = False
+        self._sandbox_closed = False  # close_session runs once, on `ended` or on_close, whichever is first
         self._heard_ms: int | None = None  # the open question's spoken answer was last heard then
         self._quiet_wait: asyncio.Task[None] | None = None  # moves on once that answer has gone quiet
 
@@ -175,6 +176,7 @@ class CodingController:
         return TRANSITIONS
 
     async def on_start(self, rt: SessionRuntime) -> None:
+        self._track(asyncio.create_task(self._warm_sandbox(rt), name=f"warm-sandbox-{rt.session.id}"))
         await rt.set_phase(Phase.INTRO, "session started")
         self._start_timer(rt)
         if not self._warm_up:
@@ -203,6 +205,7 @@ class CodingController:
         for task in tasks:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
+        await self._close_sandbox(rt)
 
     async def on_client_message(self, rt: SessionRuntime, msg: ClientMessage) -> bool:
         if not isinstance(msg, CodeRun | CodeSubmit):
@@ -239,6 +242,8 @@ class CodingController:
         p = event.payload
         if event.kind == TimelineKind.EDITOR:
             await self._on_edit(rt, EditorEvent.model_validate(p))
+        elif event.kind == TimelineKind.PHASE and p["to_phase"] == Phase.ENDED:
+            self._track(asyncio.create_task(self._close_sandbox(rt), name=f"close-sandbox-{rt.session.id}"))
         elif event.kind == TimelineKind.PHASE and p["to_phase"] == Phase.WRAP_UP:
             # In a task, so the hub broadcasts the new phase before the interviewer starts the wrap-up.
             self._spawn(rt, self._begin_wrap_up(rt, p["reason"]))
@@ -542,10 +547,36 @@ class CodingController:
         if spec is not None:
             await rt.attach(RubricContext.from_problem(spec))
 
-    def _spawn(self, rt: SessionRuntime, coro: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
-        task = asyncio.create_task(self._guard(rt, coro), name=f"coding-{rt.session.id}")
+    # --- runner sandbox (COD-3 step 3) ----------------------------------------------------------------
+
+    async def _warm_sandbox(self, rt: SessionRuntime) -> None:
+        """Warm the runner's sandbox in the background, so the first Run doesn't pay the cold start
+        inside its 20 s deadline. A failure is logged and ignored: Run opens the sandbox lazily."""
+        if self._runs is None:
+            return
+        try:
+            await self._runs.open_session(rt.session.id)
+        except Exception:  # task boundary: warming is best-effort, never a session failure
+            logger.exception("couldn't warm the sandbox for %s; the first Run will open it", rt.session.id)
+
+    async def _close_sandbox(self, rt: SessionRuntime) -> None:
+        """Close the session's sandbox, once. The runner's idle timeout is the backstop."""
+        if self._runs is None or self._sandbox_closed:
+            return
+        try:
+            await self._runs.close_session(rt.session.id)
+        except Exception:  # task boundary: the sandbox also stops on its own idle timeout
+            logger.exception("couldn't close the sandbox for %s", rt.session.id)
+            return
+        self._sandbox_closed = True
+
+    def _track(self, task: asyncio.Task[None]) -> None:
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+
+    def _spawn(self, rt: SessionRuntime, coro: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
+        task = asyncio.create_task(self._guard(rt, coro), name=f"coding-{rt.session.id}")
+        self._track(task)
         return task
 
     async def _guard(self, rt: SessionRuntime, coro: Coroutine[Any, Any, None]) -> None:
