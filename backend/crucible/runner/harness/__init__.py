@@ -4,4 +4,6 @@ from pathlib import Path
 
 HARNESS_DIR = Path(__file__).parent
 CHAOS_TEMPLATE = (HARNESS_DIR / "chaos_template.py").read_text(encoding="utf-8")
-REPLAY_RUNNER = (HARNESS_DIR / "replay_runner.py").read_text(encoding="utf-8")  # replaces the load runner (DEF-14)
+REPLAY_RUNNER = (HARNESS_DIR / "replay_runner.py").read_text(
+    encoding="utf-8"
+)  # replaces the load runner (DEF-14)
