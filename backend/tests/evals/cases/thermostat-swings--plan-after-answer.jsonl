@@ -1,0 +1,7 @@
+{"meta": {"problem_slug": "thermostat-swings", "feedback": "active", "voice": false, "about": "asks a clarifying question, then states a plan a few seconds after the answer; the interviewer should reply to the plan (its turn), not stay silent"}}
+{"t": 5000, "do": "chat", "text": "Can the temps list be empty?"}
+{"t": 13000, "do": "chat", "text": "Okay, my plan is to walk the list once and count every neighboring pair that differs by more than k."}
+{"t": 40000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps)):\n"}
+{"t": 60000, "do": "snapshot", "code": "def count_big_swings(temps: list[int], k: int) -> int:\n    swings = 0\n    for i in range(1, len(temps)):\n        if abs(temps[i] - temps[i - 1]) > k:\n            swings += 1\n    return swings\n"}
+{"t": 80000, "do": "end"}
+{"expect": {"fires": [{"trigger": "asked", "by_t": 12000}, {"trigger": "reply", "by_t": 22000}], "limits": [{"trigger": "reply", "max": 2}], "never": ["hint_requested"], "max_shown": 3, "no_leak": true}}
