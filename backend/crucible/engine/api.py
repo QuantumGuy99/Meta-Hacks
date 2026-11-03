@@ -7,11 +7,11 @@ import contextlib
 import logging
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import TypeAdapter, ValidationError
 
 from crucible.contracts.common import ApiError, ApiErrorBody, Phase, ReportPending, Session, SessionConfig
-from crucible.contracts.events import TimelineEvent
+from crucible.contracts.events import Intervention, TimelineEvent, TimelineKind
 from crucible.contracts.report import Report
 from crucible.contracts.ws import ClientMessage
 from crucible.engine.hub import (
@@ -26,6 +26,7 @@ from crucible.engine.hub import (
 from crucible.engine.limits import Verdict, audio_gate, session_gate
 from crucible.engine.timeline import public_view
 from crucible.engine.voice import AudioControl, VoiceBridge
+from crucible.models.tts import MEDIA_TYPE, Speech, SpeechUnavailable, speech_from
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,35 @@ async def get_report(session_id: str, request: Request) -> Report | JSONResponse
     if session.phase in FINISHED:
         return _error(404, "report_unavailable", "This session failed before it could be reported on.")
     return _error(409, "session_live", "The report is built once the session ends.")
+
+
+@router.get(
+    "/api/sessions/{session_id}/speech/{intervention_id}",
+    response_class=StreamingResponse,
+    response_model=None,
+    responses={200: {"content": {MEDIA_TYPE: {}}}, 404: {"model": ApiError}, 503: {"model": ApiError}},
+)
+async def get_speech(
+    session_id: str, intervention_id: str, request: Request
+) -> StreamingResponse | JSONResponse:
+    """One interviewer line read aloud (§14.7), as it streams. Only a line this session showed and marked to speak:
+    the endpoint never reads out text it's sent, so the voice key can't be used for anything else. 503 means
+    the browser voice speaks it instead."""
+    speech = _speech(request)
+    if speech is None:
+        return _error(503, "voice_unavailable", "No voice service is configured.")
+    hub = _hub(request)
+    if await hub.get_session(session_id) is None:
+        return _not_found(session_id)
+    line = _spoken_line(await hub.read_timeline(session_id), intervention_id)
+    if line is None:
+        return _error(404, "line_not_found", f"No spoken line {intervention_id} in this session.")
+    try:
+        audio = await speech.open(line)
+    except SpeechUnavailable as exc:
+        logger.warning("voice unavailable in %s: %s", session_id, exc)
+        return _error(503, "voice_unavailable", "The voice service didn't answer.")
+    return StreamingResponse(audio, media_type=MEDIA_TYPE, headers={"Cache-Control": "private, max-age=3600"})
 
 
 @router.websocket("/ws/sessions/{session_id}")
@@ -230,6 +260,22 @@ async def _over_rate(
 
 def _hub(request: Request) -> SessionHub:
     return request.app.state.hub
+
+
+def _speech(request: Request) -> Speech | None:
+    """The voice service, made on first use from the app's settings (tests set `app.state.speech` themselves)."""
+    state = request.app.state
+    if not hasattr(state, "speech"):
+        state.speech = speech_from(state.settings)
+    return state.speech
+
+
+def _spoken_line(events: list[TimelineEvent], intervention_id: str) -> str | None:
+    for event in events:
+        if event.kind == TimelineKind.INTERVENTION and event.payload.get("id") == intervention_id:
+            line = Intervention.model_validate(event.payload)
+            return line.text if line.speak and not line.suppressed else None
+    return None
 
 
 def _error(status: int, code: str, message: str) -> JSONResponse:
