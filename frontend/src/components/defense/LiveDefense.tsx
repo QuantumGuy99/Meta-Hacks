@@ -72,7 +72,7 @@ export function LiveDefense({ id }: { id: string }) {
   const remaining = useRemaining(state);
   const caption = liveCaption(state);
   const { mic, toggleMic, setAsking, setPaused } = useMic(id);
-  const voice = useVoice(state, setPaused);
+  const voice = useVoice(state, setPaused, id);
   // Holding Ask is a barge-in: the interviewer stops talking
   const ask = (holding: boolean) => {
     if (holding) voice.cancel();
