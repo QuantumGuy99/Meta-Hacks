@@ -593,6 +593,10 @@ class FakeAudio {
   pause() {
     this.paused = true;
   }
+  removeAttribute(name) {
+    this[name] = "";
+  }
+  load() {}
   emit(type) {
     for (const listener of this.listeners[type] ?? []) listener();
   }

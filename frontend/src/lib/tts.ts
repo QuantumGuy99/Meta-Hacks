@@ -525,6 +525,8 @@ export interface AudioLike {
   src: string;
   play(): Promise<void>;
   pause(): void;
+  removeAttribute(name: "src"): void;
+  load(): void;
   addEventListener(type: "playing" | "ended" | "error", listener: () => void): void;
 }
 
@@ -577,7 +579,8 @@ export function createVoice(
       const a = audio;
       audio = null; // events from it are ignored from now on
       a.pause();
-      a.src = "";
+      a.removeAttribute("src"); // stops the download; `src = ""` would load the page itself as audio
+      a.load();
     }
   };
   // The current line is over: the next one, or the end of the run.
