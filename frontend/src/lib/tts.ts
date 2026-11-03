@@ -1,5 +1,6 @@
-// The interviewer's voice: browser text to speech with speechSynthesis (PLAN §14.7). Meta has no TTS model and
-// third-party TTS is ruled out, so this is the only voice out, and it should sound as human as the browser
+// The interviewer's voice (PLAN §14.7). Meta has no TTS model, so `createVoice` plays each line from the backend's
+// ElevenLabs endpoint, and `createTts` is browser text to speech with speechSynthesis: the fallback when that
+// voice isn't configured, is slow or fails. The browser voice should sound as human as the browser
 // allows: the most natural English voice installed (or the one the candidate picked), a slightly brisk rate, and
 // one utterance per sentence, so the first sentence starts at once and nothing breaks mid-phrase (Chrome also
 // cuts an utterance off after about 15 s). onStart/onEnd drive the speaking indicator and the mic's silence
@@ -500,4 +501,216 @@ function browserStorage(): StorageLike | null {
   } catch {
     return null; // a sandboxed page can throw on the localStorage getter itself
   }
+}
+
+// --- the server voice (ElevenLabs through the backend, §14.7) ------------------------------------------------
+
+export const FIRST_AUDIO_MS = 1_500; // no sound from the server voice by then: the browser voice says the line
+export const SERVER_FAILURES_MAX = 2; // in a row: stop asking the server and use the browser voice from then on
+
+export interface Voice extends Tts {
+  /** Queue a line. With its intervention `id`, the server voice reads it; without one, the browser voice. */
+  speak(text: string, id?: string): void;
+  /** True while the server voice is in use (the room can hide the "install a natural voice" hint). */
+  readonly server: boolean;
+}
+
+export interface VoiceOptions extends TtsOptions {
+  /** The audio URL for a line: `${API_URL}/api/sessions/${sessionId}/speech/${id}`. Unset: browser voice only. */
+  speechUrl?: (id: string) => string;
+}
+
+/** What `createVoice` needs from the browser for the server voice: an audio element per line. */
+export interface AudioLike {
+  src: string;
+  play(): Promise<void>;
+  pause(): void;
+  removeAttribute(name: "src"): void;
+  load(): void;
+  addEventListener(type: "playing" | "ended" | "error", listener: () => void): void;
+}
+
+interface Line {
+  text: string;
+  id?: string;
+}
+
+/** The interviewer's voice: the server voice for each line, the browser voice when it's unset, slow or failing.
+ * Lines play one at a time in order, whichever voice reads them; onStart/onEnd span the whole run. */
+export function createVoice(
+  opts: VoiceOptions = {},
+  deps: SpeechDeps | null = browserSpeech(),
+  makeAudio: ((url: string) => AudioLike) | null = browserAudio(),
+): Voice {
+  let lines: Line[] = [];
+  let playing: "server" | "browser" | null = null;
+  let audio: AudioLike | null = null;
+  let held: Line | null = null; // refused before a click: unlock() plays it
+  let speaking = false;
+  let muted = false;
+  let disposed = false;
+  let failures = 0;
+  let firstTimer: ReturnType<typeof setTimeout> | null = null;
+  const serverUp = () => Boolean(opts.speechUrl && makeAudio) && failures < SERVER_FAILURES_MAX;
+
+  const setSpeaking = (next: boolean) => {
+    if (speaking === next) return;
+    speaking = next;
+    if (next) opts.onStart?.();
+    else opts.onEnd?.();
+  };
+  const browser = createTts(
+    {
+      ...opts,
+      onStart: () => setSpeaking(true),
+      onEnd: () => {
+        if (playing === "browser") done();
+      },
+    },
+    deps,
+  );
+  const clearFirst = () => {
+    if (firstTimer !== null) clearTimeout(firstTimer);
+    firstTimer = null;
+  };
+  const stopAudio = () => {
+    clearFirst();
+    if (audio) {
+      const a = audio;
+      audio = null; // events from it are ignored from now on
+      a.pause();
+      a.removeAttribute("src"); // stops the download; `src = ""` would load the page itself as audio
+      a.load();
+    }
+  };
+  // The current line is over: the next one, or the end of the run.
+  const done = () => {
+    playing = null;
+    if (lines.length) next();
+    else setSpeaking(false);
+  };
+  const byBrowser = (line: Line) => {
+    playing = "browser";
+    browser.speak(line.text);
+    if (!browser.supported) done();
+  };
+  const fallBack = (line: Line) => {
+    stopAudio();
+    failures += 1;
+    byBrowser(line);
+  };
+
+  const byServer = (line: Line) => {
+    const a = (makeAudio as (url: string) => AudioLike)((opts.speechUrl as (id: string) => string)(line.id as string));
+    audio = a;
+    playing = "server";
+    let started = false;
+    a.addEventListener("playing", () => {
+      if (a !== audio || started) return;
+      started = true;
+      clearFirst();
+      failures = 0;
+      opts.onBlocked?.(false);
+      setSpeaking(true);
+    });
+    a.addEventListener("ended", () => {
+      if (a !== audio) return;
+      stopAudio();
+      done();
+    });
+    a.addEventListener("error", () => {
+      if (a !== audio) return;
+      if (started) {
+        stopAudio(); // cut off mid-line: the rest isn't worth repeating
+        done();
+      } else fallBack(line);
+    });
+    firstTimer = setTimeout(() => {
+      if (a === audio && !started) fallBack(line);
+    }, FIRST_AUDIO_MS);
+    a.play().catch((e: { name?: string }) => {
+      if (a !== audio || started) return;
+      if (e?.name === "NotAllowedError") {
+        stopAudio(); // the browser wants a click first: keep the line for unlock()
+        held = line;
+        playing = null;
+        opts.onBlocked?.(true);
+        setSpeaking(false);
+      }
+      // anything else surfaces as an error event, or the first-audio timer
+    });
+  };
+
+  const next = () => {
+    if (disposed || muted || playing || held || !lines.length) return;
+    const line = lines.shift() as Line;
+    if (line.id && serverUp()) byServer(line);
+    else byBrowser(line);
+  };
+
+  const cancel = () => {
+    lines = [];
+    held = null;
+    stopAudio();
+    playing = null;
+    browser.cancel();
+    setSpeaking(false);
+  };
+
+  return {
+    supported: browser.supported || Boolean(opts.speechUrl && makeAudio),
+    get speaking() {
+      return speaking;
+    },
+    get blocked() {
+      return held !== null || browser.blocked;
+    },
+    get voices() {
+      return browser.voices;
+    },
+    get voice() {
+      return browser.voice;
+    },
+    get server() {
+      return serverUp();
+    },
+    speak(text, id) {
+      if (disposed || muted || !speakable(text)) return;
+      lines.push({ text, id });
+      next();
+    },
+    cancel,
+    setMuted(next_) {
+      muted = next_;
+      browser.setMuted(next_);
+      if (next_) cancel();
+    },
+    setVoice: (name) => browser.setVoice(name),
+    warm: () => browser.warm(),
+    unlock() {
+      if (disposed || muted) return;
+      if (held) {
+        const line = held;
+        held = null;
+        lines = [line, ...lines];
+        next();
+      } else browser.unlock();
+    },
+    dispose() {
+      if (disposed) return;
+      cancel();
+      disposed = true;
+      browser.dispose();
+    },
+  };
+}
+
+function browserAudio(): ((url: string) => AudioLike) | null {
+  if (typeof window === "undefined" || typeof Audio === "undefined") return null;
+  return (url) => {
+    const a = new Audio();
+    a.preload = "auto";
+    a.src = url;
+    return a as unknown as AudioLike;
+  };
 }

@@ -65,11 +65,13 @@ HINT_LEVELS = (
     InterventionLevel.CONCEPT,
 )
 # Interventions that aren't help: phase lines, the warm-up and grill questions run the interview; replies, probes
-# and check-ins are the interviewer's side of the conversation (§9.5); paste and time notes are reminders. They
-# don't count as interventions shown, nor against independence.
+# and check-ins are the interviewer's side of the conversation (§9.5); answers are the candidate asking, which
+# clarifying a problem should be; paste and time notes are reminders. They don't count as interventions shown,
+# nor against independence. Answers still become moments and reach the report model (`_help_and_answers`).
 NOT_HELP = frozenset(
     {
         InterventionTrigger.PHASE,
+        InterventionTrigger.ASKED,
         InterventionTrigger.WARMUP,
         InterventionTrigger.REPLY,
         InterventionTrigger.PROBE,
@@ -215,11 +217,20 @@ def ended_at_ms(events: Sequence[TimelineEvent], *, default: int) -> int:
 
 
 def help_shown(events: Sequence[TimelineEvent]) -> list[Intervention]:
-    """Interventions the candidate saw that helped them (not phase lines, grill questions or notes)."""
+    """Interventions the candidate saw that helped them (not answers, phase lines, grill questions or notes)."""
     return [
         i
         for i in payloads(events, TimelineKind.INTERVENTION, Intervention)
         if not i.suppressed and i.trigger not in NOT_HELP
+    ]
+
+
+def _help_and_answers(events: Sequence[TimelineEvent]) -> list[Intervention]:
+    """Help shown, plus the answers to the candidate's own questions: both are moments worth reporting."""
+    return [
+        i
+        for i in payloads(events, TimelineKind.INTERVENTION, Intervention)
+        if not i.suppressed and (i.trigger == InterventionTrigger.ASKED or i.trigger not in NOT_HELP)
     ]
 
 
@@ -276,7 +287,7 @@ def _coding_picks(events: Sequence[TimelineEvent]) -> list[Pick]:
 
 def _help_picks(events: Sequence[TimelineEvent], steps: Mapping[str, str]) -> list[Pick]:
     picks: list[Pick] = []
-    for i in help_shown(events):
+    for i in _help_and_answers(events):
         if i.trigger == InterventionTrigger.ASKED:
             facts = f'The candidate asked a question; the interviewer replied: "{i.text}"'
             picks.append(Pick(i.t, "milestone", "Asked the interviewer", facts, 5))
@@ -465,7 +476,7 @@ def _conversation_section(events: Sequence[TimelineEvent]) -> str:
     transcript = "\n".join(f"- [{clock(t.start_ms)}] {t.speaker}: {_cut(t.text)}" for t in turns)
     shown = "\n".join(
         f"- [{clock(i.t)}] {i.level} ({i.trigger}{', ' + i.step_id if i.step_id else ''}): {i.text}"
-        for i in help_shown(events)
+        for i in _help_and_answers(events)
     )
     return f"# Transcript\n{transcript or '(nothing said)'}\n\n# Interventions shown\n{shown or '(none)'}"
 

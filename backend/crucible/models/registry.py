@@ -32,6 +32,8 @@ SPARK_CONTRIBUTOR = "muse-spark-1.3-contributor"
 WONDER = "muse-wonder-1.0"
 # The hackathon guide says to use this id, not "muse-spark-open" (PLAN §15.1).
 SPARK_OPEN = "meta-models/muse-spark-open-1026"
+# Voice output only (PLAN §14.7): Meta has no text-to-speech model. ElevenLabs' low-latency model.
+TTS_MODEL = "eleven_flash_v2_5"
 
 # USE_CONTRIBUTOR_MODELS=1: cheaper, but content may be used for training. Dev with synthetic data only.
 CONTRIBUTOR_MODELS: dict[str, str] = {SPARK: SPARK_CONTRIBUTOR}

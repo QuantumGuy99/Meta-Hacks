@@ -94,7 +94,8 @@ def test_a_missed_step_seen_twice_becomes_a_question(client: TestClient, model: 
         ws.send_json({"type": "chat.send", "text": "I'll loop over the readings."})
         notes = receive_until(ws, lambda m: m["type"] == "notes.update")
         assert [s["status"] for s in notes["steps"]] == ["not_started", "in_progress"]
-        ws.send_json({"type": "chat.send", "text": "Then I'll track the best run."})
+        # Five words: too short for a reply (REPLY_MIN_WORDS), so the first line is the missed step's question.
+        ws.send_json({"type": "chat.send", "text": "Then track the best run."})
         message = receive_until(ws, lambda m: m["type"] == "interviewer.message")
     intervention = message["intervention"]
     assert intervention["text"] == DRAFT

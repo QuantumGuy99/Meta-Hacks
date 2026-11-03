@@ -358,7 +358,9 @@ with Wonder disabled, Spark 1.3 in 14.9 s.
   matches them against the rubric's acceptable approaches; PLAN §10.5).
 - **Interviewer, not tutor** (from Srinithin's own run, Oct 28): a warm-up before the problem (#57), then talk
   in active mode: replies to what the candidate says, probes when a step gets done, model-worded check-ins, and
-  missed steps asked as questions rather than hinted (PLAN §9.5). Voice output is #55/#56.
+  missed steps asked as questions rather than hinted (PLAN §9.5). Voice output is #55/#56. From the Nov 2 live
+  run: what the candidate says right after an answer (or right after the problem) gets a reply at once, and
+  answers to their own questions don't count as help in the report (PLAN §9.5, §9.8).
 - **COD-6 — Classifier, `PLAN_MISMATCH`, `CODED_BEFORE_PLAN`** (P1 · Sun · needs ENG-7). **Built Oct 28**: the voice
   classifier (spoken questions without Ask are answered), and plan memory (the policy and the analyzer keep the
   stated plan past the 90 s window, which fixed a false "what's your approach?"). Evals: coded-before-plan,
