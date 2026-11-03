@@ -149,7 +149,9 @@ def test_a_submit_drops_stdout_so_prints_cant_reveal_hidden_inputs() -> None:
 def _events() -> list[TimelineEvent]:
     timeline, _ = make_timeline()
     timeline.append(TimelineKind.RUN, run(kind="submit"))
-    timeline.append(TimelineKind.ANALYSIS, json.loads((FIXTURES / "analysis.json").read_text()))
+    timeline.append(
+        TimelineKind.ANALYSIS, json.loads((FIXTURES / "analysis.json").read_text(encoding="utf-8"))
+    )
     timeline.append(TimelineKind.SYSTEM, note())
     shown = Intervention(
         id="i1",
@@ -164,7 +166,8 @@ def _events() -> list[TimelineEvent]:
     timeline.append(TimelineKind.INTERVENTION, shown)
     timeline.append(TimelineKind.INTERVENTION, shown.model_copy(update={"id": "i2", "suppressed": True}))
     timeline.append(
-        TimelineKind.AUDIT, AuditResult.model_validate_json((FIXTURES / "audit_result.json").read_text())
+        TimelineKind.AUDIT,
+        AuditResult.model_validate_json((FIXTURES / "audit_result.json").read_text(encoding="utf-8")),
     )
     return timeline.tail()
 

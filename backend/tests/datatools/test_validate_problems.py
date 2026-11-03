@@ -17,11 +17,11 @@ def _copy(tmp_path: Path, edit=None, files: dict[str, str] | None = None) -> Pat
     d = tmp_path / GOLD.name
     shutil.copytree(GOLD, d)
     if edit:
-        raw = json.loads((d / "problem.json").read_text())
+        raw = json.loads((d / "problem.json").read_text(encoding="utf-8"))
         edit(raw)
-        (d / "problem.json").write_text(json.dumps(raw))
+        (d / "problem.json").write_text(json.dumps(raw), encoding="utf-8")
     for name, content in (files or {}).items():
-        (d / name).write_text(content)
+        (d / name).write_text(content, encoding="utf-8")
     return d
 
 
@@ -70,7 +70,7 @@ async def test_a_wrong_reference_and_a_disagreeing_brute_are_caught(local_settin
 @pytest.mark.asyncio
 async def test_a_starter_that_passes_is_an_error(local_settings, tmp_path):
     def edit(raw):
-        raw["starter_code"] = (GOLD / "reference.py").read_text()
+        raw["starter_code"] = (GOLD / "reference.py").read_text(encoding="utf-8")
 
     report = await check_problem(_copy(tmp_path, edit), LocalRunner(local_settings))
     assert "starter code passes every test" in report.errors

@@ -142,7 +142,7 @@ async def _validate(slugs: list[str], runner: Runner, runs: int, duration_s: int
             reports.append(AppReport(slug, errors=["doesn't load (see the log above) or doesn't exist"]))
             continue
         patch = s.DEFENSE_APPS_DIR / slug / "fix.patch"
-        text = patch.read_text() if patch.exists() else None
+        text = patch.read_text(encoding="utf-8") if patch.exists() else None
         reports.append(await check_app(sample, text, runner, runs=runs, duration_s=duration_s))
     return reports
 

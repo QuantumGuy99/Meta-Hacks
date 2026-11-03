@@ -11,14 +11,14 @@ GOLD = DEFAULT_ROOT / "room-bookings"
 
 
 def _reply(**changes) -> str:
-    problem = json.loads((GOLD / "problem.json").read_text())
+    problem = json.loads((GOLD / "problem.json").read_text(encoding="utf-8"))
     problem["slug"] = "harbor-slots"
     body = {
         "problem": problem,
         "statement_md": "# Harbor Slots\n",
-        "reference_py": (GOLD / "reference.py").read_text(),
-        "brute_py": (GOLD / "brute.py").read_text(),
-        "gen_py": (GOLD / "gen.py").read_text(),
+        "reference_py": (GOLD / "reference.py").read_text(encoding="utf-8"),
+        "brute_py": (GOLD / "brute.py").read_text(encoding="utf-8"),
+        "gen_py": (GOLD / "gen.py").read_text(encoding="utf-8"),
         **changes,
     }
     return "```json\n" + json.dumps(body) + "\n```"
@@ -29,11 +29,11 @@ def test_a_good_reply_becomes_the_problem_files(tmp_path):
     assert slug == "harbor-slots"
     assert set(files) == {"problem.json", "statement.md", "reference.py", "brute.py", "gen.py"}
     folder = write_draft(slug, files, root=tmp_path / "_drafts")
-    assert (folder / "gen.py").read_text() == (GOLD / "gen.py").read_text()
+    assert (folder / "gen.py").read_text(encoding="utf-8") == (GOLD / "gen.py").read_text(encoding="utf-8")
 
 
 def test_a_path_in_the_slug_is_refused():
-    problem = json.loads((GOLD / "problem.json").read_text()) | {"slug": "../../evil"}
+    problem = json.loads((GOLD / "problem.json").read_text(encoding="utf-8")) | {"slug": "../../evil"}
     with pytest.raises(DraftInvalid, match="slug"):
         parse_draft(_reply(problem=problem))
 

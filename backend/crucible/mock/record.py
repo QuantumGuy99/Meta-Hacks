@@ -86,7 +86,7 @@ def record(name: str, apps_dir: Path, project: str, duration_s: int, report: str
         if report:
             _save_report(client, session_id, report)
     out = FIXTURES / f"{name}.jsonl"
-    out.write_text("".join(json.dumps(line) + "\n" for line in lines))
+    out.write_text("".join(json.dumps(line) + "\n" for line in lines), encoding="utf-8")
     return out
 
 
@@ -106,7 +106,7 @@ def _save_report(client: TestClient, session_id: str, name: str) -> Path:
     }
     REST_FIXTURES.mkdir(exist_ok=True)
     out = REST_FIXTURES / f"{name}.json"
-    out.write_text(json.dumps(data, indent=1) + "\n")
+    out.write_text(json.dumps(data, indent=1) + "\n", encoding="utf-8")
     return out
 
 
