@@ -107,7 +107,7 @@ All Meta Model API calls go through `https://api.meta.ai/v1` with the OpenAI-com
 ┌──────────────── Browser (Next.js + TypeScript) ────────────────┐
 │ Interview Room: Monaco editor ─ edit events (batched 500 ms) ──┼──┐ WebSocket (JSON)
 │                 mic ─ PCM 24 kHz frames ───────────────────────┼──┼─┐ WebSocket (binary audio)
-│                 interviewer panel (text + browser TTS) ◄───────┼──┤ │
+│                 interviewer panel (text + voice) ◄─────────────┼──┤ │
 │ Defense: audit diagram (React Flow) · chaos charts · grill     │  │ │
 │ Report + replay (code playback synced to transcript)  ◄─ REST ─┼──┤ │
 └────────────────────────────────────────────────────────────────┘  │ │
