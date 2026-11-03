@@ -26,7 +26,9 @@ PR, §22 rule 15). If PLAN and the code disagree, or a task is ambiguous, stop a
 4. **Never hand over the answer:** hidden tests, rubrics, reference solutions and Defense finding
    explanations stay server-side until the product is allowed to reveal them.
 5. **Meta models only at runtime,** through `backend/crucible/models/` (model ids only in `registry.py`
-   / env). No api.openai.com, api.anthropic.com or third-party TTS in application code.
+   / env). No api.openai.com or api.anthropic.com in application code. The one exception is voice output:
+   ElevenLabs reads the interviewer's lines aloud (`models/tts.py`, PLAN §14.7), with the browser voice as the
+   fallback; it never sees code, tests, rubrics or the candidate.
 6. **Timeouts and fallbacks on every external call** (PLAN §21). MOCK replay only when `MOCK=1` is set
    explicitly; a real failure never silently returns recorded data.
 7. **Untrusted code runs only in the Runner** (Modal sandbox; LocalRunner is dev-only).

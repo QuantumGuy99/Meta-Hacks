@@ -213,7 +213,7 @@ Finding.chaos (plan) ──► AttackWriter (Spark → reference attack) fills 3
 | Diagram / charts | `@xyflow/react` (React Flow) with `@dagrejs/dagre` auto-layout, **Recharts** | |
 | Other frontend libs | `react-markdown` (problem statements), `motion` (state-change animation), `lucide-react` (icons) | Each listed in the PR that adds it (§22 rule 12) |
 | Client state | **zustand** | One store per session |
-| TTS | Browser **`speechSynthesis`** | Meta has no TTS model; this is free and needs no key |
+| TTS | **ElevenLabs** Flash v2.5 through the backend (§14.7), browser **`speechSynthesis`** as the fallback | Meta has no TTS model; the browser voices sounded robotic in real runs (Nov 3) |
 | Lint/test | ruff, pytest, pytest-asyncio; eslint, tsc, Playwright (P1) | |
 | CI | GitHub Actions: `make check` | |
 | Hosting | Frontend **Vercel**; backend **Railway** or **Fly.io** (Docker, WebSockets, volume) | |
@@ -1823,8 +1823,16 @@ a retry button), because recorded results shown as live would be a faked demo.
 ### 14.7 TTS (`lib/tts.ts`)
 `speechSynthesis` with a chosen English voice (prefer a natural voice when available), a queue, `cancel()`
 when the candidate starts speaking (barge-in), and an `onstart`/`onend` that drives the speaking indicator.
-No third-party TTS (e.g. ElevenLabs): it would be the only non-Meta model call at runtime, needs another
-key, and `speechSynthesis` has no outage to fall back from.
+**Server voice (Nov 3).** The browser voices sounded robotic in real runs (the natural ones need Edge or a
+manual download), so `createVoice()` plays each line from **`GET /api/sessions/{id}/speech/{intervention_id}`**,
+which streams ElevenLabs Flash v2.5 audio (`models/tts.py`, `audio/mpeg`). Output only, and the one non-Meta call:
+the endpoint reads only a line this session showed with `speak: true` (never text it's sent, so the key can't be
+used for anything else), after the leak guard; code blocks and markers are stripped. Key and voice in `.env`
+(`TTS_API_KEY`, `TTS_VOICE_ID`); unset → 503. Timeouts: connect 2 s, first audio 3 s, 10 s between chunks; repeated
+lines (greeting, phase lines) come from a 64-line cache. In the browser, no sound within **1.5 s**, an error, or a
+503 → `createTts` (below) says that line; after 2 failures in a row the session stays on the browser voice. Lines
+play one at a time in order, `onStart`/`onEnd` span the run (mic silence, §8.3), a refused `play()` waits for
+`unlock()`, and `cancel()`/mute stop it. The room calls `createVoice({…, speechUrl})` and `speak(text, id)`.
 - **API:** `createTts({onStart, onEnd, onBlocked, onVoices, voiceName})` → `{speak(text), cancel(),
   setMuted(bool), setVoice(name | null), warm(), unlock(), dispose(), speaking, blocked, voices, voice,
   supported}`, plus `rankVoices`, `isNaturalVoice`, `voiceLabel` and `loadVoiceChoice`/`saveVoiceChoice`
@@ -2205,6 +2213,7 @@ Record each segment separately on the deployed build, at real speed (speed-ups a
 | Analyzer latency | `reasoning_effort="minimal"` (measured 4 s vs 8–12 s at `low`, §9.4), static-first prompts, single-flight, skip on timeout |
 | Solution leakage | Leak guard + rubric-text fallback + the `asks-for-answer` eval |
 | Realtime ASR problems | Chunked file transcription → chat-only fallback; voice is P1, so text works end to end |
+| Voice service (ElevenLabs) slow, down or out of credit | No audio in 1.5 s, an error or a 503 → the browser voice says the line; 2 failures in a row → browser voice for the session (§14.7) |
 | Wonder slow or down | Spark fallback for audit and report; audit cached per project |
 | Modal sandbox slow to start | Warm sandbox per coding session; pre-build sample-app images at startup; LocalRunner for dev |
 | Chaos doesn't break a sample | Sample apps are validated with a reference script (`validate_apps`); the demo uses `bank-transfer` |
