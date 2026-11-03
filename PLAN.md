@@ -84,7 +84,7 @@ coding agents daily. Both modes solve problems we have firsthand.
 
 | Area | P0 (demo-critical) | P1 (should) | P2 (stretch) |
 |---|---|---|---|
-| **Room** | Monaco editor (Python), edit capture, interviewer panel, text chat, timer, phase stepper | Voice in (Muse Voice Transcribe), voice out (browser TTS), "interviewer's notes" panel | Multi-language (JS) |
+| **Room** | Monaco editor (Python), edit capture, interviewer panel, text chat, timer, phase stepper | Voice in: speech to text (Muse Voice Transcribe), "interviewer's notes" panel | Multi-language (JS) |
 | **Coding mode** | 12 validated problems, difficulty picker, run/submit tests, analyzer + policy (active and passive), hint ladder, paste/tab notes, report | 30 problems, plan-vs-code check, coded-before-plan check, wrap-up complexity question, problem illustrations | 40+ problems, SAM 3.1 paper sketch, proctor mode |
 | **Defense mode** | 3 sample apps, Wonder audit + topology diagram, chaos run (breaks before the fix, holds after), grill (text answers OK), fix in editor, verify, verdict | Voice grill, "circle the flaw" with SAM 3.1, Muse fix assistant (DEF-11, logged), attack refine loop, zip upload, 5 sample apps | GitHub URL import, suggested refactor patch / Muse Code handoff, Muse Image merge-gate card |
 | **Report** | Scores, summary, strengths/improvements, metrics, moments, replay (code playback + transcript + nudges) | Defense before/after charts in the report, share link | Muse Image report card |
@@ -104,9 +104,9 @@ coding agents daily. Both modes solve problems we have firsthand.
 
 ### 3.1 Live Coding Interview
 1. `/` → choose **Live Coding Interview**.
-2. `/coding` setup: difficulty (easy/medium/hard), optional topic, feedback **active/passive**, voice on/off,
-   "speak replies" on/off. → `POST /api/sessions` → redirect to `/coding/{id}`.
-3. **Intro** (≈30 s): the interviewer greets and presents the problem (text + TTS). The problem panel shows
+2. `/coding` setup: difficulty (easy/medium/hard), optional topic, feedback **active/passive**, voice (speech to
+   text) on/off. → `POST /api/sessions` → redirect to `/coding/{id}`.
+3. **Intro** (≈30 s): the interviewer greets and presents the problem (text). The problem panel shows
    the statement, examples and constraints.
 4. **Clarify:** the candidate asks questions (voice or chat) and states an approach. The interviewer answers
    clarifying questions from the problem spec only. The editor is unlocked the whole time; coding before
@@ -169,7 +169,7 @@ Monaco change ──► EditorCapture batches 500 ms ──► WS editor.events 
                  └─► Timeline.append(analysis) ──► Policy.decide(analysis, state)
                         ├─ no  → nothing (passive mode: log a suppressed intervention)
                         └─ yes → Interviewer.phrase() ──► leak guard ──► Timeline.append(intervention)
-                                   ──► WS interviewer.message ──► panel + TTS
+                                   ──► WS interviewer.message ──► panel
 ```
 
 Runs, final transcript turns and explicit asks also trigger the scheduler (§9.4).
@@ -208,10 +208,10 @@ Finding.chaos (plan) ──► AttackWriter (Spark → reference attack) fills 3
 | Storage | **SQLite** via SQLModel (file at `DATABASE_URL`) | One file; volume-mounted when deployed |
 | Code execution | **Modal Sandboxes** (`modal` SDK); `LocalRunner` subprocess for dev | |
 | Frontend | **Next.js 16** (App Router, Turbopack) + **React 19** + TypeScript, **Tailwind v4**, **shadcn/ui** (`base-nova` style, Base UI primitives) | Desktop-first (≥ 1280 px); an editor app. Next 16 changed APIs, so read `frontend/AGENTS.md` before writing frontend code |
-| UI rules | [`frontend-schematic/UI_TEMPLATE.md`](frontend-schematic/UI_TEMPLATE.md): dark theme tokens, one accent, Hanken Grotesk (Geist Mono only in code), taste-skill look + Vercel's Web Interface Guidelines | Every screen is checked against it before its PR. Lives on the `frontend` branch until it merges |
+| UI rules | [`frontend-schematic/UI_TEMPLATE.md`](frontend-schematic/UI_TEMPLATE.md): black, cobalt `#2f6bff` and white; Space Grotesk headings and controls, Inter for reading text, Geist Mono for code and terminal cues; taste-skill look + Vercel's Web Interface Guidelines | Every screen is checked against it before its PR |
 | Editor | `@monaco-editor/react` | Disable quick suggestions to keep it interview-like |
-| Diagram / charts | `@xyflow/react` (React Flow) with `@dagrejs/dagre` auto-layout, **Recharts** | |
-| Other frontend libs | `react-markdown` (problem statements), `motion` (state-change animation), `lucide-react` (icons) | Each listed in the PR that adds it (§22 rule 12) |
+| Diagram / charts | `@xyflow/react` (React Flow) with `@dagrejs/dagre` auto-layout; **uPlot** for the live chaos-lab charts; **Recharts** (shadcn `chart`) for the report's static charts | uPlot draws on a canvas with no tweening, so it stays cheap at a metric sample every 500 ms; Recharts is fine where nothing streams |
+| Other frontend libs | `streamdown` (problem statements and streamed interviewer replies), `shiki` (static code on the landing page), `motion` (state-change animation), `gsap` + `lenis` (landing-page scroll motion only), `@number-flow/react` (animated numbers), `sonner` (toasts), `lucide-react` (icons) | Each listed in the PR that adds it (§22 rule 12) |
 | Client state | **zustand** | One store per session |
 | TTS | **ElevenLabs** Flash v2.5 through the backend (§14.7), browser **`speechSynthesis`** as the fallback | Meta has no TTS model; the browser voices sounded robotic in real runs (Nov 3) |
 | Lint/test | ruff, pytest, pytest-asyncio; eslint, tsc, Playwright (P1) | |
@@ -331,7 +331,7 @@ class SessionConfig(Strict):
     mode: Mode
     feedback: FeedbackLevel = FeedbackLevel.ACTIVE
     voice: bool = True               # mic + Muse Voice Transcribe
-    speak_replies: bool = True       # browser TTS for interviewer messages
+    speak_replies: bool = True       # unused: the frontend sends False, voice is speech to text only (§14.7)
     proctor: bool = False            # P2: SAM 3.1 webcam checks (opt-in)
     problem_slug: str | None = None  # coding: explicit problem
     difficulty: Difficulty | None = None  # coding: random problem at this difficulty
@@ -915,7 +915,7 @@ Server → client:
 - The client sends **raw PCM, signed 16-bit little-endian, mono, 24 kHz**, in **80 ms frames (1,920 samples =
   3,840 bytes)** at real-time pace. Text frames: `{"type":"start"}` / `{"type":"stop"}`, and
   `{"type":"ask","holding":true|false}` when the **Ask** button is pressed and released.
-- While TTS speaks, the client sends **silence** instead of the mic (not nothing): the stream keeps real-time
+- While the mic is paused, the client sends **silence** instead (not nothing): the stream keeps real-time
   pace (Meta closes streams that fall behind) and the audio clock stays aligned with session time.
 - The server forwards the frames to Meta's realtime ASR (§9.7) and publishes transcripts on the JSON socket.
 - Close codes: `4404` unknown session, `4403` the session has voice off, `4503` voice unavailable (no key, or
@@ -1730,7 +1730,7 @@ per chaos flaw. `validate_apps` (`make validate`) checks: the app boots in the r
 Owner: **LG** (UI). Capture/replay libs: **SG**. Defense helpers: **SS**.
 
 LG scaffolded `frontend/` and built the landing page (most of FE-1) on the `frontend` branch. His detailed plan
-is in `frontend-schematic/CRUCIBLE_FRONTEND_PLAN.md`, and the UI rules are in `frontend-schematic/UI_TEMPLATE.md`.
+is in `frontend-schematic/ARES_FRONTEND_PLAN.md`, and the UI rules are in `frontend-schematic/UI_TEMPLATE.md`.
 Until S-1 and OPS-2 land, the frontend uses two **dev-only bridges**, and neither may appear in the demo:
 - `src/types/contracts.draft.ts`, hand-transcribed from §7 and §8.2 behind an `@/types` barrel. It's deleted
   the day `contracts.ts` is generated.
@@ -1741,7 +1741,7 @@ Until S-1 and OPS-2 land, the frontend uses two **dev-only bridges**, and neithe
 | Route | Content |
 |---|---|
 | `/` | Hero, the two mode cards, "how it works", the Meta models strip |
-| `/coding` | Setup form (difficulty, topic, feedback, voice, speak replies); pre-fills from the `?topic=&feedback=` the landing page's start dialog sends |
+| `/coding` | Setup form (difficulty, topic, feedback, voice: speech to text, on by default); pre-fills from the `?topic=&feedback=` the landing page's start dialog sends |
 | `/coding/[id]` | `InterviewRoom` in coding configuration |
 | `/defense` | Sample app cards (+ zip upload, P1) |
 | `/defense/[id]` | Stage stepper: Audit → Chaos → Grill → Fix → Verify → Verdict |
@@ -1789,7 +1789,7 @@ Layout (desktop ≥ 1280 px):
 ### 14.4 Defense views
 - **Audit:** React Flow topology (auto-layout with dagre/elkjs; flagged nodes red) + findings list (severity
   chips; click → highlight node + open the file preview).
-- **Chaos lab:** live Recharts line charts (rps, p95 ms) + counters (errors, invariant violations) streaming
+- **Chaos lab:** live uPlot line charts (rps, p95 ms) + counters (errors, invariant violations) streaming
   from `defense.chaos.metric`; a big verdict banner ("BROKE: $1,240 missing"); a collapsible generated attack
   script.
 - **Grill:** a large question card, a 90 s countdown, live captions, Answer by voice or chat, then the

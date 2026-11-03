@@ -1,0 +1,14 @@
+{
+  "id": "bank-transfer",
+  "name": "bank-transfer",
+  "source": "sample",
+  "entrypoint": "uvicorn app.main:app --host 127.0.0.1 --port 8080",
+  "port": 8080,
+  "files": [
+    {"path": "app/main.py", "size": 4210},
+    {"path": "app/accounts.py", "size": 2875},
+    {"path": "requirements.txt", "size": 48}
+  ],
+  "loc": 214,
+  "content_hash": "9f2c1e0b7a6d5c4b3a29180f7e6d5c4b3a29180f7e6d5c4b3a29180f7e6d5c4b"
+}

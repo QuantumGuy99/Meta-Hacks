@@ -1,0 +1,26 @@
+{
+  "steps": [
+    {"step_id": "s1", "status": "done", "evidence": "said: \"an empty list gives zero\""},
+    {"step_id": "s2", "status": "not_started", "evidence": "best is only updated inside the loud-reading branch (line 7)"}
+  ],
+  "issues": [
+    {
+      "kind": "edge_case",
+      "line": 7,
+      "description": "A streak that runs to the end of the list is never recorded.",
+      "mistake_id": "m1",
+      "confidence": 0.82
+    }
+  ],
+  "stated_plan": "Walk the list once and keep a running count of quiet readings.",
+  "plan_matches_code": true,
+  "chosen_approach": "single pass with a running count",
+  "explanation_quality": "ok",
+  "proposal": {
+    "trigger": "missed_step",
+    "level": "nudge",
+    "step_id": "s2",
+    "text": "Look at what happens on your last reading.",
+    "confidence": 0.78
+  }
+}
