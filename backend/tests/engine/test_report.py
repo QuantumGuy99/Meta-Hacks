@@ -210,6 +210,20 @@ def test_metrics_come_from_the_timeline() -> None:
     assert m.longest_silence_s == 185
 
 
+def test_answers_to_the_candidates_own_questions_are_not_help() -> None:
+    timeline = events(
+        phase(0, Phase.CLARIFY),
+        said(
+            5_000, InterventionLevel.QUESTION, InterventionTrigger.ASKED, step_id=None, text="Yes, it can be."
+        ),
+        said(60_000),  # a nudge on s1
+    )
+    m = compute_metrics(timeline, 100_000)
+    assert m.interventions_shown == 1
+    assert m.hints_by_level == {"nudge": 1, "question": 0, "hint": 0, "concept": 0}
+    assert "Asked the interviewer" in [p.title for p in pick_moments(timeline, 100_000, {})]  # still a moment
+
+
 def test_no_submit_means_no_hidden_results() -> None:
     m = compute_metrics(events(phase(0, Phase.CODING), run(10_000)), 20_000)
     assert (m.hidden_passed, m.hidden_total, m.submits, m.runs) == (None, None, 0, 1)

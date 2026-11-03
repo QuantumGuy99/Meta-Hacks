@@ -146,6 +146,8 @@ class LiveEngine:
                 if text is not None:
                     decision = replace(decision, draft=text)
             await deliver(self._rt, decision, self._context)
+            if decision.trigger == InterventionTrigger.ASKED:
+                self.policy.observe_answered(self._rt.now_ms())  # what they say back now gets a reply
 
     async def _on_analysis(self, analysis: Analysis) -> None:
         rt = self._rt
