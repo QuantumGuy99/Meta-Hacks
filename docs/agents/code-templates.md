@@ -1,4 +1,4 @@
-# Crucible code format
+# Ares code format
 
 Use before creating any new Python module, contract model, model call, decision function, runner or
 streaming code, prompt file or test in `backend/`, and when finishing a work package.

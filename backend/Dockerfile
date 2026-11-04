@@ -1,4 +1,4 @@
-# Crucible backend (PLAN §19). Build context: the repo root, so data/ ships with the image:
+# Ares backend (PLAN §19). Build context: the repo root, so data/ ships with the image:
 #   docker build -f backend/Dockerfile .
 FROM python:3.12-slim
 

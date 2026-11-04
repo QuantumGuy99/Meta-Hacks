@@ -1,6 +1,6 @@
 # Team plans
 
-[PLAN.md](../PLAN.md) is the spec for all of Crucible. The files in this folder split it by person: what
+[PLAN.md](../PLAN.md) is the spec for all of Ares. The files in this folder split it by person: what
 each of us owns, what we owe each other and by when, and the order to build things in. Each file is written so
 you (or a coding agent such as Muse Code) can start from it without reading the whole spec first. It links to the PLAN
 sections you need for the details.
@@ -78,7 +78,7 @@ team chat as soon as you know, and give the person who's waiting a stub they can
 Use one agent session per work package. Start each session with this prompt and fill in the brackets:
 
 ```text
-You are building one work package of Crucible, a hackathon project. Read these first, in order:
+You are building one work package of Ares, a hackathon project. Read these first, in order:
 1. PLAN.md §0 and §22 (rules for coding agents)
 2. plan/<your-file>.md, the section for <WP-ID>
 3. The PLAN.md sections that section lists under "Read"

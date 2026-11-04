@@ -1,4 +1,4 @@
-# Crucible dev commands (PLAN §16 S-0). Run from the repo root.
+# Ares dev commands (PLAN §16 S-0). Run from the repo root.
 # Backend: uv (Python 3.12). Frontend: pnpm (the version pinned in frontend/package.json).
 
 PNPM ?= $(shell command -v pnpm >/dev/null 2>&1 && echo pnpm || echo "npx --yes pnpm@12.15.0")

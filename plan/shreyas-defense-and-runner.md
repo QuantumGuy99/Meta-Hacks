@@ -5,7 +5,7 @@ checklists. Team overview and the handoff calendar: [plan/README.md](README.md).
 
 ## Your job
 
-You own the most visual part of the demo: Crucible reads a project, breaks it under load in a sandbox, grills
+You own the most visual part of the demo: Ares reads a project, breaks it under load in a sandbox, grills
 the candidate on why, and proves their fix. You also own the parts everyone stands on: the backend
 scaffold, the runner that executes all untrusted code (both modes), MOCK mode for frontend work, CI and
 deployment.

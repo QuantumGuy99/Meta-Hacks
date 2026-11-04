@@ -5,7 +5,7 @@ checklists. Team overview and the handoff calendar: [plan/README.md](README.md).
 
 ## Your job
 
-You build the part that makes Crucible feel alive: the interviewer that watches the edit stream, decides when
+You build the part that makes Ares feel alive: the interviewer that watches the edit stream, decides when
 to speak, and writes the report. Both modes run on it. Coding mode uses it for the whole session; defense
 mode uses it for the fix stage and sends its grill questions through it. You also own the coding-mode backend
 and the browser libraries that feed the engine (editor and audio capture) and play back what it recorded

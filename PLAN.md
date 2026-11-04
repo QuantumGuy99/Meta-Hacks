@@ -1,8 +1,8 @@
-# Crucible build plan
+# Ares build plan
 
-This is the single source of truth for building Crucible during the Meta Global AI Developer Hackathon
+This is the single source of truth for building Ares during the Meta Global AI Developer Hackathon
 (building period **Tue Oct 27 – Wed Nov 4, 2026; submission due Wed Nov 4, 9:00 PM ET**). The
-[README](README.md) says *what* Crucible is; this file says *how*: scope, architecture, contracts, algorithms,
+[README](README.md) says *what* Ares is; this file says *how*: scope, architecture, contracts, algorithms,
 work packages, owners and schedule. It is written so a coding agent (such as Muse Code) can pick up any
 work package and build it.
 
@@ -56,13 +56,13 @@ work package and build it.
 
 ## 1. Product summary
 
-Crucible is a web app with **one live AI interviewer** and **two modes**:
+Ares is a web app with **one live AI interviewer** and **two modes**:
 
 - **Live Coding Interview** (`mode = "coding"`): an original algorithm problem, a Python editor and an
   interviewer that watches the edit stream and your think-aloud speech as they happen. In **active** feedback
   it steps in (nudges, Socratic questions, escalating hints); in **passive** feedback it stays quiet and
   reports at the end. Either way it records **how** you solved the problem.
-- **Project Defense** (`mode = "defense"`): you submit a small Python web project. Crucible audits it,
+- **Project Defense** (`mode = "defense"`): you submit a small Python web project. Ares audits it,
   **breaks it under load** in a sandbox, grills you by voice on why it broke, watches you fix it in the same
   live editor and re-runs the attack to verify the fix. The result is a pass/fail "merge gate".
 
@@ -70,7 +70,7 @@ Both modes share: the interview room (editor + interviewer panel + voice), the t
 engine, the runner and the report/replay. **The shared engine is the product**; each mode is a different
 source of problems plus a few mode-specific stages.
 
-**Pitch:** *"LeetCode grades your answer. Crucible grades your engineering, whether you wrote the code or your
+**Pitch:** *"LeetCode grades your answer. Ares grades your engineering, whether you wrote the code or your
 AI did."*
 
 **Problem statement fit (Build for Your World):** we're students preparing for technical interviews and using
@@ -1601,7 +1601,7 @@ a job the candidate can watch, and each keeps the rule: the model suggests, code
 |---|---|---|---|---|
 | **DEF-13 Two graders must agree** | Every grill answer is graded by two Meta models in parallel; a point counts only when both mark it. A split on the root cause asks the follow-up instead of failing the candidate. The strip lights both. | Muse Spark (`grill_eval`) + Muse Wonder low (`grill_check`); Spark Open replaces Wonder once Baseten is configured | Unit tests for agree / split / one model down; one live run | Thu Oct 29 |
 | **DEF-14 Replay the race step by step** | After a race breaks, Muse Wonder writes the exact interleaving that loses money (A reads, B reads, A writes, B writes) as a small schedule; code replays that schedule deterministically in the sandbox and shows it as a two-lane timeline with the balance after each step. A schedule that doesn't reproduce the loss is never shown. | Muse Wonder (`replay`) | The replayed schedule loses the same money on `bank-transfer` and holds on `fixed/` | Fri Oct 30 |
-| **DEF-15 Vibe-code an app on demand** | "Defend a fresh app": Muse Spark writes a small web app from a one-line idea, the runner checks it boots, Muse Wonder audits it, and Crucible attacks it. AI wrote it, AI breaks it, the human proves they understand it. Only apps that boot and pass a smoke request are offered. | Muse Spark (`drafter`) + the Defense pipeline | 3 of 5 generated apps boot and break under their own attack | Sat Oct 31 (after DEF-12 project kinds) |
+| **DEF-15 Vibe-code an app on demand** | "Defend a fresh app": Muse Spark writes a small web app from a one-line idea, the runner checks it boots, Muse Wonder audits it, and Ares attacks it. AI wrote it, AI breaks it, the human proves they understand it. Only apps that boot and pass a smoke request are offered. | Muse Spark (`drafter`) + the Defense pipeline | 3 of 5 generated apps boot and break under their own attack | Sat Oct 31 (after DEF-12 project kinds) |
 | **DEF-16 Circle the flaw with SAM** | §11.7 (DEF-9) pulled forward: the candidate circles a node on the diagram (or a sketch on webcam); SAM 3.1 finds it; code picks the node. | SAM 3.1 | ≥ 4 of 5 circles select the right node | Sun Nov 1, with Likhil's pen |
 
 ## 12. Runner
@@ -2225,7 +2225,7 @@ NEXT_PUBLIC_FIXTURES=0            # dev only: frontend FixtureTransport until MO
 
 | Time | Shot |
 |---|---|
-| 0:00–0:15 | Hook: "AI writes code in seconds. Interviews and production still ask: do you understand it?" Title: Crucible, two modes, one interviewer |
+| 0:00–0:15 | Hook: "AI writes code in seconds. Interviews and production still ask: do you understand it?" Title: Ares, two modes, one interviewer |
 | 0:15–1:25 | **Live Coding Interview** (demo problem, active, voice on). Candidate states an approach out loud → starts coding → skips the empty-input case → the interviewer nudges (spoken) → the notes panel shows the step turning red, then green after the fix → a paste gets a neutral note → Run passes → Submit passes hidden tests |
 | 1:25–2:30 | **Project Defense** (`bank-transfer`). Wonder audit → the topology node turns red → the chaos lab streams 200 concurrent transfers → "BROKE: $1,240 missing" → the grill question by voice → candidate explains → follow-up → candidate fixes it in the editor (the interviewer nudges once) → verify: the line holds flat → "Merge gate: PASS" |
 | 2:30–2:50 | Report: scrub the replay (code writing itself, synced with transcript and nudges), moment cards |

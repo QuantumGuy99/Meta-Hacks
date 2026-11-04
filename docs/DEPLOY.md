@@ -1,4 +1,4 @@
-# Deploying Crucible (OPS-1)
+# Deploying Ares (OPS-1)
 
 Three pieces, three hosts. **Budget: zero dollars.** Use free tiers and credits only. Never add a payment
 method or upgrade a plan for this project, and stop anything you aren't using.

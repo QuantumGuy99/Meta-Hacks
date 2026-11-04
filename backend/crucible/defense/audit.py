@@ -33,7 +33,7 @@ _CAUSE_WORDS = re.compile(
     r"|transaction|blocking|block|quadratic|o\(n|n\^?2|n²|deadlock|leak|unbounded|injection|sleep",
     re.IGNORECASE,
 )
-GENERIC_QUESTION = "Crucible's load test broke this part of the app. Walk me through what happened, and why."
+GENERIC_QUESTION = "Our load test broke this part of the app. Walk me through what happened, and why."
 GENERIC_FOLLOW_UP = (
     "What exactly happens between the moment a request reads the data and the moment it writes?"
 )

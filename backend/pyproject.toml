@@ -1,7 +1,7 @@
 [project]
 name = "crucible"
 version = "0.1.0"
-description = "Crucible backend: one live AI interviewer, two modes"
+description = "Ares backend: one live AI interviewer, two modes"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115",

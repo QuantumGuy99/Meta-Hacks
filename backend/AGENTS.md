@@ -1,4 +1,4 @@
-# How backend code is written (Crucible, Python 3.12)
+# How backend code is written (Ares, Python 3.12)
 
 Loaded whenever you work under `backend/`. Architecture rules are in the root AGENTS.md and PLAN.md;
 this file is about the code itself. For file skeletons and templates, see `docs/agents/code-templates.md`.
