@@ -75,4 +75,4 @@ Leave the VO silent where the clip's own sound carries the moment (the interview
 
 - `scenes.html`: the hook, the technical loop, the end card and the slates (frame-accurate, `window.seek(scene, t)`).
 - `render.js`: renders those to `build/` and captures the landing page with a "who it's for" banner.
-- `build.py`: assembles `out/ares-demo.mp4`. `build/`, `out/`, `clips/` and voiceover files are gitignored.
+- `build.py`: assembles `out/ares-demo.mp4`. `build/` (the rendered segments) is committed, so assembling needs only Python 3 and ffmpeg; `out/`, `clips/` and voiceover files are gitignored.
