@@ -57,8 +57,17 @@ export function useVoice(state: LiveState, onSpeaking: (speaking: boolean) => vo
     t.warm();
     const wake = () => t.warm();
     window.addEventListener("pointerdown", wake, { once: true });
+    // A line the browser refused (no click on this page yet, e.g. after a reload) waits for one. Any click or key
+    // releases it, not only the voice hint's button: otherwise every later line queued behind it stayed silent.
+    const release = () => {
+      if (t.blocked) t.unlock();
+    };
+    window.addEventListener("pointerdown", release);
+    window.addEventListener("keydown", release);
     return () => {
       window.removeEventListener("pointerdown", wake);
+      window.removeEventListener("pointerdown", release);
+      window.removeEventListener("keydown", release);
       t.dispose();
       if (tts.current === t) tts.current = null;
     };

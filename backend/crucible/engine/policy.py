@@ -40,6 +40,9 @@ SILENT_AFTER_MS = 75_000
 SILENT_EVERY_MS = 3 * 60_000
 IDLE_AFTER_MS = 60_000
 IDLE_EVERY_MS = 2 * 60_000
+# ...but one who asks "where are you?" every two minutes sounds like a script: each check-in of a kind waits twice
+# as long as the last, and there are at most this many of each in a session.
+CHECKIN_MAX = 3
 # Talk (REPLY, PROBE): frequent enough to feel like a conversation, never so often it interrupts the work.
 TALK_GAP_MS = 15_000  # no two interviewer lines closer than this (answers excepted)
 REPLY_AFTER_MS = 20_000  # reply only when the interviewer has been quiet this long
@@ -144,6 +147,8 @@ class PolicyState:
     plan: str | None = None
     last_silent_ms: int | None = None
     last_idle_ms: int | None = None
+    silents: int = 0
+    idles: int = 0
     # The engine attached then, right after the problem was presented: talk counts from it, like a line.
     attached_ms: int | None = None
     statement: tuple[str, int] | None = None  # something the candidate said that isn't a question, and when
@@ -342,9 +347,9 @@ def _remember_once(state: PolicyState, trigger: InterventionTrigger, now_ms: int
         case InterventionTrigger.CODED_BEFORE_PLAN:
             state.coded_before_plan_said = True
         case InterventionTrigger.SILENT:
-            state.last_silent_ms = now_ms
+            state.last_silent_ms, state.silents = now_ms, state.silents + 1
         case InterventionTrigger.IDLE:
-            state.last_idle_ms = now_ms
+            state.last_idle_ms, state.idles = now_ms, state.idles + 1
         case InterventionTrigger.REPLY:
             state.replies, state.last_reply_ms, state.statement = state.replies + 1, now_ms, None
         case InterventionTrigger.PROBE:
@@ -518,8 +523,8 @@ def _silent(state: PolicyState, facts: Facts) -> _Candidate | None:
         return None
     # Quiet since the candidate last spoke, or since the interviewer did: an open question gets time.
     since = max(facts.phase_started_ms, facts.last_speech_ms or 0, state.last_message_ms or 0)
-    if facts.now_ms - since < SILENT_AFTER_MS or not _every(
-        state.last_silent_ms, facts.now_ms, SILENT_EVERY_MS
+    if facts.now_ms - since < SILENT_AFTER_MS or not _checkin_due(
+        state.last_silent_ms, state.silents, facts.now_ms, SILENT_EVERY_MS
     ):
         return None
     trigger, level = InterventionTrigger.SILENT, InterventionLevel.NUDGE
@@ -530,7 +535,9 @@ def _idle(state: PolicyState, facts: Facts) -> _Candidate | None:
     if facts.phase not in _IDLE_PHASES:
         return None
     since = max(facts.phase_started_ms, _last_activity(facts), state.last_message_ms or 0)
-    if facts.now_ms - since < IDLE_AFTER_MS or not _every(state.last_idle_ms, facts.now_ms, IDLE_EVERY_MS):
+    if facts.now_ms - since < IDLE_AFTER_MS or not _checkin_due(
+        state.last_idle_ms, state.idles, facts.now_ms, IDLE_EVERY_MS
+    ):
         return None
     trigger, level = InterventionTrigger.IDLE, InterventionLevel.QUESTION
     return _Candidate(Decision(trigger, level, None, _draft(state.latest, trigger, level)), None)
@@ -702,3 +709,8 @@ def _last_activity(facts: Facts) -> int:
 
 def _every(last_ms: int | None, now_ms: int, gap_ms: int) -> bool:
     return last_ms is None or now_ms - last_ms >= gap_ms
+
+
+def _checkin_due(last_ms: int | None, count: int, now_ms: int, every_ms: int) -> bool:
+    """The next check-in of a kind: `every_ms` after the first, doubling each time, at most CHECKIN_MAX."""
+    return count < CHECKIN_MAX and _every(last_ms, now_ms, every_ms * 2 ** max(0, count - 1))

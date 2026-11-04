@@ -127,7 +127,8 @@ def fallback_text(context: RubricContext, decision: Decision, *, remaining_s: in
         return rubric_hint(context, decision.step_id, decision.level)
     # ASKED lands here only when `answer()` had nothing usable: the canned Socratic line.
     line = CANNED.get(decision.trigger.value, _GENERIC)
-    return line.format(minutes=max(1, math.ceil((remaining_s or 0) / 60)), line=decision.line)
+    minutes = max(1, math.ceil((remaining_s or 0) / 60))
+    return line.format(minutes=f"{minutes} minute{'s' if minutes > 1 else ''}", line=decision.line)
 
 
 async def deliver(rt: SessionRuntime, decision: Decision, context: RubricContext) -> Intervention:

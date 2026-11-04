@@ -6,7 +6,8 @@ Never put code, a fix or anything from a hidden test in a line. -->
 
 - asked: Good question. What do you think? Tell me what you'd assume, and we'll go from there.
 - hint_requested: You're close. Which part are you least sure about right now?
-- time_warning: Time check: about {minutes} minutes left.
+- time_warning: Time check: about {minutes} left.
+- conduct: Stop right there. That language is completely unacceptable in an interview. I'm ending this interview now, and it's a fail.
 - paste: I noticed a pasted block. I'll focus my feedback on the parts you wrote.
 - coded_before_plan: Before you go further, what's your approach?
 - run_failed: One of the visible tests is still failing. What does your code do with that input?
