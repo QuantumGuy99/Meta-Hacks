@@ -84,6 +84,20 @@ function marksOf(report: Report, timeline: TimelineEvent[]): ReportMark[] {
 
 export function LiveReport({ id }: { id: string }) {
   const [view, setView] = useState<View>({ kind: "loading" });
+  // The session's mode, so New Interview on the waiting and error screens opens the right setup page (the
+  // report itself isn't there yet to say).
+  const [mode, setMode] = useState<Report["mode"]>();
+
+  useEffect(() => {
+    let live = true;
+    api
+      .session(id)
+      .then((s) => live && setMode(s.config.mode))
+      .catch(() => {}); // unknown session: New Interview falls back to coding
+    return () => {
+      live = false;
+    };
+  }, [id]);
 
   useEffect(() => {
     let live = true;
@@ -131,7 +145,7 @@ export function LiveReport({ id }: { id: string }) {
             Ares
           </Link>
           <span className="rp-crumb">Report</span>
-          <ReportExits />
+          <ReportExits mode={mode} />
         </header>
         <div className="live-wait-body" role="status">
           {view.kind === "loading" && <p>Loading the report…</p>}
