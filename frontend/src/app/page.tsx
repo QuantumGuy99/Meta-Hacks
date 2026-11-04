@@ -141,9 +141,8 @@ export default async function Home() {
             </HeadlineReveal>
             <div className="mode-copy" data-reveal>
               <p className="sec-lead">
-                Bring a small Python web app. Ares audits it, <strong>attacks it in a sandbox</strong>,
-                asks you why it broke (circle the culprit on the diagram), and{" "}
-                <strong>re-runs the same attack on your fix</strong>.
+                Pick a sample Python web app. Ares audits it, <strong>attacks it in a sandbox</strong>,
+                asks you why it broke, and <strong>re-runs the same attack on your fix</strong>.
               </p>
               <Link href="/defense" className="ui-btn ui-btn-primary ui-btn-lg">
                 Defend a Project
