@@ -18,6 +18,8 @@ from crucible.runner.base import Program
 
 RESULT_MARK = "\x1ecrucible-result\x1e"  # the harness keeps every other stdout line as the candidate's output
 SUPPORTED_TYPES = frozenset({"int", "str", "list[int]", "list[str]", "list[list[int]]"})
+# A bool comes back as JSON true/false; no problem takes one as an argument, so it's a return type only.
+SUPPORTED_RETURNS = SUPPORTED_TYPES | {"bool"}
 
 
 class UnsupportedSignature(Exception):
@@ -25,7 +27,7 @@ class UnsupportedSignature(Exception):
 
 
 def supports(sig: FunctionSig) -> bool:
-    return all(t in SUPPORTED_TYPES for t in [*(p.type for p in sig.params), sig.returns])
+    return all(p.type in SUPPORTED_TYPES for p in sig.params) and sig.returns in SUPPORTED_RETURNS
 
 
 def starter(sig: FunctionSig, language: Language, python_starter: str) -> str:
@@ -132,9 +134,9 @@ def _encode(type_: str, value: object, tokens: list[int]) -> None:
 # --- starters -----------------------------------------------------------------------------------------------
 
 _JAVA_TYPES = {"int": "int", "str": "String", "list[int]": "int[]", "list[str]": "String[]",
-               "list[list[int]]": "int[][]"}  # fmt: skip
+               "list[list[int]]": "int[][]", "bool": "boolean"}  # fmt: skip
 _CPP_TYPES = {"int": "int", "str": "string", "list[int]": "vector<int>", "list[str]": "vector<string>",
-              "list[list[int]]": "vector<vector<int>>"}  # fmt: skip
+              "list[list[int]]": "vector<vector<int>>", "bool": "bool"}  # fmt: skip
 
 
 def _java_params(sig: FunctionSig) -> str:
@@ -166,7 +168,7 @@ def _c_params(sig: FunctionSig) -> str:
     return ", ".join(out)
 
 
-_C_RETURNS = {"int": "int", "str": "char*", "list[int]": "int*", "list[list[int]]": "int**"}
+_C_RETURNS = {"int": "int", "str": "char*", "list[int]": "int*", "list[list[int]]": "int**", "bool": "bool"}
 _C_NOTES = {
     "str": "/**\n * Note: the returned string must be malloced, assume the caller calls free().\n */\n",
     "list[int]": "/**\n * Note: the returned array must be malloced, assume the caller calls free().\n */\n",
@@ -250,7 +252,7 @@ public class Main {
 
     static String json(Object v) {
         if (v == null) return "null";
-        if (v instanceof Integer) return v.toString();
+        if (v instanceof Integer || v instanceof Boolean) return v.toString();
         if (v instanceof String) {
             StringBuilder b = new StringBuilder("\\"");
             for (char c : ((String) v).toCharArray()) {
@@ -344,6 +346,7 @@ static vector<string> rstrs() { vector<string> a(ri()); for (auto& x : a) x = rs
 static vector<vector<int>> rgrid() { vector<vector<int>> a(ri()); for (auto& x : a) x = rints(); return a; }
 
 static string json(int v) { return to_string(v); }
+static string json(bool v) { return v ? "true" : "false"; }
 static string json(const string& v) {
     string b = "\\"";
     for (unsigned char c : v) {
@@ -403,6 +406,7 @@ def _c_driver(sig: FunctionSig) -> str:
             args += [f"a{i}", f"n{i}", f"c{i}"]
     call, emit = {
         "int": ("int r = {f}({a});", 'printf("%d", r);'),
+        "bool": ("bool r = {f}({a});", 'fputs(r ? "true" : "false", stdout);'),
         "str": ("char* r = {f}({a});", "pstr(r);"),
         "list[int]": ("int rn = 0; int* r = {f}({a}, &rn);", "pints(r, rn);"),
         "list[list[int]]": (
@@ -420,7 +424,8 @@ def _c_driver(sig: FunctionSig) -> str:
     )
 
 
-_C_DRIVER = """#include <ctype.h>
+_C_DRIVER = """#define _POSIX_C_SOURCE 199309L
+#include <ctype.h>
 #include <limits.h>
 #include <math.h>
 #include <stdbool.h>

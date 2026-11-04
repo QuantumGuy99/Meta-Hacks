@@ -21,6 +21,7 @@ import json
 import math
 import os
 import queue
+import re
 import signal
 import subprocess
 import sys
@@ -131,11 +132,32 @@ def run_program(program: dict, cases: list, hidden: set, limits: dict, result: d
     return _finish(result, out, err, limits)
 
 
+_GCC_CONTEXT = re.compile(
+    r"^[^\s:]+: (In (member |static member )?function|At global scope|In instantiation of)"
+)
+
+
+# The host's JVM options never reach the compilers or the candidate's program: the JVM prints a "Picked up
+# JAVA_TOOL_OPTIONS: ..." banner first (it pushed javac's real error out of the message, and showed the
+# candidate the host's proxy settings), and their program has no use for the host's flags.
+_JVM_OPTION_VARS = ("JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS")
+
+
+def _program_env() -> dict[str, str]:
+    return {k: v for k, v in os.environ.items() if k not in _JVM_OPTION_VARS}
+
+
 def _compile(command: list, timeout_s: float):
     """None when it built, otherwise the compiler's message (paths trimmed) for the candidate."""
     try:
         done = subprocess.run(
-            command, capture_output=True, timeout=timeout_s, check=False, encoding="utf-8", errors="replace"
+            command,
+            capture_output=True,
+            timeout=timeout_s,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+            env=_program_env(),
         )
     except FileNotFoundError:
         return f"{command[0]} isn't installed on this runner"
@@ -144,9 +166,12 @@ def _compile(command: list, timeout_s: float):
     if done.returncode == 0:
         return None
     text = (done.stderr or done.stdout).replace(os.getcwd() + os.sep, "").replace("./", "")
-    # Their file is #included into our driver; the compiler's "included from main.cpp" line is noise.
+    # Their file is #included into our driver; the compiler's "included from main.cpp" line is noise, and so
+    # is gcc's "solution.cpp: In function ..." context line, so the message starts at their line, as clang's does.
     text = "\n".join(
-        line for line in text.splitlines() if not line.startswith("In file included from")
+        line
+        for line in text.splitlines()
+        if not line.startswith("In file included from") and not _GCC_CONTEXT.match(line)
     ).strip()
     return text[:COMPILE_ERROR_CHARS] or f"{command[0]} failed (exit {done.returncode})"
 
@@ -164,6 +189,7 @@ def _run_from(program, first, cases, hidden, limits, deadline, result, out, err)
         stderr=subprocess.PIPE,
         encoding="utf-8",
         errors="replace",
+        env=_program_env(),
     )
     lines: queue.Queue = queue.Queue()
     readers = [

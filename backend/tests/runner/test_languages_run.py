@@ -16,6 +16,48 @@ pytestmark = pytest.mark.skipif(
 )
 
 SOLUTIONS = {
+    # A bool return (mirror-badge-codes, tunnel-log): printed as JSON true/false in every language.
+    ("mirror-badge-codes", Language.JAVA): """\
+class Solution {
+    public boolean isMirrorCode(String code) {
+        int l = 0, r = code.length() - 1;
+        while (l < r) {
+            if (code.charAt(l) == '-') l++;
+            else if (code.charAt(r) == '-') r--;
+            else if (Character.toLowerCase(code.charAt(l)) != Character.toLowerCase(code.charAt(r))) return false;
+            else { l++; r--; }
+        }
+        return true;
+    }
+}
+""",
+    ("mirror-badge-codes", Language.CPP): """\
+class Solution {
+public:
+    bool isMirrorCode(string& code) {
+        int l = 0, r = (int) code.size() - 1;
+        while (l < r) {
+            if (code[l] == '-') l++;
+            else if (code[r] == '-') r--;
+            else if (tolower(code[l]) != tolower(code[r])) return false;
+            else { l++; r--; }
+        }
+        return true;
+    }
+};
+""",
+    ("mirror-badge-codes", Language.C): """\
+bool isMirrorCode(char* code) {
+    int l = 0, r = (int) strlen(code) - 1;
+    while (l < r) {
+        if (code[l] == '-') l++;
+        else if (code[r] == '-') r--;
+        else if (tolower((unsigned char) code[l]) != tolower((unsigned char) code[r])) return false;
+        else { l++; r--; }
+    }
+    return true;
+}
+""",
     ("battery-budget", Language.JAVA): """\
 class Solution {
     public int longestWithinBudget(int[] usage, int budget) {
@@ -248,3 +290,14 @@ class Solution {
     assert result.passed == 0 and len(result.cases) == result.total
     assert "ArrayIndexOutOfBoundsException" in result.cases[0].error and "(line 4)" in result.cases[0].error
     assert "checking" in result.stdout and "crucible-result" not in result.stdout
+
+
+async def test_the_hosts_jvm_options_never_reach_the_candidates_java(
+    local_settings, bank, monkeypatch
+) -> None:
+    """With JAVA_TOOL_OPTIONS set, the JVM's banner used to come first and push javac's error out of the message."""
+    monkeypatch.setenv("JAVA_TOOL_OPTIONS", "-Dhost.secret=proxy.internal")
+    code = starter(bank.get("battery-budget").function, Language.JAVA, "")
+    result = await submit(local_settings, bank, "battery-budget", Language.JAVA, code)
+    assert result.compile_error is not None and "missing return statement" in result.compile_error
+    assert "Picked up" not in result.compile_error and "proxy.internal" not in result.compile_error
