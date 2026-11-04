@@ -23,6 +23,8 @@ export type ReportMark = { t: number; kind: Moment["kind"] | "run"; title: strin
 
 const chartConfig = { score: { label: "Score", color: "#2f6bff" } } satisfies ChartConfig;
 const SPEEDS = [1, 4, 16];
+// The reason the backend gives the session's end when the third profanity strike ends it (engine/conduct.py).
+const TERMINATED_REASON = "terminated: profanity";
 
 /** One metric tile; `value` null shows a dash (that moment never came, e.g. no run at all). */
 type Tile = { label: string; value: number | null; suffix: string; note?: string };
@@ -143,6 +145,11 @@ export function ReportView({
     setT(to);
   };
 
+  const terminated = useMemo(
+    () => replay.some((e) => e.kind === "phase" && e.payload.reason === TERMINATED_REASON),
+    [replay],
+  );
+
   return (
     <div className="rp">
       <header className="rm-top">
@@ -154,6 +161,11 @@ export function ReportView({
       </header>
 
       <div className="rp-body">
+        {terminated && (
+          <p className="rp-terminated" role="alert">
+            <strong>Session terminated due to profanity.</strong> The interviewer warned twice before ending it.
+          </p>
+        )}
         <section className="rp-summary" aria-labelledby="rp-title">
           <div className="rp-overall">
             <span className="df-muted">Overall</span>

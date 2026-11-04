@@ -44,6 +44,7 @@ from crucible.contracts.ws import (
 from crucible.engine.activity import to_activity
 from crucible.engine.analyzer import StructuredModel
 from crucible.engine.codestate import CodeState
+from crucible.engine.conduct import answer_profanity, is_profane
 from crucible.engine.context import RubricContext
 from crucible.engine.ids import new_id
 from crucible.engine.live import LiveEngine
@@ -332,10 +333,25 @@ class SessionRuntime:
         event = self.timeline.append(kind, payload, t)
         if show is not None:
             await self.broadcast(show)
+        if kind == TimelineKind.TRANSCRIPT and self._is_profane_turn(event):
+            # Answered with a warning (the third ends the session), and nothing else: profanity is never graded
+            # as a grill answer or replied to as a question (engine/conduct.py).
+            await answer_profanity(self)
+            return event
         if self._engine is not None:
             self._engine.on_event(event)
         await self.controller.on_timeline(self, event)
         return event
+
+    def _is_profane_turn(self, event: TimelineEvent) -> bool:
+        p = event.payload
+        return (
+            self.live
+            and self.session.phase != Phase.SETUP
+            and p.get("speaker") == "candidate"
+            and bool(p.get("final"))
+            and is_profane(str(p.get("text", "")))
+        )
 
     async def show_activity(self, activity: ModelActivity) -> None:
         """A model starting or finishing work: on the "Under the hood" strip now, and in the replay later."""
