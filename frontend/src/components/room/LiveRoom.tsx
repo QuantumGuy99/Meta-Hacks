@@ -291,11 +291,6 @@ export function LiveRoom({ id }: { id: string }) {
           <section className="rm-panel rm-problem" aria-label="Problem">
             <header className="rm-panel-head">
               <span>{warmingUp ? "Warm-up" : (problem?.title ?? "Loading the problem…")}</span>
-              {problem && !warmingUp && (
-                <span className="rm-tag">
-                  {levelLabel(problem.difficulty)} · {problem.topics.map(levelLabel).join(", ")}
-                </span>
-              )}
             </header>
             {warmingUp ? (
               <p className="live-empty">
