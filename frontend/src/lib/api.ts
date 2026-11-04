@@ -70,11 +70,12 @@ export const api = {
     json<ProblemPublic>(`/api/problems/${encodeURIComponent(slug)}${language ? `?language=${language}` : ""}`),
   samples: () => json<Project[]>("/api/defense/samples"),
   projectFiles: (id: string) => json<ProjectSource>(`/api/defense/projects/${encodeURIComponent(id)}/files`),
-  /** Your own project as a zip (PLAN §11.1 limits); the raw file is the body. Defend it with the returned id. */
-  uploadProject: (file: File) =>
+  /** Your own project as a zip (PLAN §11.1 limits); the raw zip is the body, `name` names the project.
+   * Defend it with the returned id. */
+  uploadProject: (zip: Blob, name: string) =>
     json<Project>(
-      `/api/defense/projects?name=${encodeURIComponent(file.name)}`,
-      { method: "POST", body: file, headers: { "Content-Type": "application/zip" } },
+      `/api/defense/projects?name=${encodeURIComponent(name)}`,
+      { method: "POST", body: zip, headers: { "Content-Type": "application/zip" } },
       UPLOAD_TIMEOUT_MS,
     ),
   /** Notes about an uploaded project (a .txt) so the audit understands it faster. */

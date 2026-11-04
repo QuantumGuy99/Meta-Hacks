@@ -86,23 +86,99 @@
   color: var(--muted-ink);
   font-size: 13px;
 }
-.setup-upload label {
+.setup-upload code {
+  font-size: 0.95em;
+}
+/* The drop zone: dashed until something is dragged over it (ProjectUpload) */
+.up-drop {
   display: grid;
-  gap: 6px;
+  justify-items: start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px dashed var(--ui-line-2);
+  border-radius: 4px;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+.up-drop[data-over] {
+  border-color: var(--cobalt);
+  border-style: solid;
+  background: rgb(47 107 255 / 0.1);
+}
+.up-drop > strong {
+  font-weight: 500;
+  font-size: 14px;
+}
+.up-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* A file input that looks like a button: the input is hidden but still focusable, the label is the button */
+.up-pick {
+  position: relative;
+}
+.up-pick input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+.up-pick:has(input:focus-visible) {
+  outline: 2px solid var(--secondary-blue, var(--cobalt));
+  outline-offset: 2px;
+}
+.up-pick[aria-disabled] {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.setup-upload .up-status {
+  color: var(--ink);
+}
+.setup-upload .up-status.is-error {
+  color: #ffb4b4; /* as .setup-error */
+}
+.up-notes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  color: var(--muted-ink);
   font-size: 13px;
 }
-.setup-upload input[type="file"] {
-  max-width: 100%;
-  color: var(--muted-ink);
+.up-notes strong {
+  color: var(--ink);
+  font-weight: 500;
 }
+/* Project cards: a radio dot and a hover state so they read as choices */
 .setup-card {
+  position: relative;
   display: grid;
   gap: 2px;
-  padding: 12px 14px;
+  padding: 12px 14px 12px 40px;
   border: 1px solid var(--line-2, var(--ui-line));
   border-radius: 4px;
   cursor: pointer;
   transition: border-color 160ms ease, background 160ms ease;
+}
+.setup-card::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 18px; /* centred on the project name's line */
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--ui-line-2);
+  border-radius: 50%;
+  transition: border-color 160ms ease;
+}
+.setup-card:hover {
+  border-color: var(--ui-line-2);
+  background: var(--surface);
+}
+.setup-card.is-on::before {
+  border-color: var(--cobalt);
+  background: radial-gradient(circle, var(--cobalt) 0 3px, transparent 3.5px);
 }
 .setup-card input {
   position: absolute;
