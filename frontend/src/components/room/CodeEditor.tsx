@@ -1,8 +1,13 @@
 "use client";
 
-import Editor, { type BeforeMount, type OnMount } from "@monaco-editor/react";
-import { useEffect, useRef } from "react";
+import Editor, { type BeforeMount, loader, type OnMount } from "@monaco-editor/react";
+import { useEffect, useRef, useState } from "react";
 import { monacoTheme } from "@/lib/code-theme";
+
+// Monaco from this app (public/monaco, copied by scripts/copy-monaco.mjs), never the loader's default CDN:
+// a network that blocked cdn.jsdelivr.net left every room without an editor.
+loader.config({ paths: { vs: "/monaco/vs" } });
+const LOAD_WARNING_MS = 15_000;
 
 type Monaco = Parameters<BeforeMount>[0];
 type StandaloneEditor = Parameters<OnMount>[0];
@@ -87,7 +92,7 @@ export function CodeEditor({
       beforeMount={beforeMount}
       onMount={onMount}
       onChange={(v) => onChange?.(v ?? "")}
-      loading={<div className="cm-loading">Loading editor…</div>}
+      loading={<EditorLoading />}
       options={{
         readOnly,
         fontFamily: "monospace",
@@ -106,5 +111,19 @@ export function CodeEditor({
         tabSize: 4,
       }}
     />
+  );
+}
+
+// The loading state says so when Monaco takes too long, instead of spinning forever.
+function EditorLoading() {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setSlow(true), LOAD_WARNING_MS);
+    return () => clearTimeout(id);
+  }, []);
+  return (
+    <div className="cm-loading" role="status">
+      {slow ? "The editor is taking a while to load. Check your connection, then reload the page." : "Loading editor…"}
+    </div>
   );
 }
