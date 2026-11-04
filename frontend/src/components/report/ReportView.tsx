@@ -150,6 +150,7 @@ export function ReportView({
           Ares
         </Link>
         <span className="rp-crumb">{crumb}</span>
+        <ReportExits mode={report.mode} />
       </header>
 
       <div className="rp-body">
@@ -295,7 +296,26 @@ export function ReportView({
             ))}
           </ul>
         </section>
+
+        <footer className="rp-end">
+          <p>Done reviewing? Start another interview or go back to the home page.</p>
+          <ReportExits mode={report.mode} />
+        </footer>
       </div>
     </div>
+  );
+}
+
+/** Ways out of a finished report: home, or straight into another interview of the same mode. */
+export function ReportExits({ mode }: { mode?: Report["mode"] }) {
+  return (
+    <span className="rp-exits">
+      <Link href="/" className="ui-btn">
+        Back to Home
+      </Link>
+      <Link href={mode === "defense" ? "/defense" : "/coding"} className="ui-btn ui-btn-primary">
+        New Interview
+      </Link>
+    </span>
   );
 }

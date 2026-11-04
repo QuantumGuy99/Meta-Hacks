@@ -15,7 +15,7 @@ import type {
 } from "@/types/contracts";
 import { CodingExtras } from "./CodingExtras";
 import { DefenseExtras } from "./DefenseExtras";
-import { ReportView, type ReportLine, type ReportMark } from "./ReportView";
+import { ReportExits, ReportView, type ReportLine, type ReportMark } from "./ReportView";
 
 // /report/[id]: waits while the report is generating (202), then renders it with the session's replay.
 
@@ -131,6 +131,7 @@ export function LiveReport({ id }: { id: string }) {
             Ares
           </Link>
           <span className="rp-crumb">Report</span>
+          <ReportExits />
         </header>
         <div className="live-wait-body" role="status">
           {view.kind === "loading" && <p>Loading the report…</p>}
