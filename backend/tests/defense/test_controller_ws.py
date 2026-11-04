@@ -4,6 +4,7 @@ Local runner, real FastAPI app processes and real attacks; every model is down, 
 fallback (flaws.json, the reference attack, keyword grading). ~2 s attacks keep each test to seconds.
 """
 
+import asyncio
 import json
 import time
 from collections.abc import Callable, Iterator
@@ -30,14 +31,25 @@ IDLE_TTL_S = 0.2
 MESSAGE_LIMIT = 300
 
 
-@pytest.fixture
-def client(bank, local_settings) -> Iterator[TestClient]:
+GRADING_S = 1.0  # how long the slow graders take, so a second message surely arrives mid-grade
+
+
+class SlowGraders(FakeLLM):
+    """Every model down, as in `client`, but the two grill graders take GRADING_S to say so."""
+
+    async def complete_json(self, role, messages, schema, *, timeout_s):
+        if role in ("grill_eval", "grill_check"):
+            await asyncio.sleep(GRADING_S)
+        return await super().complete_json(role, messages, schema, timeout_s=timeout_s)
+
+
+def make_client(bank, local_settings, llm: FakeLLM) -> Iterator[TestClient]:
     audit_mod._CACHE.clear()
     mode = make_mode(
         local_settings,
         samples={bank.project.id: bank},
         runner=LocalRunner(local_settings),
-        llm=FakeLLM(down=True),
+        llm=llm,
         duration_override_s=2,
     )
     app = FastAPI()
@@ -45,6 +57,16 @@ def client(bank, local_settings) -> Iterator[TestClient]:
     app.state.hub = SessionHub(MemoryStore(), {Mode.DEFENSE: mode}, idle_ttl_s=IDLE_TTL_S)
     with TestClient(app) as c:
         yield c
+
+
+@pytest.fixture
+def client(bank, local_settings) -> Iterator[TestClient]:
+    yield from make_client(bank, local_settings, FakeLLM(down=True))
+
+
+@pytest.fixture
+def slow_client(bank, local_settings) -> Iterator[TestClient]:
+    yield from make_client(bank, local_settings, SlowGraders(down=True))
 
 
 def start(client: TestClient, bank) -> str:
@@ -149,15 +171,16 @@ def test_weak_answer_gets_one_follow_up_then_counts_both(client, bank):
         log.until(phase("fix"))
 
 
-def test_a_second_message_while_grading_asks_no_second_question(client, bank):
+def test_a_second_message_while_grading_asks_no_second_question(slow_client, bank):
     """#88: typing an answer and then speaking (or sending twice) brought two questions in a row."""
-    session_id = start(client, bank)
-    with client.websocket_connect(f"/ws/sessions/{session_id}") as ws:
+    session_id = start(slow_client, bank)
+    with slow_client.websocket_connect(f"/ws/sessions/{session_id}") as ws:
         log = Log(ws)
         ws.send_json({"type": "hello", "client_now_ms": 0})
         through_grill(log)
         ws.send_json({"type": "chat.send", "text": WEAK_ANSWER})
-        ws.send_json({"type": "chat.send", "text": WEAK_ANSWER})  # arrives while the first is graded
+        time.sleep(GRADING_S / 4)
+        ws.send_json({"type": "chat.send", "text": WEAK_ANSWER})  # arrives while the first is still graded
         expected = audit_from_flaws(bank).findings[0]
         follow_up = log.until(
             lambda m: (
