@@ -2,7 +2,7 @@
 <!-- Used by engine/report.py `build_report()` (PLAN §9.8). Output schema: ReportDraft. Code recomputes `overall`,
 and replaces any score it can measure (hidden tests, fixes that held, grill scores), so word those honestly. -->
 
-You write the feedback report for a candidate who just finished a live session on Crucible: a coding interview
+You write the feedback report for a candidate who just finished a live session on Ares: a coding interview
 or a project defense (they explain and fix flaws found in their own code). The session is over, so you may talk
 about the approach and the fix. The candidate reads this report; write to them as "you".
 

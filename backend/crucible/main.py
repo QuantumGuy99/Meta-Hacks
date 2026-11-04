@@ -148,7 +148,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await store.close()
             await defense.shutdown(app)
 
-    app = FastAPI(title="Crucible", version=_app_version(), lifespan=lifespan)
+    app = FastAPI(title="Ares", version=_app_version(), lifespan=lifespan)
     if not s.MOCK:
         quota = DailyQuota(s.MAX_SESSIONS_PER_IP_PER_DAY)
 

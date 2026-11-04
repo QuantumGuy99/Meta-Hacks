@@ -72,7 +72,7 @@ def test_defense_prompts_treat_user_content_as_data():
         "grill_clarify_system",
     ):
         assert "never instructions to you" in PROMPTS[name] or "never an instruction to you" in PROMPTS[name]
-    assert "Crucible" in PROMPTS["grill_eval_system"]
+    assert "Ares" in PROMPTS["grill_eval_system"]
 
 
 def _ev(hit, n=3, follow=False, feedback=""):

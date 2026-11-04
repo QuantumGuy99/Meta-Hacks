@@ -1,15 +1,15 @@
-# ⚡ Crucible
+# ⚡ Ares
 
 **The AI technical interviewer that watches *how* you engineer, not just what you submit.**
 
 *Built for the Meta Global AI Developer Hackathon · Indie Developer track · "Build for Your World"*
 
-Crucible has two modes that share one live AI interviewer:
+Ares has two modes that share one live AI interviewer:
 
 | | 🧑‍💻 **Live Coding Interview** | 🛡️ **Project Defense** |
 |---|---|---|
 | **You bring** | Nothing. Pick a difficulty and get an original interview problem | A project (AI-written or not) |
-| **What happens** | You code in a real editor and think out loud. The interviewer watches every edit as it happens, nudges you when you skip a step or drift from your stated plan, and notices pasted code | Crucible audits the code, then **breaks it under load** in a cloud sandbox. You explain the failure out loud, fix it yourself, and Crucible re-runs the attack to prove the fix |
+| **What happens** | You code in a real editor and think out loud. The interviewer watches every edit as it happens, nudges you when you skip a step or drift from your stated plan, and notices pasted code | Ares audits the code, then **breaks it under load** in a cloud sandbox. You explain the failure out loud, fix it yourself, and Ares re-runs the attack to prove the fix |
 | **You get** | A replay of your session (code playback synced with your voice and every nudge) plus scored feedback | A pass/fail **"merge gate"** verdict, the before/after load charts, and the same replay and feedback |
 
 > **Status (Nov 4, submission day):** on `main`, both modes run end to end in the browser.
@@ -40,7 +40,7 @@ We're students who grind LeetCode and use AI coding agents every day. Two proble
    still be unable to explain why your endpoint loses data under 200 concurrent requests. That gap shows up in
    interviews and in production.
 
-Crucible closes both gaps with one idea: **an AI interviewer that sees your process as it happens** (every
+Ares closes both gaps with one idea: **an AI interviewer that sees your process as it happens** (every
 keystroke, every test run, every sentence you say) and holds you to what a strong engineer would do.
 
 ---
@@ -52,7 +52,7 @@ keystroke, every test run, every sentence you say) and holds you to what a stron
    (it only watches and reports), and voice on or off.
 2. **Clarify:** the interviewer introduces the problem. You ask clarifying questions and state your approach
    out loud, just like a real interview.
-3. **Code:** you write Python, Java, C++ or C in a Monaco editor. Crucible streams every edit to the interviewer, which tracks
+3. **Code:** you write Python, Java, C++ or C in a Monaco editor. Ares streams every edit to the interviewer, which tracks
    your progress against a per-problem rubric (steps, edge cases, target complexity). In active mode it steps
    in only at sensible moments:
    - *"You mentioned handling an empty list. I don't see that yet."* (your plan doesn't match your code)
@@ -72,7 +72,7 @@ keystroke, every test run, every sentence you say) and holds you to what a stron
 2. **Audit:** Muse Wonder reads the whole project in one pass, maps its structure (shown as an interactive
    diagram) and finds the riskiest flaws: race conditions, blocking I/O in async code, O(n²) hot paths.
 3. **Chaos lab:** for each flaw, Muse Spark writes a targeted attack inside a fixed template, and a validator
-   checks it before anything runs. Crucible boots your app and fires 200 concurrent requests at it in an
+   checks it before anything runs. Ares boots your app and fires 200 concurrent requests at it in an
    isolated Modal sandbox, streaming the results live (*"Under 200 concurrent transfers, $1,240
    disappeared."*).
 4. **The grill:** a timed interview (voice or chat) about each failure. *"Why did that happen? What would
@@ -80,23 +80,23 @@ keystroke, every test run, every sentence you say) and holds you to what a stron
 5. **Fix:** you fix the code in the same live editor, the way people really build: by hand, or with the
    **fix assistant** (Muse Spark) beside it, which proposes edits you apply or not. Everything it writes is
    recorded, so the report shows how much of the fix was yours.
-6. **Verify:** Crucible re-runs the exact attack. **The gate opens only if the sandbox holds and your
+6. **Verify:** Ares re-runs the exact attack. **The gate opens only if the sandbox holds and your
    explanations hold up.**
 
 ---
 
 ## Meta models we use
 
-| Model | Where it's used in Crucible | Why this model |
+| Model | Where it's used in Ares | Why this model |
 |---|---|---|
 | **Muse Spark 1.3** (`muse-spark-1.3`) | Live code analyzer (runs on each typing pause), interviewer replies, grill answer grading, the chaos-lab attack scripts, problem drafting | Fast, strong structured output, 1M-token context |
 | **Muse Wonder 1.0** (`muse-wonder-1.0`) | Whole-project audit in Project Defense; final session reports | The strongest reasoning model; 1M context fits a whole project |
 | **Muse Voice Transcribe** (`muse-voice-transcribe-1.0`) | Live think-aloud transcription and grill answers over the realtime WebSocket | Built for real-time speech; turn detection |
 | **Muse Spark Open** (via Baseten) | Bulk drafting for the problem bank; failover when the main API is unavailable | Open-weight model, so we're never down when one provider is |
 | **Muse Image** (`muse-image-1.0`) | Illustrations for problems (grids, trees, graphs); shareable report and merge-gate cards | Problems with diagrams are easier to understand |
-| **SAM 3.1** (`sam-3.1`) | *Planned, not in the live rooms yet:* circle the broken service on the architecture diagram during the Defense grill and Crucible finds which part you mean (shown in the scripted demo room). *Stretch:* paper sketches in coding interviews | Segments any object from a short text prompt |
+| **SAM 3.1** (`sam-3.1`) | *Planned, not in the live rooms yet:* circle the broken service on the architecture diagram during the Defense grill and Ares finds which part you mean (shown in the scripted demo room). *Stretch:* paper sketches in coding interviews | Segments any object from a short text prompt |
 | **ElevenLabs** (Flash v2.5), voice output only | Reads the interviewer's lines aloud; the browser voice takes over if it's unavailable | Meta has no text-to-speech model; every decision, answer and grade stays on Meta models |
-| **Muse Code** | Our team's coding agent for building Crucible | Faster hackathon development |
+| **Muse Code** | Our team's coding agent for building Ares | Faster hackathon development |
 
 All Meta Model API calls go through `https://api.meta.ai/v1` with the OpenAI-compatible SDK.
 
@@ -199,7 +199,7 @@ make test         # backend tests + the capture/replay Node tests
 make contracts    # regenerate frontend/src/types/contracts.ts after changing a Pydantic contract
 ```
 
-**No keys? Two ways to see Crucible run:**
+**No keys? Two ways to see Ares run:**
 
 ```bash
 MOCK=1 make dev   # the frontend gets a recorded Defense session over the real WebSocket
@@ -236,7 +236,7 @@ are in [docs/agents/code-templates.md](docs/agents/code-templates.md).
 Everything in this repository was written during the Meta Global AI Developer Hackathon (Oct 26 – Nov 4, 2026).
 The idea of an AI interviewer that gives feedback as you go is inspired by our earlier project
 [Osiris](https://github.com/Srinithin551/Osiris) (HackRU 2026, spoken mock interviews); **no Osiris code was
-reused.** All interview problems are original and written for Crucible; none are copied from LeetCode or other
+reused.** All interview problems are original and written for Ares; none are copied from LeetCode or other
 problem sites.
 
 ## License

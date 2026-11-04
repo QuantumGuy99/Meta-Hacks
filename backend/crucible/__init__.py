@@ -1,1 +1,1 @@
-"""Crucible backend: one live AI interviewer, two modes (PLAN.md)."""
+"""Ares backend: one live AI interviewer, two modes (PLAN.md)."""

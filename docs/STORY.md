@@ -1,11 +1,11 @@
-# Crucible: the story, the UI theme and the demo script
+# Ares: the story, the UI theme and the demo script
 
 Read this before writing any user-facing copy, landing section, loading state or video shot. PLAN.md says what
 we build; this file says what it should *feel* like and what the judges must walk away believing.
 
 ## The one line
 
-> **AI writes code faster than you can understand it. Crucible proves you understand yours.**
+> **AI writes code faster than you can understand it. Ares proves you understand yours.**
 
 Everything on screen serves this line. If a screen, label or video shot doesn't help prove it, cut it.
 
@@ -84,7 +84,7 @@ messages so the strip can be built on MOCK first.
 | SAM 3.1 | "Circle the flaw": finds which part of the diagram (or a paper sketch) you circled | Highlight on the diagram |
 | Muse Spark Open | Open-weight fallback for grading | Strip shows it when it answers |
 | Muse Image | The merge-gate card at the end | Verdict |
-| Muse Code | Built Crucible; powers the in-product fix assistant, with every AI edit logged | Fix stage, "AI share" in the report |
+| Muse Code | Built Ares; powers the in-product fix assistant, with every AI edit logged | Fix stage, "AI share" in the report |
 
 **The surprise is the closed loop:** Wonder finds the flaw → Spark writes an attack → a sandbox breaks the
 real app with real numbers → Voice hears the explanation → SAM checks what you circled → Spark grades → the
@@ -102,12 +102,12 @@ A frozen screen loses the Demo score faster than any model upgrade wins it.
 
 | Time | Shot | What it proves |
 |---|---|---|
-| 0:00–0:20 | Black screen, then the line types out: "AI writes code faster than you can understand it." A real AI agent generating `bank-transfer` in seconds. "Crucible proves you understand yours." | Impact: the problem, in human terms |
+| 0:00–0:20 | Black screen, then the line types out: "AI writes code faster than you can understand it." A real AI agent generating `bank-transfer` in seconds. "Ares proves you understand yours." | Impact: the problem, in human terms |
 | 0:20–0:30 | Landing hero, the two modes, the Under the hood strip visible | What it is |
 | 0:30–1:30 | **Project Defense** (`bank-transfer`): Wonder chip lights up → the diagram builds and the node turns red → Spark writes the attack → 200 concurrent transfers stream live → "**$8,827 disappeared**" → the grill by voice → the candidate circles the flaw (SAM) → fixes it → the same attack re-runs, the line holds flat → **MERGE GATE: PASS** | The closed loop, every model visibly at work |
 | 1:30–2:25 | **Live Coding Interview:** states an approach out loud → codes → skips the empty-input case → the interviewer nudges by voice → a paste gets a neutral note → submit passes | It watches *how* you engineer |
 | 2:25–2:45 | Report: scrub the replay (code writing itself, synced with the transcript, nudges and model activity) | Depth and craft |
-| 2:45–3:00 | The seven-model loop as one diagram, then "Crucible: prove you understand your code." Repo URL | Meta tooling, remembered |
+| 2:45–3:00 | The seven-model loop as one diagram, then "Ares: prove you understand your code." Repo URL | Meta tooling, remembered |
 
 Defense goes first now: it's the most surprising part and carries the story. Record each segment on the
 deployed build at real speed; label any speed-up.

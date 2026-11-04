@@ -1,4 +1,4 @@
-# Crucible — Agent Operating Rules (whole team)
+# Ares — Agent Operating Rules (whole team)
 
 Read `@README.md` before writing code. `PLAN.md` is the team's build plan (1,700+ lines): read the
 sections your task needs (§6 layout and ownership, §7 contracts, §22 agent rules) instead of all of it.
