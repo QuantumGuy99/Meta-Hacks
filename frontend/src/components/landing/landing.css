@@ -965,7 +965,7 @@
   }
   .fr-group {
     display: flex;
-    flex-direction: column-reverse;
+    flex-direction: column; /* the state label heads its card, as it does beside it on desktop */
     gap: 10px;
   }
   .fr-state {
