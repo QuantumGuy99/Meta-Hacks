@@ -25,5 +25,6 @@
     "id": "ig1", "t": 520000, "kind": "tab_hidden", "detail": "switched away for 14 s at 08:40", "chars": null, "duration_ms": 14000
   }},
   {"seq": 8, "t": 530000, "kind": "system", "payload": {"level": "warning", "message": "analyzer timed out; skipped this tick"}},
-  {"seq": 9, "t": 531000, "kind": "model_activity", "payload": {"call_id": "c9b2", "t": 531000, "model_name": "Muse Wonder", "task": "writing your report", "status": "started", "latency_ms": null}}
+  {"seq": 9, "t": 531000, "kind": "model_activity", "payload": {"call_id": "c9b2", "t": 531000, "model_name": "Muse Wonder", "task": "writing your report", "status": "started", "latency_ms": null}},
+  {"seq": 10, "t": 120000, "kind": "assistant", "payload": {"id": "t1", "t": 120000, "kind": "reply", "reply_to": "a1", "text": "Hold a lock around the read and the write.", "edits": [{"path": "app/services.py", "content": "lock = asyncio.Lock()\n"}], "accepted": []}}
 ]

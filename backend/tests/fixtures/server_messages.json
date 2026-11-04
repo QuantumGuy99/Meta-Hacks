@@ -66,5 +66,6 @@
   }},
   {"type": "model.activity", "activity": {"call_id": "c7a1", "t": 412000, "model_name": "Muse Spark", "task": "watching your code", "status": "done", "latency_ms": 4100}},
   {"type": "report.ready", "session_id": "a1b2c3d4e5f6"},
-  {"type": "error", "code": "runner_unavailable", "message": "The code runner didn't answer in 10 s. Try Run again.", "retryable": true}
+  {"type": "error", "code": "runner_unavailable", "message": "The code runner didn't answer in 10 s. Try Run again.", "retryable": true},
+  {"type": "assistant.turn", "turn": {"id": "t1", "t": 120000, "kind": "reply", "reply_to": "a1", "text": "Hold a lock around the read and the write.", "edits": [{"path": "app/services.py", "content": "lock = asyncio.Lock()\n"}], "accepted": []}}
 ]

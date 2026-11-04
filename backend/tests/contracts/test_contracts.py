@@ -44,6 +44,7 @@ LLM_OUTPUT_MODELS: list[type[BaseModel]] = [
     events.TurnLabel,
     coding.ComplexityClaim,
     defense.ReplayNarrative,
+    defense.AssistantDraft,
 ]
 
 # TODO(ENG-1): replace with engine.timeline.PAYLOAD_MODELS once it exists.
@@ -57,6 +58,7 @@ PAYLOAD_MODELS: dict[str, type[BaseModel]] = {
     "integrity": events.IntegrityFlag,
     "system": events.SystemNote,
     "model_activity": events.ModelActivity,
+    "assistant": defense.AssistantTurn,
 }
 
 CLIENT = TypeAdapter(ws.ClientMessage)
