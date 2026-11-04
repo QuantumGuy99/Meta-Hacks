@@ -249,9 +249,6 @@ export function RoomDemo() {
           <section className="rm-panel rm-problem" aria-label="Problem">
             <header className="rm-panel-head">
               <span>{problem.title}</span>
-              <span className="rm-tag">
-                {levelLabel(problem.difficulty)} · {problem.topics.map(levelLabel).join(", ")}
-              </span>
             </header>
             <Streamdown className="rm-md" mode="static" controls={false}>
               {PROBLEM_MD}
