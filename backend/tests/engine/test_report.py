@@ -42,6 +42,7 @@ from crucible.engine.report import (
     compute_metrics,
     draft_messages,
     longest_silence,
+    measured_scores,
     merge,
     pick_moments,
     template_draft,
@@ -414,6 +415,46 @@ def test_without_a_submit_the_template_scores_correctness_from_the_last_run(
     metrics = compute_metrics(timeline, 20_000)
     draft = template_draft(metrics, [], CODING, timeline)
     assert {d.name: d.score for d in draft.dimensions}["correctness"] == expected
+
+
+def test_a_session_with_no_work_gets_no_independence_points() -> None:
+    """A coding session ended at once used no hints, but that isn't independence: it scored 50 overall."""
+    idle = events(phase(0, Phase.CODING))
+    metrics = compute_metrics(idle, 10_000)
+    draft = template_draft(metrics, [], CODING, idle)
+    assert {d.name: d.score for d in draft.dimensions} == {"correctness": 0, "independence": 0}
+    report = merge("s1", Mode.CODING, draft, metrics, [], CODING, "m", NOW)
+    assert report.overall == 0
+    # the model's own independence score is overridden too
+    report = merge("s1", Mode.CODING, ReportDraft.model_validate(DRAFT), metrics, [], CODING, "m", NOW)
+    assert {d.name: d.score for d in report.dimensions}["independence"] == 0
+
+
+def test_a_session_with_work_keeps_its_independence_score() -> None:
+    draft = template_draft(coding_metrics(), [], CODING, SESSION)
+    assert {d.name: d.score for d in draft.dimensions}["independence"] == 6
+
+
+def test_defense_ended_before_the_attack_isnt_a_perfect_correctness() -> None:
+    early = DEFENSE.model_copy(update={"chaos_runs": [], "grill": []})
+    early = early.model_copy(
+        update={"verdict": early.verdict.model_copy(update={"findings_fixed": [], "findings_unfixed": []})}
+    )
+    scores = measured_scores(coding_metrics(hidden_total=None, hidden_passed=None), early)
+    assert scores["correctness"].score == 0 and scores["independence"].score == 0
+
+
+def test_defense_where_nothing_needed_an_attack_still_scores_correctness() -> None:
+    calm = DEFENSE.model_copy(
+        update={
+            "chaos_runs": [],
+            "findings": [f.model_copy(update={"chaos": None}) for f in DEFENSE.findings],
+        }
+    )
+    calm = calm.model_copy(
+        update={"verdict": calm.verdict.model_copy(update={"findings_fixed": [], "findings_unfixed": []})}
+    )
+    assert measured_scores(coding_metrics(), calm)["correctness"].score == 10
 
 
 # --- the prompt ---------------------------------------------------------------------------------------------------
