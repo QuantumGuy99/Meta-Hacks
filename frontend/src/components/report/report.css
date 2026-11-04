@@ -10,19 +10,38 @@
   color: var(--muted-ink);
   font-size: 13px;
 }
+/* Back to Home / New Interview: the header's right end, and again under the replay */
+.rp-exits {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.rp-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding-top: 24px;
+  border-top: 1px solid var(--ui-line);
+  color: var(--muted-ink);
+}
+/* The session was ended for abusive language (engine/conduct.py): said first, above the scores */
+.rp-terminated {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid #ff5a5a;
+  border-radius: 10px;
+  background: rgba(255, 90, 90, 0.1);
+  color: #ffb3b3;
+}
+.rp-terminated strong {
+  color: #ff7a7a;
+}
 .rp-body {
   display: flex;
   flex-direction: column;
   gap: 32px;
   padding: 28px var(--margin) 64px;
-}
-.rp-end {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 12px;
-  padding-top: 32px;
-  border-top: 1px solid var(--ui-line);
 }
 .rp h1 {
   font-size: var(--step-head);

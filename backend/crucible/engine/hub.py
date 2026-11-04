@@ -19,9 +19,6 @@ from crucible.contracts.common import Mode, Phase, Session, SessionConfig
 from crucible.contracts.events import (
     CodeSnapshot,
     EditorEvent,
-    IntegrityFlag,
-    InterventionLevel,
-    InterventionTrigger,
     ModelActivity,
     SystemNote,
     TimelineEvent,
@@ -47,12 +44,10 @@ from crucible.contracts.ws import (
 from crucible.engine.activity import to_activity
 from crucible.engine.analyzer import StructuredModel
 from crucible.engine.codestate import CodeState
-from crucible.engine.conduct import crossed_line
+from crucible.engine.conduct import crossed_line, end_for_conduct
 from crucible.engine.context import RubricContext
 from crucible.engine.ids import new_id
-from crucible.engine.interviewer import say
 from crucible.engine.live import LiveEngine
-from crucible.engine.prompts import CANNED
 from crucible.engine.report import build_report
 from crucible.engine.store import Store
 from crucible.engine.timeline import Timeline
@@ -339,40 +334,28 @@ class SessionRuntime:
         event = self.timeline.append(kind, payload, t)
         if show is not None:
             await self.broadcast(show)
-        if self._abusive(kind, payload):
-            # Nothing else reacts to it (no grade, no reply): the interview ends here, as it would with a person.
-            await self._end_for_conduct()
-            return event
+        if kind == TimelineKind.TRANSCRIPT and self._candidate_final(event):
+            if self._conduct_ended:
+                return event  # the interview ended for abusive language: nothing more is graded or answered
+            if crossed_line(str(event.payload.get("text", ""))):
+                # Nothing else reacts to it (no grade, no reply): the interview ends here, as it would with a
+                # person (engine/conduct.py).
+                self._conduct_ended = True
+                await end_for_conduct(self)
+                return event
         if self._engine is not None:
             self._engine.on_event(event)
         await self.controller.on_timeline(self, event)
         return event
 
-    def _abusive(self, kind: TimelineKind, payload: BaseModel | dict[str, Any]) -> bool:
+    def _candidate_final(self, event: TimelineEvent) -> bool:
+        p = event.payload
         return (
-            kind == TimelineKind.TRANSCRIPT
-            and isinstance(payload, TranscriptTurn)
-            and payload.speaker == "candidate"
-            and payload.final
-            and self.live
-            and not self._conduct_ended
-            and crossed_line(payload.text)
+            (self.live or self._conduct_ended)
+            and self.session.phase != Phase.SETUP
+            and p.get("speaker") == "candidate"
+            and bool(p.get("final"))
         )
-
-    async def _end_for_conduct(self) -> None:
-        """Abusive language (engine/conduct.py): a flag for the report, one harsh line, and the interview is over."""
-        self._conduct_ended = True
-        flag = IntegrityFlag(
-            id=new_id(),
-            t=self.now_ms(),
-            kind="conduct",
-            detail="Used abusive language toward the interviewer, so the interview was ended.",
-            chars=None,
-            duration_ms=None,
-        )
-        await self.record(TimelineKind.INTEGRITY, flag, t=flag.t)
-        await say(self, CANNED["conduct"], InterventionTrigger.CONDUCT, InterventionLevel.NUDGE)
-        await self.end("ended for abusive language")
 
     async def show_activity(self, activity: ModelActivity) -> None:
         """A model starting or finishing work: on the "Under the hood" strip now, and in the replay later."""

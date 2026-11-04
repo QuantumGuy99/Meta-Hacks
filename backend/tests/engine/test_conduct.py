@@ -5,14 +5,23 @@ import json
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
 from crucible.contracts.common import Phase
 from crucible.contracts.events import IntegrityFlag, Intervention, TimelineKind, TranscriptTurn
 from crucible.contracts.report import Report
 from crucible.contracts.ws import ChatSend
-from crucible.engine.conduct import IMPROVEMENT, crossed_line, failed_for_conduct
+from crucible.engine.conduct import (
+    IMPROVEMENT,
+    TERMINATED,
+    TERMINATED_CODE,
+    TERMINATED_REASON,
+    crossed_line,
+    failed_for_conduct,
+)
 from crucible.engine.prompts import CANNED
 from crucible.engine.report import build_report
+from tests.engine.test_hub_api import client, new_session, receive_until, state_in  # noqa: F401
 from tests.engine.test_voice import Tab
 from tests.factories import StubController, runtime
 
@@ -20,7 +29,14 @@ from tests.factories import StubController, runtime
 @pytest.mark.parametrize(
     "text",
     [
-        "fuck this problem",
+        "what the fuck",
+        "this is SHIT",
+        "f*ck this",
+        "sh1t",
+        "fuuuck it",
+        "you bastard",
+        "shitty code",
+        "WTF is this",
         "this is bullshit",
         "you're an idiot",
         "you are so useless",
@@ -38,10 +54,16 @@ def test_abuse_and_profanity_cross_the_line(text: str) -> None:
 @pytest.mark.parametrize(
     "text",
     [
-        "the class assesses each item once",
+        "Scunthorpe",
+        "class Solution",
+        "assess the cost",
+        "cockpit",
+        "cocktail",
+        "Dickens",
+        "shell script",
+        "assume",
         "you know, this approach is dumb, let me redo it",
         "my first solution was kind of stupid",
-        "I'll pass the shiitake list to Dickens",
         "could you repeat the question?",
         "you're right, I missed the empty input",
         "the second write wins, so one update gets lost",
@@ -70,6 +92,7 @@ async def test_an_abusive_message_ends_the_interview_with_one_harsh_line() -> No
     rt.controller = Watching()
     tab = rt.add(Tab())
     await rt.handle(tab, ChatSend(type="chat.send", text="you're a useless clown, shut up"))
+    await rt.handle(tab, ChatSend(type="chat.send", text="and fuck you too"))  # already over: no second line
     assert rt.session.phase not in (Phase.CLARIFY, Phase.CODING)
     events = await rt.timeline.read()
     [flag] = [IntegrityFlag.model_validate(e.payload) for e in events if e.kind == TimelineKind.INTEGRITY]
@@ -97,3 +120,19 @@ def test_a_defense_report_fails_its_verdict_too() -> None:
     failed = failed_for_conduct(report)
     assert failed.overall == 0 and failed.defense is not None and not failed.defense.verdict.passed
     assert failed.defense.verdict.reasons[0].startswith("Ended early for abusive language")
+
+
+def test_over_the_socket_the_room_hears_the_line_and_gets_the_reason(client: TestClient) -> None:  # noqa: F811
+    session = new_session(client)
+    sid = session["id"]
+    with client.websocket_connect(f"/ws/sessions/{sid}") as ws:
+        receive_until(ws, state_in("clarify"))
+        ws.send_json({"type": "chat.send", "text": "this is shit"})
+        line = receive_until(ws, lambda m: m["type"] == "interviewer.message")["intervention"]
+        assert (line["trigger"], line["text"]) == ("conduct", CANNED["conduct"])
+        error = receive_until(ws, lambda m: m["type"] == "error")
+        assert (error["code"], error["message"], error["retryable"]) == (TERMINATED_CODE, TERMINATED, False)
+        receive_until(ws, state_in("ended"))
+    events = client.get(f"/api/sessions/{sid}/timeline").json()
+    ends = [e for e in events if e["kind"] == "phase" and e["payload"]["to_phase"] == "ended"]
+    assert ends[-1]["payload"]["reason"] == TERMINATED_REASON

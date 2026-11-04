@@ -270,6 +270,25 @@ def test_unfixed_code_breaks_again_then_the_fix_passes(client, bank):
         assert log.until(typed("defense.verdict"))["verdict"]["passed"]
 
 
+def test_profanity_in_the_grill_ends_the_defense_ungraded(client, bank):
+    from crucible.engine.prompts import CANNED
+
+    session_id = start(client, bank)
+    with client.websocket_connect(f"/ws/sessions/{session_id}") as ws:
+        log = Log(ws)
+        ws.send_json({"type": "hello", "client_now_ms": 0})
+        through_grill(log)
+        ws.send_json({"type": "chat.send", "text": "this attack is shit"})
+        line = log.until(typed("interviewer.message"))
+        assert (line["intervention"]["trigger"], line["intervention"]["text"]) == (
+            "conduct",
+            CANNED["conduct"],
+        )
+        log.until(phase("ended"))
+    timeline = client.get(f"/api/sessions/{session_id}/timeline").json()
+    assert not [e for e in timeline if e["kind"] == "grill"]  # never graded as an answer
+
+
 def test_a_double_clicked_verify_runs_one_attack(client, bank):
     session_id = start(client, bank)
     with client.websocket_connect(f"/ws/sessions/{session_id}") as ws:

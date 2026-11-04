@@ -23,6 +23,8 @@ export type ReportMark = { t: number; kind: Moment["kind"] | "run"; title: strin
 
 const chartConfig = { score: { label: "Score", color: "#2f6bff" } } satisfies ChartConfig;
 const SPEEDS = [1, 4, 16];
+// The reason the backend gives the session's end when abusive language ends it (engine/conduct.py).
+const TERMINATED_REASON = "terminated: abusive language";
 
 /** One metric tile; `value` null shows a dash (that moment never came, e.g. no run at all). */
 type Tile = { label: string; value: number | null; suffix: string; note?: string };
@@ -143,6 +145,11 @@ export function ReportView({
     setT(to);
   };
 
+  const terminated = useMemo(
+    () => replay.some((e) => e.kind === "phase" && e.payload.reason === TERMINATED_REASON),
+    [replay],
+  );
+
   return (
     <div className="rp">
       <header className="rm-top">
@@ -150,9 +157,16 @@ export function ReportView({
           Ares
         </Link>
         <span className="rp-crumb">{crumb}</span>
+        <ReportExits mode={report.mode} />
       </header>
 
       <div className="rp-body">
+        {terminated && (
+          <p className="rp-terminated" role="alert">
+            <strong>Interview ended for abusive language.</strong> In a real interview that ends it on the spot, so
+            this one is a fail.
+          </p>
+        )}
         <section className="rp-summary" aria-labelledby="rp-title">
           <div className="rp-overall">
             <span className="df-muted">Overall</span>
@@ -296,16 +310,25 @@ export function ReportView({
           </ul>
         </section>
 
-        {/* The way out at the very bottom, after the last section (#87 item 2). */}
-        <nav className="rp-end" aria-label="What next">
-          <Link href="/" className="ui-btn">
-            Back to Home
-          </Link>
-          <Link href={report.mode === "defense" ? "/defense" : "/coding"} className="ui-btn ui-btn-primary">
-            {report.mode === "defense" ? "Start Another Defense" : "Start Another Interview"}
-          </Link>
-        </nav>
+        <footer className="rp-end">
+          <p>Done reviewing? Start another interview or go back to the home page.</p>
+          <ReportExits mode={report.mode} />
+        </footer>
       </div>
     </div>
+  );
+}
+
+/** Ways out of a finished report: home, or straight into another interview of the same mode. */
+export function ReportExits({ mode }: { mode?: Report["mode"] }) {
+  return (
+    <span className="rp-exits">
+      <Link href="/" className="ui-btn">
+        Back to Home
+      </Link>
+      <Link href={mode === "defense" ? "/defense" : "/coding"} className="ui-btn ui-btn-primary">
+        New Interview
+      </Link>
+    </span>
   );
 }

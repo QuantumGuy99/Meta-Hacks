@@ -937,11 +937,14 @@ Owner: **SG**. Used by coding mode (whole session) and defense mode (grill + fix
 - Routes client messages to handlers; every handler appends to the Timeline first, then reacts.
 - `broadcast(ServerMessage)` to all sockets for the session (a second tab = observer).
 - **Conduct (both modes, Nov 4):** every final candidate turn, typed or spoken, is checked in `record()` by
-  `engine/conduct.py` (a fixed list: profanity, slurs, insults or hostility aimed at the interviewer; no
-  model). A match isn't passed on to the mode or the engine: an `integrity` flag of kind `conduct`, one harsh
-  `conduct` line ("…I'm ending this interview now, and it's a fail."), and the session ends. The report is a
-  fail whatever the draft says (`failed_for_conduct`: overall 0, its own summary, the Defense verdict not
-  passed).
+  `engine/conduct.py`: a fixed list, no model. It covers profanity and slurs, with the usual disguises
+  (`f*ck`, `sh1t`; whole words, so "Scunthorpe" or "class" never count), insults or hostility aimed at the
+  interviewer, and words speech-to-text bleeped. One offence ends it, as in a real interview (#93 first warned
+  twice). A match isn't passed on to the mode or the engine: a `system` note, an `integrity` flag of kind
+  `conduct`, one harsh `conduct` line ("…I'm ending this interview now, and it's a fail."), an `error`
+  (`terminated_conduct`), and the session ends with the reason `terminated: abusive language`, which the
+  report shows as a banner. The report is a fail whatever the draft says (`failed_for_conduct`: overall 0,
+  its own summary, the Defense verdict not passed).
 - Phase transitions go through `runtime.set_phase(to, reason)`, which validates against the mode's allowed
   transitions (§10.1, §11.2), appends a `phase` event and broadcasts `session.state`. Any live phase may go
   to `ended` or `failed`; only `ReportBuilder` moves on from `ended`.
