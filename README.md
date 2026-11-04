@@ -12,16 +12,13 @@ Crucible has two modes that share one live AI interviewer:
 | **What happens** | You code in a real editor and think out loud. The interviewer watches every edit as it happens, nudges you when you skip a step or drift from your stated plan, and notices pasted code | Crucible audits the code, then **breaks it under load** in a cloud sandbox. You explain the failure out loud, fix it yourself, and Crucible re-runs the attack to prove the fix |
 | **You get** | A replay of your session (code playback synced with your voice and every nudge) plus scored feedback | A pass/fail **"merge gate"** verdict, the before/after load charts, and the same replay and feedback |
 
-> **Status (end of Tue Oct 27, hackathon day 1):** on `main`:
-> - **The foundation:** shared contracts with generated TypeScript types; the Meta model wrapper, checked live
->   against the API; the session hub and timeline over WebSocket; the first analyzer → nudge path; SQLite
->   storage; dev commands; CI.
-> - **Project Defense backend, first full pass:** audit → attack under load in a sandbox → grill → fix →
->   verify with the same attack → merge gate, over the WebSocket with the test app. The attack runs on real
->   Modal sandboxes. Review fixes (#22) and the real sample apps are next, so it isn't demo-ready yet.
-> - **For coding interviews:** the test harness that runs candidate code.
-> - **For the frontend:** MOCK replay of a recorded Defense session.
-> - **Deploy:** a Docker image that CI builds and boots.
+> **Status (Nov 4, submission day):** on `main`, both modes run end to end in the browser.
+> - **Live Coding Interview:** warm-up, problem, an interviewer that follows edits and speech, Run/Submit on
+>   real tests, wrap-up, and a report with a replay. 12 original problems.
+> - **Project Defense:** audit → attack under load in a sandbox → grill → fix → verify with the same attack →
+>   merge gate → report, on three sample apps. Uploading your own project is planned, not built.
+> - **Checks:** CI (backend, frontend, contracts, Docker), `make validate` for every problem and app, and the
+>   model evals in `backend/tests/evals/` (16 of 16 passed on Nov 2).
 >
 > The landing page and the Defense design demo are in `frontend/`. The interview room and the live Defense
 > screens come next (Wed–Fri). Deployment is set for Sat Oct 31.
@@ -69,7 +66,8 @@ keystroke, every test run, every sentence you say) and holds you to what a stron
    nudge, with "moment cards" at the turning points.
 
 ### 🛡️ Project Defense
-1. **Submit:** pick a sample app or upload a small Python web project.
+1. **Submit:** pick one of the three sample apps (`bank-transfer`, `ticket-drop`, `report-service`). Uploading
+   your own project is planned, not built yet.
 2. **Audit:** Muse Wonder reads the whole project in one pass, maps its structure (shown as an interactive
    diagram) and finds the riskiest flaws: race conditions, blocking I/O in async code, O(n²) hot paths.
 3. **Chaos lab:** for each flaw, Muse Spark writes a targeted attack inside a fixed template, and a validator
@@ -93,7 +91,7 @@ keystroke, every test run, every sentence you say) and holds you to what a stron
 | **Muse Voice Transcribe** (`muse-voice-transcribe-1.0`) | Live think-aloud transcription and grill answers over the realtime WebSocket | Built for real-time speech; turn detection |
 | **Muse Spark Open** (via Baseten) | Bulk drafting for the problem bank; failover when the main API is unavailable | Open-weight model, so we're never down when one provider is |
 | **Muse Image** (`muse-image-1.0`) | Illustrations for problems (grids, trees, graphs); shareable report and merge-gate cards | Problems with diagrams are easier to understand |
-| **SAM 3.1** (`sam-3.1`) | Project Defense grill: circle the broken service on the architecture diagram (or hold up a paper sketch) and Crucible finds which part you mean. *Stretch:* paper sketches in coding interviews; optional proctor check (phone in frame) | Segments any object from a short text prompt |
+| **SAM 3.1** (`sam-3.1`) | *Planned, not in the live rooms yet:* circle the broken service on the architecture diagram during the Defense grill and Crucible finds which part you mean (shown in the scripted demo room). *Stretch:* paper sketches in coding interviews | Segments any object from a short text prompt |
 | **ElevenLabs** (Flash v2.5), voice output only | Reads the interviewer's lines aloud; the browser voice takes over if it's unavailable | Meta has no text-to-speech model; every decision, answer and grade stays on Meta models |
 | **Muse Code** | Our team's coding agent for building Crucible | Faster hackathon development |
 
@@ -107,7 +105,7 @@ All Meta Model API calls go through `https://api.meta.ai/v1` with the OpenAI-com
 ┌──────────────── Browser (Next.js + TypeScript) ────────────────┐
 │ Interview Room: Monaco editor ─ edit events (batched 500 ms) ──┼──┐ WebSocket (JSON)
 │                 mic ─ PCM 24 kHz frames ───────────────────────┼──┼─┐ WebSocket (binary audio)
-│                 interviewer panel (text + browser TTS) ◄───────┼──┤ │
+│                 interviewer panel (text + voice) ◄─────────────┼──┤ │
 │ Defense: audit diagram (React Flow) · chaos charts · grill     │  │ │
 │ Report + replay (code playback synced to transcript)  ◄─ REST ─┼──┤ │
 └────────────────────────────────────────────────────────────────┘  │ │
@@ -154,9 +152,9 @@ All Meta Model API calls go through `https://api.meta.ai/v1` with the OpenAI-com
 │       ├── defense/         # Project Defense mode
 │       ├── runner/          # code execution: Modal sandboxes (+ local dev runner)
 │       ├── store/           # SQLite persistence
-│       ├── datatools/       # (coming) problem generation + validation CLIs
+│       ├── datatools/       # problem drafting + validation CLIs (make validate)
 │       └── mock/            # recorded sessions replayed for frontend development (MOCK=1)
-├── data/                    # (filling in: problems and sample apps land this week)
+├── data/                    # the problem bank, sample apps and evals
 │   ├── problems/            # original interview problems with tests, rubrics, reference solutions
 │   ├── defense_apps/        # sample "vibe-coded" apps with seeded, documented flaws
 │   └── evals/               # scripted sessions to test the interviewer's behavior
@@ -209,8 +207,8 @@ cd backend && RUNNER=local ALLOW_LOCAL_RUNNER=1 LOCAL_RUNNER_ISOLATE=0 uv run py
                   # the whole Defense pipeline in the terminal: break → grill → fix → verify → merge gate
 ```
 
-Coming soon: `make validate` (checks every problem and sample app in `data/`) and `make evals` (scripted
-sessions through the real models; costs credits). Deploying: see [docs/DEPLOY.md](docs/DEPLOY.md). It stays
+`make validate` checks every problem and sample app in `data/`; `make evals` plays scripted sessions
+through the real models (costs credits). Deploying: see [docs/DEPLOY.md](docs/DEPLOY.md). It stays
 on free tiers and credits.
 
 **Working with coding agents:** Claude Code and Muse Code read [CLAUDE.md](CLAUDE.md) (team rules) and

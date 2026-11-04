@@ -99,7 +99,9 @@ ROLES: dict[ModelRole, RoleSpec] = {
     # The second grader (DEF-13): a different Meta model, so two must agree. Spark Open (open-weight) takes
     # over once Baseten is configured; until then Wonder at low effort, in parallel with grill_eval.
     "grill_check": RoleSpec(_wonder("low"), timeout_s=15, fallbacks=(_SPARK_OPEN,)),
-    "audit": RoleSpec(_wonder("xhigh"), timeout_s=120, fallbacks=(_spark("high"),)),
+    # high, not xhigh: xhigh took 104-167 s on bank-transfer (Oct 28) and timed out at 120 s in a live run
+    # (Nov 3); high found every seeded flaw in 9 of 9 runs across the three samples (PLAN §15.1).
+    "audit": RoleSpec(_wonder("high"), timeout_s=120, fallbacks=(_spark("high"),)),
     "report": RoleSpec(_wonder("high"), timeout_s=45, fallbacks=(_spark("high"),)),
     "attacker": RoleSpec(_spark("low"), timeout_s=30, fallbacks=(_spark("medium"),)),
     "drafter": RoleSpec(_wonder("high"), timeout_s=120, fallbacks=(_spark("medium"), _SPARK_OPEN)),

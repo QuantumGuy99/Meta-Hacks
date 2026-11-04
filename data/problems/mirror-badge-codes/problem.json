@@ -1,0 +1,278 @@
+{
+  "slug": "mirror-badge-codes",
+  "title": "Mirror Badge Codes",
+  "difficulty": "easy",
+  "topics": [
+    "two pointers",
+    "strings"
+  ],
+  "function": {
+    "name": "is_mirror_code",
+    "params": [
+      {
+        "name": "code",
+        "type": "str"
+      }
+    ],
+    "returns": "bool"
+  },
+  "starter_code": "def is_mirror_code(code: str) -> bool:\n    pass\n",
+  "examples": [
+    {
+      "input": "code = \"Ab-1-bA\"",
+      "output": "True",
+      "explanation": "Without dashes and ignoring case it reads \"ab1ba\" both ways."
+    },
+    {
+      "input": "code = \"AB-12\"",
+      "output": "False",
+      "explanation": "\"ab12\" backwards is \"21ba\"."
+    }
+  ],
+  "constraints": [
+    "0 <= len(code) <= 10^5",
+    "code contains only letters, digits and dashes"
+  ],
+  "tests_visible": [
+    {
+      "id": "v1",
+      "args": [
+        "Ab-1-bA"
+      ],
+      "expected": true,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v2",
+      "args": [
+        "AB-12"
+      ],
+      "expected": false,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v3",
+      "args": [
+        "x"
+      ],
+      "expected": true,
+      "comparator": "exact",
+      "edge_case_id": null
+    }
+  ],
+  "tests_hidden": [
+    {
+      "id": "h1",
+      "args": [
+        ""
+      ],
+      "expected": true,
+      "comparator": "exact",
+      "edge_case_id": "e1"
+    },
+    {
+      "id": "h2",
+      "args": [
+        "---"
+      ],
+      "expected": true,
+      "comparator": "exact",
+      "edge_case_id": "e2"
+    },
+    {
+      "id": "h3",
+      "args": [
+        "aA"
+      ],
+      "expected": true,
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    },
+    {
+      "id": "h4",
+      "args": [
+        "-a--b-a-"
+      ],
+      "expected": true,
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    },
+    {
+      "id": "h5",
+      "args": [
+        "7-7-8"
+      ],
+      "expected": false,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h6",
+      "args": [
+        "Race-car"
+      ],
+      "expected": true,
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    },
+    {
+      "id": "h7",
+      "args": [
+        "ab-c-dba"
+      ],
+      "expected": false,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h8",
+      "args": [
+        "1-2-3-2-1"
+      ],
+      "expected": true,
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    },
+    {
+      "id": "h9",
+      "args": [
+        "Zz-y-zX"
+      ],
+      "expected": false,
+      "comparator": "exact",
+      "edge_case_id": "e5"
+    }
+  ],
+  "rubric": {
+    "approaches": [
+      {
+        "name": "two pointers from both ends, skipping dashes",
+        "time": "O(n)",
+        "space": "O(1)",
+        "acceptable": true
+      },
+      {
+        "name": "build a cleaned copy and compare with its reverse",
+        "time": "O(n)",
+        "space": "O(n)",
+        "acceptable": true
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "title": "Clarify the input",
+        "required": true,
+        "order": 1,
+        "description": "Confirms that dashes are ignored, case doesn't matter, and what an empty or all-dash code counts as.",
+        "look_for": [
+          "asks whether case matters",
+          "asks how to treat dashes",
+          "mentions an empty code"
+        ],
+        "hints": [
+          "Before you start, is there anything about which characters count that you'd want to confirm?",
+          "Should 'A' and 'a' match, and what about a code that's only dashes?",
+          "Settle case, dashes and the empty code before you compare anything."
+        ]
+      },
+      {
+        "id": "s2",
+        "title": "Compare from both ends",
+        "required": true,
+        "order": 2,
+        "description": "Walks one pointer from the left and one from the right, comparing characters as they move inward.",
+        "look_for": [
+          "uses a left and a right index",
+          "moves both inward after a match"
+        ],
+        "hints": [
+          "Look at which two characters you compare first.",
+          "If the code mirrors, how does its first character relate to its last?",
+          "Use two pointers, one at each end, moving toward the middle."
+        ]
+      },
+      {
+        "id": "s3",
+        "title": "Skip the dashes",
+        "required": true,
+        "order": 3,
+        "description": "Moves past a dash on either side without comparing it.",
+        "look_for": [
+          "skips dashes on the left",
+          "skips dashes on the right",
+          "tests dashes in different places"
+        ],
+        "hints": [
+          "Try your code where the dashes aren't in mirrored positions.",
+          "What should a pointer do when it lands on a dash?",
+          "When either pointer is on a dash, move just that pointer and compare again."
+        ]
+      },
+      {
+        "id": "s4",
+        "title": "Ignore case",
+        "required": true,
+        "order": 4,
+        "description": "Compares lowercased characters so 'A' matches 'a'.",
+        "look_for": [
+          "lowercases before comparing",
+          "tests a mixed-case code"
+        ],
+        "hints": [
+          "Check what your code does with 'aA'.",
+          "Are 'A' and 'a' equal as Python characters?",
+          "Lowercase both characters before comparing them."
+        ]
+      }
+    ],
+    "edge_cases": [
+      {
+        "id": "e1",
+        "description": "empty code"
+      },
+      {
+        "id": "e2",
+        "description": "only dashes"
+      },
+      {
+        "id": "e3",
+        "description": "mixed upper and lower case"
+      },
+      {
+        "id": "e4",
+        "description": "dashes in different places on each side"
+      },
+      {
+        "id": "e5",
+        "description": "almost a mirror, off by one character"
+      }
+    ],
+    "common_mistakes": [
+      {
+        "id": "m1",
+        "description": "compares characters without skipping dashes",
+        "symptom": "fails codes like '-a--b-a-' where the dashes don't line up"
+      },
+      {
+        "id": "m2",
+        "description": "forgets to ignore case",
+        "symptom": "fails 'aA' and 'Race-car'"
+      },
+      {
+        "id": "m3",
+        "description": "treats an empty or all-dash code as not a mirror",
+        "symptom": "fails '' and '---'"
+      }
+    ],
+    "wrap_up_questions": [
+      "What are the time and space complexity?",
+      "How would you change this to allow removing at most one character to make a mirror?"
+    ]
+  },
+  "time_limit_min": 20,
+  "illustration": null,
+  "origin_note": "Original. Pattern: two pointers from both ends, skipping dashes."
+}

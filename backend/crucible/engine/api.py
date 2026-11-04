@@ -5,11 +5,13 @@ The app (main.py, S-0) includes `router` and puts a `SessionHub` on `app.state.h
 
 import contextlib
 import logging
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import TypeAdapter, ValidationError
 
+from crucible.config import get_settings
 from crucible.contracts.common import ApiError, ApiErrorBody, Phase, ReportPending, Session, SessionConfig
 from crucible.contracts.events import Intervention, TimelineEvent, TimelineKind
 from crucible.contracts.report import Report
@@ -34,6 +36,8 @@ router = APIRouter()
 CLIENT_MESSAGE: TypeAdapter[ClientMessage] = TypeAdapter(ClientMessage)
 AUDIO_CONTROL: TypeAdapter[AudioControl] = TypeAdapter(AudioControl)
 SESSION_NOT_FOUND_CLOSE = 4404  # WebSocket close code for an unknown session id
+FORBIDDEN_ORIGIN_CLOSE = 4403  # a browser page from a site that isn't ours
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 # Audio socket close codes (§8.3). The browser shows "use chat" for all three.
 VOICE_OFF_CLOSE = 4403  # the session was created with voice off
 VOICE_UNAVAILABLE_CLOSE = 4503  # no transcription configured, or it failed for good (§9.7)
@@ -135,6 +139,9 @@ async def get_speech(
 @router.websocket("/ws/sessions/{session_id}")
 async def session_socket(websocket: WebSocket, session_id: str) -> None:
     hub: SessionHub = websocket.app.state.hub
+    if not origin_allowed(websocket):
+        await websocket.close(code=FORBIDDEN_ORIGIN_CLOSE)
+        return
     if await hub.get_session(session_id) is None:
         await websocket.close(code=SESSION_NOT_FOUND_CLOSE)
         return
@@ -182,6 +189,9 @@ async def session_socket(websocket: WebSocket, session_id: str) -> None:
 async def audio_socket(websocket: WebSocket, session_id: str) -> None:
     """Raw PCM from the candidate's microphone plus start/stop/ask text frames (§8.3), into the VoiceBridge."""
     hub: SessionHub = websocket.app.state.hub
+    if not origin_allowed(websocket):
+        await websocket.close(code=FORBIDDEN_ORIGIN_CLOSE)
+        return
     session = await hub.get_session(session_id)
     if session is None:
         await websocket.close(code=SESSION_NOT_FOUND_CLOSE)
@@ -260,6 +270,20 @@ async def _over_rate(
 
 def _hub(request: Request) -> SessionHub:
     return request.app.state.hub
+
+
+def origin_allowed(websocket: WebSocket) -> bool:
+    """CORS doesn't cover WebSockets, so the socket checks the page's Origin itself: another site's page can't
+    open (and drive) a session in the visitor's browser. No Origin header means no browser page (tests, scripts),
+    which the session id alone admits. Outside production any loopback page is ours (localhost or 127.0.0.1)."""
+    origin = websocket.headers.get("origin")
+    if origin is None:
+        return True
+    settings = getattr(websocket.app.state, "settings", None) or get_settings()
+    allowed = settings.cors_origins
+    if "*" in allowed or origin.rstrip("/") in {o.rstrip("/") for o in allowed}:
+        return True
+    return not settings.is_production and urlsplit(origin).hostname in _LOOPBACK_HOSTS
 
 
 def _speech(request: Request) -> Speech | None:

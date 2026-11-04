@@ -84,7 +84,7 @@ coding agents daily. Both modes solve problems we have firsthand.
 
 | Area | P0 (demo-critical) | P1 (should) | P2 (stretch) |
 |---|---|---|---|
-| **Room** | Monaco editor (Python; Java, C++ and C since Nov 3, §10.3), edit capture, interviewer panel, text chat, timer, phase stepper | Voice in: speech to text (Muse Voice Transcribe), "interviewer's notes" panel | More languages (JS, Kotlin) |
+| **Room** | Monaco editor (Python; Java, C++ and C since Nov 3, §10.3), edit capture, interviewer panel, text chat, timer, phase stepper | Voice in: speech to text (Muse Voice Transcribe); voice out: ElevenLabs, browser voice as fallback (§14.7); "interviewer's notes" panel | More languages (JS, Kotlin) |
 | **Coding mode** | 12 validated problems, difficulty picker, run/submit tests, analyzer + policy (active and passive), hint ladder, paste/tab notes, report | 30 problems, plan-vs-code check, coded-before-plan check, wrap-up complexity question, problem illustrations | 40+ problems, SAM 3.1 paper sketch, proctor mode |
 | **Defense mode** | 3 sample apps, Wonder audit + topology diagram, chaos run (breaks before the fix, holds after), grill (text answers OK), fix in editor, verify, verdict | Voice grill, "circle the flaw" with SAM 3.1, Muse fix assistant (DEF-11, logged), attack refine loop, zip upload, 5 sample apps | GitHub URL import, suggested refactor patch / Muse Code handoff, Muse Image merge-gate card |
 | **Report** | Scores, summary, strengths/improvements, metrics, moments, replay (code playback + transcript + nudges) | Defense before/after charts in the report, share link | Muse Image report card |
@@ -106,7 +106,7 @@ coding agents daily. Both modes solve problems we have firsthand.
 1. `/` → choose **Live Coding Interview**.
 2. `/coding` setup: difficulty (easy/medium/hard), optional topic, feedback **active/passive**, voice (speech to
    text) on/off. → `POST /api/sessions` → redirect to `/coding/{id}`.
-3. **Intro** (≈30 s): the interviewer greets and presents the problem (text). The problem panel shows
+3. **Intro** (≈30 s): the interviewer greets and presents the problem (text + voice). The problem panel shows
    the statement, examples and constraints.
 4. **Clarify:** the candidate asks questions (voice or chat) and states an approach. The interviewer answers
    clarifying questions from the problem spec only. The editor is unlocked the whole time; coding before
@@ -169,7 +169,7 @@ Monaco change ──► EditorCapture batches 500 ms ──► WS editor.events 
                  └─► Timeline.append(analysis) ──► Policy.decide(analysis, state)
                         ├─ no  → nothing (passive mode: log a suppressed intervention)
                         └─ yes → Interviewer.phrase() ──► leak guard ──► Timeline.append(intervention)
-                                   ──► WS interviewer.message ──► panel
+                                   ──► WS interviewer.message ──► panel + voice (§14.7)
 ```
 
 Runs, final transcript turns and explicit asks also trigger the scheduler (§9.4).
@@ -331,7 +331,7 @@ class SessionConfig(Strict):
     mode: Mode
     feedback: FeedbackLevel = FeedbackLevel.ACTIVE
     voice: bool = True               # mic + Muse Voice Transcribe
-    speak_replies: bool = True       # unused: the frontend sends False, voice is speech to text only (§14.7)
+    speak_replies: bool = True       # interviewer lines read aloud (§14.7); the setup form leaves it on
     proctor: bool = False            # P2: SAM 3.1 webcam checks (opt-in)
     problem_slug: str | None = None  # coding: explicit problem
     difficulty: Difficulty | None = None  # coding: random problem at this difficulty
@@ -915,7 +915,7 @@ Server → client:
 - The client sends **raw PCM, signed 16-bit little-endian, mono, 24 kHz**, in **80 ms frames (1,920 samples =
   3,840 bytes)** at real-time pace. Text frames: `{"type":"start"}` / `{"type":"stop"}`, and
   `{"type":"ask","holding":true|false}` when the **Ask** button is pressed and released.
-- While the mic is paused, the client sends **silence** instead (not nothing): the stream keeps real-time
+- While the interviewer speaks (§14.7), the client sends **silence** instead of the mic (not nothing): the stream keeps real-time
   pace (Meta closes streams that fall behind) and the audio clock stays aligned with session time.
 - The server forwards the frames to Meta's realtime ASR (§9.7) and publishes transcripts on the JSON socket.
 - Close codes: `4404` unknown session, `4403` the session has voice off, `4503` voice unavailable (no key, or
@@ -1907,7 +1907,7 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 | `conversation` (warm-up, replies, probes, check-ins) | `muse-spark-1.3` | minimal (short lines; every second is a pause the candidate hears) | the canned line |
 | `grill_eval` | `muse-spark-1.3` | low | Spark (minimal) → Spark Open (Baseten) |
 | `grill_check` (DEF-13) | `muse-wonder-1.0` | low | Spark Open; runs in parallel with `grill_eval`, and only points both mark count (§11.5) |
-| `audit` | `muse-wonder-1.0` | xhigh | `muse-spark-1.3` (high) → `flaws.json` (samples only) |
+| `audit` | `muse-wonder-1.0` | high (xhigh until Nov 3: 104–167 s on `bank-transfer`, and a 120 s timeout in a live run) | `muse-spark-1.3` (high) → `flaws.json` (samples only) |
 | `report` | `muse-wonder-1.0` | high | `muse-spark-1.3` → metrics-only template |
 | `attacker` | `muse-spark-1.3` | low | Spark (medium) → reference attack (sample apps only) |
 | `drafter` (datatools) | `muse-wonder-1.0` | high | Spark (medium) → Spark Open |
@@ -1925,6 +1925,10 @@ low, with every attack valid; at low, 2 of 2 full Defense runs broke the app. gr
   audit Wonder high 31 s / $0.10 (2 topology nodes) vs xhigh 44 s / $0.15 (6 nodes); attacker Spark medium 14 s,
   Spark high 18 s, Wonder medium 20 s, Wonder high 29 s (30 s budget), all valid; grill_eval Spark medium 4–5 s,
   Spark high 7–8 s (10 s budget), Wonder low 4–11 s, all marked the same points.
+  **Audit, Nov 3 (real samples):** Wonder xhigh timed out at 120 s in a live `bank-transfer` session (104–167 s on
+  Oct 28), so the audit is now Wonder **high**: 9 of 9 runs found every seeded flaw (`bank-transfer` 79–96 s,
+  `report-service` 48–121 s, `ticket-drop` 59–72 s; median 72 s). One run in nine overruns 120 s and falls back
+  to Spark high. Audits are cached per project, so run each sample once after a deploy.
 - **Dev cost switch:** `USE_CONTRIBUTOR_MODELS=1` maps `muse-spark-1.3` → `muse-spark-1.3-contributor`
   ($0.10/$0.20 per 1M tokens, but content may be used for training and the limit is 150 RPM). Use it only
   with synthetic data, never for real users' sessions. It doesn't support `max` effort.

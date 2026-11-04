@@ -64,13 +64,20 @@ const SKIP_REFUSAL_MS = 5_000;
 
 type Editor = Parameters<NonNullable<Parameters<typeof CodeEditor>[0]["onEditor"]>>[0];
 
+// The bank's statements already carry "## Example 1" and "## Constraints" sections: the lists are added only
+// when a statement doesn't, so the candidate doesn't read every example twice.
+const HAS_EXAMPLES = /^#{1,6}\s*examples?\b/im;
+const HAS_CONSTRAINTS = /^#{1,6}\s*constraints\b/im;
+
 function problemMarkdown(p: ProblemPublic) {
+  const examples = HAS_EXAMPLES.test(p.statement_md) ? [] : p.examples;
+  const constraints = HAS_CONSTRAINTS.test(p.statement_md) ? [] : p.constraints;
   return [
     p.statement_md,
-    p.examples.length ? "**Examples**" : "",
-    ...p.examples.map((e) => `- \`${e.input}\` → \`${e.output}\`${e.explanation ? `: ${e.explanation}` : ""}`),
-    p.constraints.length ? "**Constraints**" : "",
-    ...p.constraints.map((c) => `- \`${c}\``),
+    examples.length ? "**Examples**" : "",
+    ...examples.map((e) => `- \`${e.input}\` → \`${e.output}\`${e.explanation ? `: ${e.explanation}` : ""}`),
+    constraints.length ? "**Constraints**" : "",
+    ...constraints.map((c) => `- \`${c}\``),
   ]
     .filter(Boolean)
     .join("\n\n");
@@ -294,11 +301,6 @@ export function LiveRoom({ id }: { id: string }) {
           <section className="rm-panel rm-problem" aria-label="Problem">
             <header className="rm-panel-head">
               <span>{warmingUp ? "Warm-up" : (problem?.title ?? "Loading the problem…")}</span>
-              {problem && !warmingUp && (
-                <span className="rm-tag">
-                  {levelLabel(problem.difficulty)} · {problem.topics.map(levelLabel).join(", ")}
-                </span>
-              )}
             </header>
             {warmingUp ? (
               <p className="live-empty">
