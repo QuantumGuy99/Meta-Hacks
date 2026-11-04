@@ -26,6 +26,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from crucible import model_setup
 from crucible.config import Settings, get_settings
 from crucible.defense import router as defense
+from crucible.guide import router as guide
 from crucible.quota import DailyQuota, client_ip
 from crucible.runner import make_runner
 
@@ -197,6 +198,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         app.include_router(problems_router)
     app.include_router(defense.router)
+    app.state.guide_quota = DailyQuota(s.GUIDE_MAX_PER_IP_PER_DAY)
+    app.include_router(guide.router)
     if s.DEFENSE_DEV_API:
         app.include_router(defense.dev_router)
     return app

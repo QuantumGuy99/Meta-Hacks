@@ -10,7 +10,7 @@ import type {
   SessionConfig,
   TimelineEvent,
 } from "@/types/contracts";
-import type { GuideAsk, GuideReply } from "@/types/guide.draft";
+import type { GuideAsk, GuideReply } from "@/types/contracts";
 
 // REST client for the backend (PLAN §8.1). Every error comes back as {error: {code, message}}; this turns it
 // into an ApiError the pages can show. The base URL is NEXT_PUBLIC_API_URL (default: the local backend).

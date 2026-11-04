@@ -20,6 +20,7 @@ TASKS: dict[str, str] = {
     "vision": "finding what you circled",
     "replay": "replaying the race step by step",
     "drafter": "drafting problems",
+    "guide": "helping you find your way",
 }
 VOICE: ModelName = "Muse Voice"
 LISTENING = "listening"
