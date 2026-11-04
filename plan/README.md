@@ -2,7 +2,7 @@
 
 [PLAN.md](../PLAN.md) is the spec for all of Crucible. The files in this folder split it by person: what
 each of us owns, what we owe each other and by when, and the order to build things in. Each file is written so
-you (or Muse Code / Claude Code) can start from it without reading the whole spec first. It links to the PLAN
+you (or a coding agent such as Muse Code) can start from it without reading the whole spec first. It links to the PLAN
 sections you need for the details.
 
 **If a role plan and PLAN.md disagree, PLAN.md wins.** Fix the role plan in the same PR (PLAN §22 rule 15).
@@ -73,7 +73,7 @@ team chat as soon as you know, and give the person who's waiting a stub they can
 
 ---
 
-## Using a coding agent (Muse Code, Claude Code)
+## Using a coding agent (Muse Code)
 
 Use one agent session per work package. Start each session with this prompt and fill in the brackets:
 

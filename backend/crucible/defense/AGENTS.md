@@ -1,14 +1,14 @@
 # Project Defense + Runner — area rules (owner: Shreyas)
 
 Loaded when you work in `backend/crucible/defense/` or `backend/crucible/runner/`. Adds to the root
-`CLAUDE.md`; never loosens it.
+`AGENTS.md`; never loosens it.
 
-Read before writing code here: `@../../../docs/defense/DEFENSE_AGENT_SPEC.txt` (Defense briefing and the §9
+Read before writing code here: `docs/defense/DEFENSE_AGENT_SPEC.txt` (Defense briefing and the §9
 decision log; don't reopen settled decisions) and `plan/shreyas-defense-and-runner.md` (build order,
 handoff dates, interfaces). PLAN sections: §7.4 defense contracts, §11 Defense, §12 Runner, §19 deploy.
 
 ## Working memory
-`@../../../docs/defense/MEMORY.md` is the shared working memory for Claude Code and Muse Code on this area:
+`docs/defense/MEMORY.md` is the shared working memory for the coding agents (Muse Code and others) on this area:
 claim files under "Active work" before editing, never edit files someone else has claimed, and update
 status, handoff and the session log before you finish.
 
