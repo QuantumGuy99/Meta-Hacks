@@ -135,7 +135,7 @@ def test_weak_answer_gets_one_follow_up_then_counts_both(client, bank):
         expected = audit_from_flaws(bank).findings[0]
         log.until(
             lambda m: (
-                m["type"] == "interviewer.message" and m["intervention"]["text"] == expected.grill.follow_up
+                m["type"] == "interviewer.message" and expected.grill.follow_up in m["intervention"]["text"]
             )
         )
         # The answer key stays hidden until the grill is final: no eval, no explanation before the follow-up.
@@ -147,6 +147,34 @@ def test_weak_answer_gets_one_follow_up_then_counts_both(client, bank):
         assert second["turn"]["follow_up_asked"] and second["turn"]["root_cause_hit"]
         assert len(second["turn"]["answer_turn_ids"]) == 2
         log.until(phase("fix"))
+
+
+def test_a_second_message_while_grading_asks_no_second_question(client, bank):
+    """#88: typing an answer and then speaking (or sending twice) brought two questions in a row."""
+    session_id = start(client, bank)
+    with client.websocket_connect(f"/ws/sessions/{session_id}") as ws:
+        log = Log(ws)
+        ws.send_json({"type": "hello", "client_now_ms": 0})
+        through_grill(log)
+        ws.send_json({"type": "chat.send", "text": WEAK_ANSWER})
+        ws.send_json({"type": "chat.send", "text": WEAK_ANSWER})  # arrives while the first is graded
+        expected = audit_from_flaws(bank).findings[0]
+        follow_up = log.until(
+            lambda m: (
+                m["type"] == "interviewer.message" and expected.grill.follow_up in m["intervention"]["text"]
+            )
+        )
+        assert follow_up["intervention"]["level"] == "question"
+        ws.send_json({"type": "chat.send", "text": GOOD_ANSWER})
+        graded = log.until(typed("defense.grill.eval"))
+        # Graded on the answer to the follow-up: the repeat during grading didn't stand in for it.
+        assert graded["turn"]["root_cause_hit"]
+        questions = [
+            m
+            for m in log.seen
+            if m["type"] == "interviewer.message" and m["intervention"]["level"] == "question"
+        ]
+        assert len(questions) == 2  # the question and one follow-up
 
 
 def test_verify_is_refused_during_the_grill(client, bank):

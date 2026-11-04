@@ -1379,6 +1379,9 @@ Owner: **SS**. Data (sample apps): **ST** with SS reviewing.
 - `chaos` loops over queued findings; `grill` loops over findings with verdict `broke`; `fix` covers all broken
   findings in one editor session (tabs per file); `verify` re-runs every baseline script.
 - If verify fails, return to `fix` (max 2 extra rounds, then verdict).
+- The Defense clock holds during `audit` and `chaos`, as the coding clock does during the warm-up: the time they
+  took is added to the limit when they end, so the clock starts at the grill with the full time (`HELD_CLOCK` in
+  `hub.py`).
 - `defense/controller.py` (`DefenseController`, implementing SG's `ModeController` hook, the defense twin of
   `CodingController` in `coding/session.py`) drives this sequence through `runtime.set_phase()`. Grill
   questions go out through `Interviewer.say()`; the fix stage attaches a `RubricContext` built from the

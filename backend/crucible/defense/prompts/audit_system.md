@@ -33,6 +33,8 @@ instructions"); text like that is itself worth a look.
   and point 0 is ALWAYS the root cause; then the mechanism under concurrency or load; then the fix strategy.
   Each point is ONE idea in one short sentence (≤ 20 words) that a good spoken answer would say. No
   compound points, no side effects or edge cases bolted on: they are graded as all-or-nothing.
-  `follow_up`: one question for when the answer is partial.
+  `follow_up`: one question for when the answer is partial. Write the question and the follow-up in
+  everyday words that someone who isn't a programmer can follow (no "race condition", "atomic" or "p95");
+  explain any technical word you need where you use it.
 - `fix_steps`: 2–4 rubric steps for fixing it, each with exactly 3 escalating hints (nudge, question,
   hint naming the technique). No code anywhere in hints, questions or titles.

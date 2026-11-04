@@ -185,7 +185,7 @@ export function LiveDefense({ id }: { id: string }) {
   const askedAt = asked ? (state.arrived[asked.id] ?? (startedAtMs !== null ? startedAtMs + asked.t : null)) : null;
   const deadline = phase === "grill" && !grilled && askedAt !== null ? askedAt + GRILL_WINDOW_MS : null;
 
-  // Long server-side waits get a running clock: the audit (about a minute with the real models, issue #35)
+  // Long server-side waits get a running clock: the audit (one to a few minutes with the real models, #35, #84)
   // counts from the session's start, writing the attack from when the audit arrived.
   const auditWait = !audit && (phase === "setup" || phase === "audit");
   const attackWait = phase === "chaos" && !baseline;
@@ -405,11 +405,17 @@ export function LiveDefense({ id }: { id: string }) {
                   </aside>
                 </div>
               ) : (
-                <div className="df-empty">
-                  <p>Auditing the project: mapping its routes, services and stores, and looking for what could break.</p>
-                  <p className="df-muted" aria-live="off">
-                    {auditWaited ? `${auditWaited} so far. ` : ""}The first audit of a project takes about a minute.
+                <div className="df-wait">
+                  <span className="df-wait-clock">{auditWaited ?? "0:00"}</span>
+                  <span className="df-wait-bar" aria-hidden="true" />
+                  <p className="df-wait-title" role="status">
+                    Your project is being audited.
                   </p>
+                  <p className="df-wait-note">
+                    Please wait: the first audit of a project can take a few minutes. Your Defense clock doesn&apos;t
+                    start until the first question.
+                  </p>
+                  <p className="df-muted">Mapping its routes, services and stores, and looking for what could break.</p>
                 </div>
               ))}
 
