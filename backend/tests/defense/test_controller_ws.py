@@ -5,9 +5,10 @@ fallback (flaws.json, the reference attack, keyword grading). ~2 s attacks keep 
 """
 
 import asyncio
+import contextlib
 import json
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from typing import Any
 
 import pytest
@@ -16,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from crucible.contracts.common import Mode
 from crucible.contracts.defense import ReplayNarrative, ReplayStep
+from crucible.contracts.events import InterventionText
 from crucible.defense import audit as audit_mod
 from crucible.defense.attack_writer import extract_functions, render_attack
 from crucible.defense.audit import audit_from_flaws
@@ -52,9 +54,18 @@ def make_client(bank, local_settings, llm: FakeLLM) -> Iterator[TestClient]:
         llm=llm,
         duration_override_s=2,
     )
-    app = FastAPI()
+    hub = SessionHub(MemoryStore(), {Mode.DEFENSE: mode}, idle_ttl_s=IDLE_TTL_S)
+
+    @contextlib.asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        yield
+        # As crucible.main does: close the hub, so stages still running (an attack, the race replay starting
+        # the app) are stopped while the loop runs, not cancelled halfway by the loop's own shutdown.
+        await hub.close()
+
+    app = FastAPI(lifespan=lifespan)
     app.include_router(router)
-    app.state.hub = SessionHub(MemoryStore(), {Mode.DEFENSE: mode}, idle_ttl_s=IDLE_TTL_S)
+    app.state.hub = hub
     with TestClient(app) as c:
         yield c
 
@@ -200,6 +211,35 @@ def test_a_second_message_while_grading_asks_no_second_question(slow_client, ban
         assert len(questions) == 2  # the question and one follow-up
 
 
+CLARIFIED = "It means the slowest one in twenty transfers. What do you think happened to the money?"
+
+
+@pytest.fixture
+def clarifying_client(bank, local_settings) -> Iterator[TestClient]:
+    llm = FakeLLM(down=True)
+    llm.push(
+        "interviewer", InterventionText(text="We sent many transfers at once. Why did money go missing?")
+    )
+    llm.push("interviewer", InterventionText(text=CLARIFIED))
+    yield from make_client(bank, local_settings, llm)
+
+
+def test_a_question_back_is_answered_and_the_question_stays_open(clarifying_client, bank):
+    session_id = start(clarifying_client, bank)
+    with clarifying_client.websocket_connect(f"/ws/sessions/{session_id}") as ws:
+        log = Log(ws)
+        ws.send_json({"type": "hello", "client_now_ms": 0})
+        audit = log.until(typed("defense.audit"))
+        assert audit["audit"]["findings"]
+        log.until(typed("interviewer.message"))
+        ws.send_json({"type": "chat.send", "text": "what does p95 mean?"})
+        answer = log.until(typed("interviewer.message"))
+        assert answer["intervention"]["text"] == CLARIFIED
+        assert not any(m["type"] == "defense.grill.eval" for m in log.seen)
+        ws.send_json({"type": "chat.send", "text": GOOD_ANSWER})
+        assert log.until(typed("defense.grill.eval"))["turn"]["root_cause_hit"]
+
+
 def test_verify_is_refused_during_the_grill(client, bank):
     session_id = start(client, bank)
     with client.websocket_connect(f"/ws/sessions/{session_id}") as ws:
@@ -230,8 +270,8 @@ def test_unfixed_code_breaks_again_then_the_fix_passes(client, bank):
         assert log.until(typed("defense.verdict"))["verdict"]["passed"]
 
 
-def test_profanity_in_the_grill_is_warned_about_not_graded(client, bank):
-    from crucible.engine.conduct import WARNING
+def test_profanity_in_the_grill_ends_the_defense_ungraded(client, bank):
+    from crucible.engine.prompts import CANNED
 
     session_id = start(client, bank)
     with client.websocket_connect(f"/ws/sessions/{session_id}") as ws:
@@ -239,13 +279,14 @@ def test_profanity_in_the_grill_is_warned_about_not_graded(client, bank):
         ws.send_json({"type": "hello", "client_now_ms": 0})
         through_grill(log)
         ws.send_json({"type": "chat.send", "text": "this attack is shit"})
-        warned = log.until(typed("interviewer.message"))
-        assert warned["intervention"]["text"] == WARNING
-        ws.send_json({"type": "chat.send", "text": GOOD_ANSWER})
-        graded = log.until(typed("defense.grill.eval"))
-        assert graded["turn"]["root_cause_hit"]  # the real answer is the one graded
-    evals = [e for e in client.get(f"/api/sessions/{session_id}/timeline").json() if e["kind"] == "grill"]
-    assert len(evals) == 1
+        line = log.until(typed("interviewer.message"))
+        assert (line["intervention"]["trigger"], line["intervention"]["text"]) == (
+            "conduct",
+            CANNED["conduct"],
+        )
+        log.until(phase("ended"))
+    timeline = client.get(f"/api/sessions/{session_id}/timeline").json()
+    assert not [e for e in timeline if e["kind"] == "grill"]  # never graded as an answer
 
 
 def test_a_double_clicked_verify_runs_one_attack(client, bank):

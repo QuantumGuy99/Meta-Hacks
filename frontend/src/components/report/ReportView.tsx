@@ -23,8 +23,8 @@ export type ReportMark = { t: number; kind: Moment["kind"] | "run"; title: strin
 
 const chartConfig = { score: { label: "Score", color: "#2f6bff" } } satisfies ChartConfig;
 const SPEEDS = [1, 4, 16];
-// The reason the backend gives the session's end when the third profanity strike ends it (engine/conduct.py).
-const TERMINATED_REASON = "terminated: profanity";
+// The reason the backend gives the session's end when abusive language ends it (engine/conduct.py).
+const TERMINATED_REASON = "terminated: abusive language";
 
 /** One metric tile; `value` null shows a dash (that moment never came, e.g. no run at all). */
 type Tile = { label: string; value: number | null; suffix: string; note?: string };
@@ -163,7 +163,8 @@ export function ReportView({
       <div className="rp-body">
         {terminated && (
           <p className="rp-terminated" role="alert">
-            <strong>Session terminated due to profanity.</strong> The interviewer warned twice before ending it.
+            <strong>Interview ended for abusive language.</strong> In a real interview that ends it on the spot, so
+            this one is a fail.
           </p>
         )}
         <section className="rp-summary" aria-labelledby="rp-title">

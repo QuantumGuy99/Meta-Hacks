@@ -689,6 +689,18 @@ test("a refused play waits for a click, then plays the same line", async () => {
   assert.equal(audios[1].url, "/api/sessions/s1/speech/i1");
 });
 
+test("lines that arrive while blocked replace the held one, so a click plays only the newest", async () => {
+  const { voice, audios } = setupVoice({ refuse: true });
+  voice.speak("Hi, I'm Ares.", "i1");
+  await flush();
+  voice.speak("What does the load test show?", "i2");
+  voice.speak("Over to you: fix it.", "i3");
+  assert.equal(audios.length, 1); // nothing more is tried until the click
+  audios.forEach((a) => (a.refuse = false));
+  voice.unlock();
+  assert.deepEqual(audios.slice(1).map((a) => a.url.split("/").pop()), ["i3"]);
+});
+
 test("cancel stops the server voice and drops the queue", () => {
   const { voice, audios, events } = setupVoice();
   voice.speak("First line.", "i1");

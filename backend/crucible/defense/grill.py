@@ -7,6 +7,7 @@ import asyncio
 import json
 import re
 import uuid
+from collections.abc import Sequence
 
 from crucible.contracts.defense import Finding, GrillEval, GrillTurn
 from crucible.contracts.events import InterventionText, TimelineKind
@@ -23,6 +24,7 @@ MAX_ANSWER_CHARS = 4_000  # about 3 minutes of speech; longer answers are cut be
 # wording rather than leaving the candidate on a silent room.
 PLAIN_TIMEOUT_S = 8
 PLAIN_MAX_CHARS = 600  # about 90 words: a longer rewrite is rambling, and the audit's wording goes out
+SAID_BEFORE_LINES = 6  # the interviewer's latest lines, so the next one doesn't repeat their phrasing
 SAFE_FEEDBACK = "Think about what another request could be doing while this one waits. What could change?"
 _STOPWORDS = frozenset(
     [
@@ -94,34 +96,68 @@ async def plain_question(
     sink: EventSink,
     *,
     answer: str | None = None,
+    reaction: str | None = None,
+    said_before: Sequence[str] = (),
 ) -> str:
     """The grill question in everyday words (#88 item 6): for the first question, a sentence or two on what the
-    attack did and what went wrong first; for a follow-up, a smaller first step when they said they don't know.
-    The model sees only what the candidate already has (the finding's title, file and category, the load test,
-    the question and their answer), so it can't give the cause away. Falls back to the audit's wording."""
-    fallback = grill_question(finding, chaos_summary) if chaos_summary else question
+    attack did and what went wrong first; for a follow-up, a reaction to what they actually said, then the
+    question (a smaller first step if they're lost). The model sees only what the candidate already has (the
+    finding's title, file and category, the load test, the question, their answer and the grader's note, which
+    never names the cause), plus the lines already said so it doesn't repeat them. Falls back to the audit's
+    wording."""
+    if chaos_summary:
+        fallback = grill_question(finding, chaos_summary)
+    else:
+        fallback = f"{reaction} {question}" if reaction else question
     user = {
         "kind": "first" if chaos_summary else "follow_up",
         "finding": finding.model_dump(include={"title", "file", "category"}),
         "load_test": chaos_summary,
         "question": question,
         "their_answer": answer[:MAX_ANSWER_CHARS] if answer else None,
+        "grader_note": reaction,
+        "you_already_said": list(said_before)[-SAID_BEFORE_LINES:],
     }
-    messages = [
-        {"role": "system", "content": PROMPTS["grill_plain_system"]},
-        {"role": "user", "content": json.dumps(user)},
-    ]
+    text = await _interviewer_line(llm, "grill_plain_system", user)
+    if text is None:
+        await note(sink, "info", f"Plain-words grill question for {finding.id} unavailable; audit wording.")
+        return fallback
+    return text
+
+
+async def clarify(
+    finding: Finding,
+    chaos_summary: str,
+    question: str,
+    message: str,
+    llm: ModelClient,
+    *,
+    said_before: Sequence[str] = (),
+) -> str | None:
+    """The interviewer's answer when the candidate asks something back during the grill ("what's p95?", "can you
+    say that again?"), or None when the message is their answer (even one phrased as a question), which is then
+    graded. Built from what the candidate already sees, so it can't give the cause away; on any failure the
+    message is graded, as before."""
+    user = {
+        "finding": finding.model_dump(include={"title", "file", "category"}),
+        "load_test": chaos_summary,
+        "question_on_screen": question,
+        "their_message": message[:MAX_ANSWER_CHARS],
+        "you_already_said": list(said_before)[-SAID_BEFORE_LINES:],
+    }
+    return await _interviewer_line(llm, "grill_clarify_system", user)
+
+
+async def _interviewer_line(llm: ModelClient, prompt: str, user: dict) -> str | None:
+    """One spoken line from the `interviewer` role, or None when it's down, empty, too long or has code."""
+    messages = [{"role": "system", "content": PROMPTS[prompt]}, {"role": "user", "content": json.dumps(user)}]
     try:
         out = await llm.complete_json("interviewer", messages, InterventionText, timeout_s=PLAIN_TIMEOUT_S)
-    except ModelUnavailable as exc:
-        await note(
-            sink, "info", f"Plain-words grill question for {finding.id} unavailable; audit wording. ({exc})"
-        )
-        return fallback
+    except ModelUnavailable:
+        return None
     text = out.text.strip()
     if not text or len(text) > PLAIN_MAX_CHARS or looks_like_code(text):
-        await note(sink, "info", f"Plain-words grill question for {finding.id} rejected; audit wording.")
-        return fallback
+        return None
     return text
 
 

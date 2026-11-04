@@ -131,7 +131,7 @@ async def test_time_warnings_are_text_only_and_say_the_minutes_left() -> None:
     await engine.tick()
     [warning] = interventions(rt)
     assert warning["trigger"] == "time_warning" and not warning["speak"]
-    assert warning["text"] == CANNED["time_warning"].format(minutes=10)
+    assert warning["text"] == "Time check: about 10 minutes left."
 
 
 @pytest.mark.asyncio

@@ -13,6 +13,7 @@ import sys
 import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 
 from crucible.config import Settings, get_settings
 from crucible.contracts.defense import Project
@@ -62,7 +63,7 @@ class LocalRunner:
         total_s + a margin if the candidate's code wedges where the per-test timer can't reach."""
         payload = harness_payload(req)
         workdir = await asyncio.to_thread(tempfile.mkdtemp, prefix="crucible-tests-")
-        proc = await asyncio.create_subprocess_exec(
+        proc = await _spawn(
             sys.executable,
             "-I",
             str(HARNESS_DIR / "run_tests.py"),
@@ -78,6 +79,9 @@ class LocalRunner:
             proc.kill()
             await proc.wait()
             return stopped_run(req, "the run took too long and was stopped")
+        except asyncio.CancelledError:
+            proc.kill()  # the session ended mid-run: don't leave the candidate's code running
+            raise
         finally:
             await asyncio.to_thread(shutil.rmtree, workdir, True)
         if proc.returncode != 0 or not out:
@@ -101,7 +105,7 @@ class LocalRunner:
         log_path = Path(log_name)
         log = await asyncio.to_thread(log_path.open, "wb")
         try:
-            proc = await asyncio.create_subprocess_exec(
+            proc = await _spawn(
                 *argv,
                 cwd=workdir,
                 stdout=log,
@@ -114,8 +118,10 @@ class LocalRunner:
         self._logs[h.workdir] = log_path
         try:
             await _wait_ready(port, proc, log_path, READY_TIMEOUT_S if not self._isolate else 120.0)
-        except RunnerError:
-            await self.stop_project(h)
+        except (RunnerError, asyncio.CancelledError):
+            await self.stop_project(
+                h
+            )  # cancelled while it started (the session ended): don't leave it running
             raise
         logger.info("project %s up on :%d (%s)", project.id, port, workdir)
         return h
@@ -126,7 +132,7 @@ class LocalRunner:
     async def stream_exec(self, h: ProjectHandle, argv: list[str], timeout_s: float) -> AsyncIterator[str]:
         if argv and argv[0] == "python":
             argv = [sys.executable, *argv[1:]]
-        proc = await asyncio.create_subprocess_exec(
+        proc = await _spawn(
             *argv,
             cwd=_workdir(h),
             stdout=asyncio.subprocess.PIPE,
@@ -202,6 +208,19 @@ def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
+
+
+async def _spawn(*argv: str, **kwargs: Any) -> asyncio.subprocess.Process:
+    """create_subprocess_exec that a cancellation can't interrupt halfway. Cancelled mid-spawn, asyncio waits for
+    a child it never stopped, and the event loop can't shut down (it hung the test suite when a session ended
+    while the race replay was starting the app). So the spawn always finishes; a cancelled one is then stopped."""
+    spawn = asyncio.ensure_future(asyncio.create_subprocess_exec(*argv, **kwargs))
+    try:
+        return await asyncio.shield(spawn)
+    except asyncio.CancelledError:
+        with contextlib.suppress(asyncio.CancelledError, OSError):
+            await _stop_tree(await spawn)
+        raise
 
 
 async def _stop_tree(proc: asyncio.subprocess.Process) -> None:

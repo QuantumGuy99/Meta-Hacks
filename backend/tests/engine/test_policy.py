@@ -19,6 +19,7 @@ from crucible.engine.policy import (
     BUG_STABLE_MS,
     CAP_COUNT,
     CAP_WINDOW_MS,
+    CHECKIN_MAX,
     COOLDOWN_MS,
     HOLD_MAX_MS,
     IDLE_AFTER_MS,
@@ -488,6 +489,19 @@ def test_the_check_in_repeats_at_most_every_three_minutes() -> None:
     assert decide(state, idle(first)) is not None
     assert decide(state, idle(first + IDLE_EVERY_MS - 1)) is None
     assert decide(state, idle(first + IDLE_EVERY_MS)) is not None
+
+
+def test_check_ins_back_off_and_stop_so_they_dont_sound_scripted() -> None:
+    state = PolicyState()
+    at = NOW + IDLE_AFTER_MS
+    assert decide(state, idle(at)) is not None
+    at += IDLE_EVERY_MS
+    assert decide(state, idle(at)) is not None
+    assert decide(state, idle(at + 2 * IDLE_EVERY_MS - 1)) is None  # the third waits twice as long
+    at += 2 * IDLE_EVERY_MS
+    assert decide(state, idle(at)) is not None
+    assert state.idles == CHECKIN_MAX
+    assert what(decide(state, idle(at + 8 * IDLE_EVERY_MS, time_limit_s=10**6))) is None
 
 
 # --- order and global guards -----------------------------------------------------------------------------------
