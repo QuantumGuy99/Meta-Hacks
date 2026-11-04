@@ -1,0 +1,6 @@
+{
+  "setup_body": "    resp = await client.get(BASE + \"/accounts\")\n    return {\"ids\": [a[\"id\"] for a in resp.json()]}\n",
+  "request_body": "    __import__(\"socket\")\n    return await client.post(BASE + \"/transfer\", json={\"i\": i})\n",
+  "invariant_body": "    resp = await client.get(BASE + \"/accounts\")\n    return True, 0, \"ok \" + str(len(resp.json()))\n",
+  "rationale": "corpus case"
+}

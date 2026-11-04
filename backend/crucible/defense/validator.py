@@ -27,6 +27,9 @@ BANNED_NAMES = frozenset(
         "exit",
         "quit",
         "memoryview",
+        "type",  # type(client)() builds a fresh client; object/super reach the same machinery
+        "object",
+        "super",
         "os",
         "sys",
         "subprocess",
@@ -65,6 +68,7 @@ BANNED_ATTRIBUTES = frozenset(
         "get_running_loop",
         "new_event_loop",
         "set_event_loop",
+        "event_hooks",  # clearing it would drop the template's loopback-only hook
     }
 )
 # The bodies get a ready-made `client`; making their own would skip the template's loopback-only hook.

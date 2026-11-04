@@ -41,8 +41,22 @@ class Sample:
     project: Project
     files: dict[str, str]
     flaws: list[dict] = field(default_factory=list)
-    reference_attack: ReferenceAttack | None = None
+    # reference_attack.json holds one attack or a list (one per flaw, e.g. ticket-drop's race and its O(n²) loop)
+    reference_attacks: list[ReferenceAttack] = field(default_factory=list)
     fixed_files: dict[str, str] | None = None  # the reference fix applied (fix.patch or fixed/)
+
+    @property
+    def reference_attack(self) -> ReferenceAttack | None:
+        """The first reference attack (the one for the app's headline flaw)."""
+        return self.reference_attacks[0] if self.reference_attacks else None
+
+    def reference_for(self, flaw_id: str, first_chaos_id: str | None) -> ReferenceAttack | None:
+        """The reference attack for `flaw_id`. One without a flaw_id belongs to the first finding with a chaos
+        plan (`first_chaos_id`)."""
+        for ref in self.reference_attacks:
+            if ref.flaw_id == flaw_id or (ref.flaw_id is None and first_chaos_id == flaw_id):
+                return ref
+        return None
 
 
 def load_samples(*dirs: Path | None) -> dict[str, Sample]:
@@ -78,23 +92,11 @@ def load_project_dir(d: Path, *, source: str = "sample") -> Sample:
         port=int(meta.get("port", DEFAULT_PORT)),
     )
     flaws = _read_json(d / "flaws.json") or []
-    ref = _read_json(d / "reference_attack.json")
-    reference = None
-    if ref:
-        try:
-            reference = ReferenceAttack(
-                concurrency=int(ref["concurrency"]),
-                duration_s=int(ref["duration_s"]),
-                functions=AttackFunctions.model_validate(ref["functions"]),
-                flaw_id=ref.get("flaw_id"),
-            )
-        except (KeyError, TypeError, ValueError) as exc:  # ValidationError is a ValueError
-            raise ProjectInvalid(f"reference_attack.json is invalid: {exc}") from exc
     return Sample(
         project=project,
         files=files,
         flaws=flaws,
-        reference_attack=reference,
+        reference_attacks=_reference_attacks(_read_json(d / "reference_attack.json")),
         fixed_files=_reference_fix(d, files),
     )
 
@@ -147,7 +149,7 @@ def _read_files(d: Path) -> dict[str, str]:
         if p.suffix not in TEXT_SUFFIXES:
             continue
         try:
-            files[rel.as_posix()] = p.read_text()
+            files[rel.as_posix()] = p.read_text(encoding="utf-8")
         except UnicodeDecodeError as exc:
             raise ProjectInvalid(f"{rel} isn't UTF-8 text") from exc
     return files
@@ -157,9 +159,29 @@ def _read_json(p: Path):
     if not p.exists():
         return None
     try:
-        return json.loads(p.read_text())
+        return json.loads(p.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise ProjectInvalid(f"{p.name} isn't valid JSON: {exc}") from exc
+
+
+def _reference_attacks(raw: dict | list | None) -> list[ReferenceAttack]:
+    items = raw if isinstance(raw, list) else [raw] if raw else []
+    try:
+        refs = [
+            ReferenceAttack(
+                concurrency=int(ref["concurrency"]),
+                duration_s=int(ref["duration_s"]),
+                functions=AttackFunctions.model_validate(ref["functions"]),
+                flaw_id=ref.get("flaw_id"),
+            )
+            for ref in items
+        ]
+    except (KeyError, TypeError, ValueError) as exc:  # ValidationError is a ValueError
+        raise ProjectInvalid(f"reference_attack.json is invalid: {exc}") from exc
+    ids = [r.flaw_id for r in refs]
+    if len(ids) != len(set(ids)):
+        raise ProjectInvalid("reference_attack.json has two attacks for the same flaw")
+    return refs
 
 
 def _reference_fix(d: Path, files: dict[str, str]) -> dict[str, str] | None:
@@ -168,14 +190,14 @@ def _reference_fix(d: Path, files: dict[str, str]) -> dict[str, str] | None:
         return {
             **files,
             **{
-                p.relative_to(fixed_dir).as_posix(): p.read_text()
+                p.relative_to(fixed_dir).as_posix(): p.read_text(encoding="utf-8")
                 for p in fixed_dir.rglob("*")
                 if p.is_file() and "__pycache__" not in p.parts
             },
         }
     patch = d / "fix.patch"
     if patch.exists():
-        return apply_patch(files, patch.read_text())
+        return apply_patch(files, patch.read_text(encoding="utf-8"))
     return None
 
 
@@ -185,7 +207,7 @@ def apply_patch(files: dict[str, str], patch_text: str) -> dict[str, str]:
         root = Path(tmp)
         for rel, content in files.items():
             (root / rel).parent.mkdir(parents=True, exist_ok=True)
-            (root / rel).write_text(content)
+            (root / rel).write_text(content, encoding="utf-8")
         try:
             result = subprocess.run(
                 ["patch", "-p1", "--quiet", "--forward"],
@@ -194,6 +216,7 @@ def apply_patch(files: dict[str, str], patch_text: str) -> dict[str, str]:
                 cwd=root,
                 capture_output=True,
                 check=False,
+                encoding="utf-8",
             )
         except FileNotFoundError as exc:  # the backend image installs GNU patch (Dockerfile)
             raise ProjectInvalid("fix.patch needs the `patch` program, which isn't installed") from exc
@@ -201,7 +224,7 @@ def apply_patch(files: dict[str, str], patch_text: str) -> dict[str, str]:
             raise ProjectInvalid(f"fix.patch doesn't apply: {result.stdout or result.stderr}")
         # Read back every file, so files the patch creates are included too.
         return {
-            p.relative_to(root).as_posix(): p.read_text()
+            p.relative_to(root).as_posix(): p.read_text(encoding="utf-8")
             for p in sorted(root.rglob("*"))
             if p.is_file() and p.suffix not in (".orig", ".rej")
         }

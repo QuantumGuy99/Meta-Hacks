@@ -1,11 +1,11 @@
 {
   "flaw_id": "f1",
-  "concurrency": 100,
+  "concurrency": 10,
   "duration_s": 10,
   "functions": {
     "setup_body": "    resp = await client.get(BASE + \"/reports\")\n    return {\"months\": resp.json()[\"months\"], \"health_ms\": []}\n",
     "request_body": "    months = ctx[\"months\"]\n    return await client.get(BASE + \"/reports/\" + months[i % len(months)])\n",
     "invariant_body": "    started = time.monotonic()\n    try:\n        resp = await client.get(BASE + \"/health\")\n        healthy = resp.status_code == 200\n    except Exception:\n        healthy = False\n    elapsed_ms = (time.monotonic() - started) * 1000\n    samples = ctx[\"health_ms\"]\n    samples.append(elapsed_ms if healthy else 10000.0)\n    ordered = sorted(samples)\n    p95 = ordered[min(len(ordered) - 1, int(len(ordered) * 0.95))]\n    slow = sum(1 for s in samples if s > 200)\n    if p95 <= 200:\n        return True, slow, f\"/health p95 stayed at {p95:,.0f} ms while reports were generating\"\n    return False, slow, f\"While {CONCURRENCY} reports were generating, /health p95 hit {p95:,.0f} ms ({slow} of {len(samples)} checks over 200 ms)\"\n",
-    "rationale": "Requests the monthly report over and over at 100 concurrent, while the invariant times GET /health on its own client every half second. The report route is async but calls the warehouse SDK's blocking query (time.sleep inside), which freezes the event loop for 200 ms per report, so health checks queue behind the reports. The invariant fails when the p95 of those health checks goes over 200 ms; violations counts the slow checks."
+    "rationale": "Requests the monthly report over and over at 10 concurrent, while the invariant times GET /health on its own client every half second. The report route is async but calls the warehouse SDK's blocking query (time.sleep inside), which freezes the event loop for 200 ms per report, so health checks queue behind the reports. Ten at a time keeps every report inside the client's 10 s timeout, so the run breaks on /health alone. The invariant fails when the p95 of those health checks goes over 200 ms; violations counts the slow checks."
   }
 }

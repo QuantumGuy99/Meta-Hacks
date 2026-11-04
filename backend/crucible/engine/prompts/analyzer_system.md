@@ -38,7 +38,8 @@ Describe the symptom, never the fix.
 
 ## Proposal
 Propose at most one intervention, or null. Propose only for a clear, current signal:
-- `missed_step`: a required step was skipped or not started while a later step is under way.
+- `missed_step`: a required step was skipped or not started while a later step is under way. Propose it at the
+  `question` level: ask about it the way an interviewer tests a candidate, don't point at it.
 - `bug_suspected`: a likely bug you can point to by line.
 - `run_failed`: the candidate is stuck on the same failing visible test.
 - `idle` or `silent`: no progress, or no talking, for a long while.

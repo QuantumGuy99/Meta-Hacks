@@ -13,13 +13,16 @@ ModelRole = Literal[
     "interviewer",
     "classifier",
     "complexity",
+    "conversation",
     "grill_eval",
+    "grill_check",
     "audit",
     "report",
     "attacker",
     "drafter",
     "vision",
     "guide",
+    "replay",
 ]
 # "none" returns 400 on Spark and Wonder (PLAN §15.2).
 Effort = Literal["minimal", "low", "medium", "high", "xhigh", "max"]
@@ -30,6 +33,8 @@ SPARK_CONTRIBUTOR = "muse-spark-1.3-contributor"
 WONDER = "muse-wonder-1.0"
 # The hackathon guide says to use this id, not "muse-spark-open" (PLAN §15.1).
 SPARK_OPEN = "meta-models/muse-spark-open-1026"
+# Voice output only (PLAN §14.7): Meta has no text-to-speech model. ElevenLabs' low-latency model.
+TTS_MODEL = "eleven_flash_v2_5"
 
 # USE_CONTRIBUTOR_MODELS=1: cheaper, but content may be used for training. Dev with synthetic data only.
 CONTRIBUTOR_MODELS: dict[str, str] = {SPARK: SPARK_CONTRIBUTOR}
@@ -85,14 +90,27 @@ ROLES: dict[ModelRole, RoleSpec] = {
     "interviewer": RoleSpec(_spark("low"), timeout_s=6),
     "classifier": RoleSpec(_spark("minimal"), timeout_s=3),
     "complexity": RoleSpec(_spark("low"), timeout_s=8),
-    "grill_eval": RoleSpec(_spark("medium"), timeout_s=10, fallbacks=(_spark("low"), _SPARK_OPEN)),
-    "audit": RoleSpec(_wonder("xhigh"), timeout_s=120, fallbacks=(_spark("high"),)),
+    # The interviewer's talk: the warm-up, short replies and check-ins (§9.5). A separate role from `interviewer`
+    # (which answers questions) so the strip says what it's doing and its budget can be tuned on its own.
+    # Minimal effort: these lines are short and every second of thinking is a pause the candidate hears.
+    "conversation": RoleSpec(_spark("minimal"), timeout_s=6),
+    # Low, not medium: with two graders checking each other (DEF-13), medium's 11 s on bank-transfer's finding
+    # (2026-10-29) bought nothing; low and Wonder low marked the same points in 4-6 s.
+    "grill_eval": RoleSpec(_spark("low"), timeout_s=10, fallbacks=(_spark("minimal"), _SPARK_OPEN)),
+    # The second grader (DEF-13): a different Meta model, so two must agree. Spark Open (open-weight) takes
+    # over once Baseten is configured; until then Wonder at low effort, in parallel with grill_eval.
+    "grill_check": RoleSpec(_wonder("low"), timeout_s=15, fallbacks=(_SPARK_OPEN,)),
+    # high, not xhigh: xhigh took 104-167 s on bank-transfer (Oct 28) and timed out at 120 s in a live run
+    # (Nov 3); high found every seeded flaw in 9 of 9 runs across the three samples (PLAN §15.1).
+    "audit": RoleSpec(_wonder("high"), timeout_s=120, fallbacks=(_spark("high"),)),
     "report": RoleSpec(_wonder("high"), timeout_s=45, fallbacks=(_spark("high"),)),
     "attacker": RoleSpec(_spark("low"), timeout_s=30, fallbacks=(_spark("medium"),)),
     "drafter": RoleSpec(_wonder("high"), timeout_s=120, fallbacks=(_spark("medium"), _SPARK_OPEN)),
     "vision": RoleSpec(_spark("low"), timeout_s=10),
-    # The "Ask Crucible" guide (#25): a quick, short answer; minimal effort if low is slow.
+    # The "Ask Ares" guide (#25): a quick, short answer; minimal effort if low is slow.
     "guide": RoleSpec(_spark("low"), timeout_s=8, fallbacks=(_spark("minimal"),)),
+    # DEF-14: narrates a race step by step after it's reproduced; runs in the background during the grill.
+    "replay": RoleSpec(_wonder("medium"), timeout_s=60, fallbacks=(_spark("high"),)),
 }
 
 PRICES: dict[str, Price] = {

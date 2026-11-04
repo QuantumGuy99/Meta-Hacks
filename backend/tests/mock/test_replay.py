@@ -62,3 +62,20 @@ def test_unknown_scenario_closes_the_socket(client):
 
     with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws/sessions/nope") as ws:
         ws.receive_json()
+
+
+def test_the_defense_fixture_is_recorded_from_the_real_demo_app():
+    audit = next(m for _, m in load_scenario(SCENARIO) if m["type"] == "defense.audit")["audit"]
+    assert [f["file"] for f in audit["findings"]] == ["app/services.py"]  # data/defense_apps/bank-transfer
+
+
+def test_report_fixtures_validate_and_serve_the_report_page(client):
+    from crucible.mock.replay import load_report_fixture, report_fixtures
+
+    assert "report-defense" in report_fixtures()
+    session, report, timeline = load_report_fixture("report-defense")
+    assert session.id == report.session_id == "report-defense" and report.defense is not None
+    assert client.get("/api/sessions/report-defense").json()["id"] == "report-defense"
+    assert client.get("/api/sessions/report-defense/report").json()["overall"] == report.overall
+    assert len(client.get("/api/sessions/report-defense/timeline").json()) == len(timeline)
+    assert client.get("/api/sessions/nope/report").status_code == 404

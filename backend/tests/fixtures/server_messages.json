@@ -60,6 +60,7 @@
     "fix_steps": []
   }},
   {"type": "defense.sam.highlight", "highlight": {"finding_id": "f1", "source": "canvas", "box": [36.5, 52.0, 231.0, 128.5], "node_id": "n1"}},
+  {"type": "defense.replay", "replay": {"finding_id": "f1", "file": "app/services.py", "lanes": [{"lane": "A", "start_ms": 0.4, "end_ms": 31.2, "status": 200}, {"lane": "B", "start_ms": 0.9, "end_ms": 29.8, "status": 200}], "steps": [{"lane": "A", "action": "reads the receiver's balance: $1,000.00", "line": 34}, {"lane": "B", "action": "reads the same balance: $1,000.00", "line": 34}, {"lane": "A", "action": "awaits the fraud check", "line": 38}, {"lane": "B", "action": "awaits the fraud check", "line": 38}, {"lane": "A", "action": "saves $1,001.00", "line": 41}, {"lane": "B", "action": "saves $1,001.00 over it: A's dollar is lost", "line": 41}], "detail": "$1.00 disappeared", "attempts": 1}},
   {"type": "defense.verdict", "verdict": {
     "passed": true, "reasons": ["f1 fixed: violations 37 → 0"], "findings_fixed": ["f1"], "findings_unfixed": [], "avg_grill_score": 8.0
   }},

@@ -359,7 +359,7 @@ def make_client(tmp_path: Path, asr: FakeASR | None) -> TestClient:
     write_quiet_streak(tmp_path)
     app = FastAPI()
     app.include_router(router)
-    modes = {Mode.CODING: CodingMode(ProblemBank.load(tmp_path))}
+    modes = {Mode.CODING: CodingMode(ProblemBank.load(tmp_path), warm_up=False)}
     model = RoleModel("Yes, it can be empty. What would you return then?")
     app.state.hub = SessionHub(MemoryStore(), modes, model=model, asr=asr)
     return TestClient(app)

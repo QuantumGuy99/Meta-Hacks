@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from crucible.contracts.common import Mode
+from crucible.contracts.defense import ReplayNarrative, ReplayStep
 from crucible.defense import audit as audit_mod
 from crucible.defense.attack_writer import extract_functions, render_attack
 from crucible.defense.audit import audit_from_flaws
@@ -178,6 +179,24 @@ def test_unfixed_code_breaks_again_then_the_fix_passes(client, bank):
         assert log.until(typed("defense.verdict"))["verdict"]["passed"]
 
 
+def test_a_double_clicked_verify_runs_one_attack(client, bank):
+    session_id = start(client, bank)
+    with client.websocket_connect(f"/ws/sessions/{session_id}") as ws:
+        log = Log(ws)
+        ws.send_json({"type": "hello", "client_now_ms": 0})
+        through_grill(log)
+        ws.send_json({"type": "chat.send", "text": GOOD_ANSWER})
+        log.until(phase("fix"))
+        verify = {"type": "defense.verify", "finding_id": "f1", "files": bank.fixed_files}
+        ws.send_json(verify)
+        ws.send_json(verify)  # a second click while the first attack runs
+        busy = log.until(typed("error"))
+        assert busy["code"] == "busy", busy
+        log.until(phase("ended"))
+    runs = [e for e in client.get(f"/api/sessions/{session_id}/timeline").json() if e["kind"] == "chaos_run"]
+    assert [r["payload"]["kind"] for r in runs] == ["baseline", "verify"]
+
+
 def test_unknown_project_is_a_400(client):
     r = client.post("/api/sessions", json={"mode": "defense", "project_id": "nope"})
     assert r.status_code == 400 and r.json()["error"]["code"] == "bad_config"
@@ -213,3 +232,34 @@ def test_extract_functions_round_trips_a_rendered_attack(bank):
         fn.request_body.strip(),
         fn.invariant_body.strip(),
     )
+
+
+def test_the_race_replay_only_arrives_after_the_grill_is_graded(bank, local_settings):
+    audit_mod._CACHE.clear()
+    llm = FakeLLM()
+    steps = [ReplayStep(lane=lane, action=f"step {i}", line=None) for i, lane in enumerate("ABAB")]
+    llm.push("replay", ReplayNarrative(steps=steps))
+    mode = make_mode(
+        local_settings,
+        samples={bank.project.id: bank},
+        runner=LocalRunner(local_settings),
+        llm=llm,
+        duration_override_s=2,
+    )
+    app = FastAPI()
+    app.include_router(router)
+    app.state.hub = SessionHub(MemoryStore(), {Mode.DEFENSE: mode}, idle_ttl_s=IDLE_TTL_S)
+    with TestClient(app) as client:
+        session_id = start(client, bank)
+        with client.websocket_connect(f"/ws/sessions/{session_id}") as ws:
+            log = Log(ws)
+            ws.send_json({"type": "hello", "client_now_ms": 0})
+            through_grill(log)
+            time.sleep(3)  # give the background replay time to finish before the answer
+            assert not any(m["type"] == "defense.replay" for m in log.seen)
+            ws.send_json({"type": "chat.send", "text": GOOD_ANSWER})
+            log.until(typed("defense.grill.eval"))
+            replay = log.until(typed("defense.replay"))
+            assert (
+                replay["replay"]["finding_id"] == bank.flaws[0]["id"] and len(replay["replay"]["steps"]) == 4
+            )

@@ -14,7 +14,7 @@ from crucible.engine.context import RubricContext
 from crucible.engine.hub import Connection, SessionRuntime
 from crucible.engine.interviewer import deliver
 from crucible.engine.live import LiveEngine
-from crucible.engine.policy import Decision
+from crucible.engine.policy import IDLE_AFTER_MS, Decision
 from crucible.engine.prompts import CANNED
 from tests.factories import FakeModel, analysis, problem_json, runtime
 
@@ -141,10 +141,10 @@ async def test_the_idle_clock_starts_when_coding_starts() -> None:
     clock.s = 100
     rt.session.phase = Phase.CODING
     await engine.tick()
-    clock.s = 174
+    clock.s = 100 + IDLE_AFTER_MS / 1000 - 1
     await engine.tick()
     assert interventions(rt) == []
-    clock.s = 175
+    clock.s = 100 + IDLE_AFTER_MS / 1000
     await engine.tick()
     assert [i["trigger"] for i in interventions(rt)] == ["idle"]
 

@@ -120,17 +120,21 @@
 .hero h1 {
   font-size: var(--step-display);
 }
-.lines .line {
-  display: block;
-  overflow: hidden;
-  padding-bottom: 0.08em;
-  margin-bottom: -0.08em;
+/* React Bits text effects take on the page's type instead of their demo defaults. */
+.hero-split {
+  padding-bottom: 0.06em; /* room for descenders inside SplitText's mask */
 }
-.lines [data-line] {
-  display: block;
+.word-float {
+  margin: 0;
+}
+.word-float-text {
+  font-size: inherit;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.05em;
 }
 .hero-sub {
-  max-width: 44ch;
+  max-width: 60ch; /* the 5-column aside already sets the measure */
 }
 .hero-actions {
   margin-top: 28px;
@@ -139,18 +143,13 @@
   align-items: center;
   gap: 16px 24px;
 }
-/* Full-width stage below the copy, bleeding off the right edge; the room always fits inside. */
+/* The room sits directly on the page below the copy, on the page's own margins (no frame). */
 .hero-stage {
   position: relative;
-  margin: clamp(48px, 7vh, 72px) calc(-1 * var(--margin)) 0 0;
-  background: var(--signal);
-  clip-path: polygon(96px 0, 100% 0, 100% 100%, 0 100%, 0 96px);
-  padding: 56px var(--margin) 56px 56px;
+  margin-top: clamp(48px, 7vh, 72px);
 }
 .hero-stage .room {
-  width: min(1040px, 100%);
-  margin-left: auto;
-  margin-right: auto;
+  width: 100%;
 }
 .lp-nav nav a {
   white-space: nowrap;
@@ -308,15 +307,30 @@
   color: var(--muted-ink);
   margin-bottom: 2px;
 }
+/* Interviewer messages: a quiet tint of the speaker's colour with an even border,
+   instead of a one-sided accent stripe (impeccable "side-tab"). */
 .msg-ai {
-  border-left: 3px solid var(--secondary-blue);
-  animation: msg-in 420ms var(--ease-out);
+  background: rgb(22 112 166 / 0.1);
+  border-color: rgb(22 112 166 / 0.32);
+}
+/* Motion animates hero messages; this wrapper keeps them stacked with the room's gap. */
+.room-msgs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.btn-count {
+  color: var(--muted-ink);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
 .msg-nudge {
-  border-left-color: var(--danger);
+  background: rgb(47 107 255 / 0.1);
+  border-color: rgb(47 107 255 / 0.35);
 }
 .msg-ok {
-  border-left-color: var(--ok);
+  background: rgb(47 107 255 / 0.1);
+  border-color: rgb(47 107 255 / 0.32);
 }
 .msg-you {
   background: var(--surface);
@@ -349,12 +363,12 @@
   text-align: center;
 }
 .st-done {
-  background: rgb(76 199 122 / 0.16);
+  background: rgb(47 107 255 / 0.16);
   color: var(--ok);
 }
 .st-miss {
   background: rgb(255 123 114 / 0.16);
-  color: #ff7b72;
+  color: #ffffff;
 }
 .st-prog {
   background: var(--surface);
@@ -458,8 +472,8 @@
   padding: 1px 7px;
   border-radius: 3px;
   /* darker than --danger so 13px white text clears 4.5:1 */
-  background: #b4262b;
-  color: #ffffff;
+  background: #ffffff;
+  color: #000000;
   font-size: 13px;
 }
 .fr-line {
@@ -468,7 +482,16 @@
 }
 .fr-line b {
   font-weight: 500;
-  color: #ff7b72;
+  color: #ffffff;
+}
+/* the run's raw invariant check, quieter than its summary */
+.fr-detail {
+  color: var(--muted-ink);
+  font-size: 13px;
+}
+/* the grill question, quoted in full */
+.fr-q {
+  color: #ffffff;
 }
 .fr-foot {
   display: flex;
@@ -483,31 +506,45 @@
   color: var(--ok);
   font-weight: 500;
 }
-.fr-chart {
-  position: relative;
+/* live uPlot chart + rolling NumberFlow metrics inside the Broke/Held finding */
+.fr-live {
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
   gap: 6px;
-  height: 72px;
-  padding: 8px 0 0;
-  border-bottom: 1px solid var(--ui-line);
 }
-.fr-chart .bar {
-  flex: 1;
-  background: var(--danger);
-  border-radius: 2px 2px 0 0;
-  transition: height 700ms var(--ease-out), background 300ms;
-}
-.fr-chart .bar-ok {
-  background: var(--ok);
-}
-.fr-chart em {
-  position: absolute;
-  top: 0;
-  right: 0;
-  font-style: normal;
+.fr-live-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
   color: var(--muted-ink);
+}
+.live-chart {
+  width: 100%;
+  min-width: 0;
+}
+.fr-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.fr-metrics dt {
+  font-size: 13px;
+  color: var(--muted-ink);
+}
+.fr-metrics dd {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.fr-metrics .is-bad {
+  color: #ffffff;
+}
+.fr-metrics .is-ok {
+  color: var(--ok);
 }
 
 /* how it works: three stage buttons drive one fragment, all on one screen */
@@ -554,18 +591,30 @@
   background: transparent;
   color: inherit;
   border: 0;
-  border-left: 3px solid var(--ui-line-2);
+  border-radius: 6px;
   cursor: pointer;
-  transition:
-    background 200ms,
-    border-color 200ms;
+  transition: background 200ms;
 }
 .hiw-step:hover {
   background: var(--surface);
 }
+/* Active stage: a filled tab with a small blue dot before the title, no side stripe. */
 .hiw-step.is-active {
-  background: var(--surface);
-  border-left-color: var(--secondary-blue);
+  background: var(--surface-2);
+}
+.hiw-title::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 10px;
+  border-radius: 50%;
+  vertical-align: 0.2em;
+  background: var(--ui-line-2);
+  transition: background 200ms;
+}
+.hiw-step.is-active .hiw-title::before {
+  background: var(--secondary-blue);
 }
 .hiw-title {
   font-size: var(--step-lead);
@@ -607,7 +656,6 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  animation: msg-in 420ms var(--ease-out);
 }
 .hf-plan,
 .hf-legend {
@@ -698,63 +746,6 @@
   to {
     left: 100%;
   }
-}
-
-/* models: two-ended rows in a narrow column */
-.sec-models {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  column-gap: 24px;
-  align-items: start;
-}
-.models-col {
-  grid-column: 1 / 7;
-}
-.models-col h2 {
-  margin-bottom: 32px;
-}
-.mgroup + .mgroup {
-  margin-top: 28px;
-}
-.mgroup-name {
-  color: var(--muted-ink);
-  font-size: 16px;
-  margin-bottom: 6px;
-}
-.mgroup li {
-  display: flex;
-  align-items: center;
-  min-height: 38px;
-  gap: 8px;
-}
-.mdot {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  flex: none;
-}
-.mdot-accent {
-  background: var(--signal);
-}
-.mdot-ink {
-  background: var(--secondary-blue);
-}
-.mdot-muted {
-  background: #4a4a4f;
-}
-.mname {
-  font-size: 16px;
-}
-.muse {
-  margin-left: auto;
-  font-size: 14px;
-  color: var(--muted-ink);
-}
-.models-note {
-  grid-column: 8 / 13;
-  margin-top: calc(var(--step-head) + 40px);
-  font-size: var(--step-lead);
-  line-height: 1.3;
 }
 
 /* cta: accent field with the setup dialog open */
@@ -889,41 +880,25 @@
 
 /* ---------- motion ---------- */
 @media (prefers-reduced-motion: no-preference) {
-  .js .lines [data-line] {
-    transform: translateY(105%);
-    animation: line-up 900ms var(--ease-out) forwards;
-    animation-delay: calc(var(--i) * 110ms + 150ms);
-  }
   .js .hero-sub,
   .js .hero-actions {
     opacity: 0;
     animation: fade-up 700ms var(--ease-out) 520ms forwards;
   }
   .js .hero-stage {
-    clip-path: polygon(96px 100%, 100% 100%, 100% 100%, 0 100%, 0 100%);
-    animation: stage-open 1100ms var(--ease-out) 300ms forwards;
+    opacity: 0;
+    animation: fade-up 900ms var(--ease-out) 380ms forwards;
   }
+  /* Hidden until GSAP's ScrollTrigger batch (LandingMotion) brings them in; no CSS
+     transition here so it doesn't fight the tween. */
   .js [data-reveal] {
     opacity: 0;
-    transform: translateY(24px);
-    transition:
-      opacity 700ms var(--ease-out),
-      transform 900ms var(--ease-out);
-  }
-  .js [data-reveal].is-in {
-    opacity: 1;
-    transform: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
   .dot-live,
   .hf-head {
     animation: none;
-  }
-}
-@keyframes line-up {
-  to {
-    transform: none;
   }
 }
 @keyframes fade-up {
@@ -934,11 +909,6 @@
   to {
     opacity: 1;
     transform: none;
-  }
-}
-@keyframes stage-open {
-  to {
-    clip-path: polygon(96px 0, 100% 0, 100% 100%, 0 100%, 0 96px);
   }
 }
 
@@ -969,12 +939,7 @@
     flex-wrap: wrap;
   }
   .hero-stage {
-    margin: 40px calc(-1 * var(--margin)) 0;
-    padding: 48px var(--margin) 24px;
-    clip-path: polygon(72px 0, 100% 0, 100% 100%, 0 100%, 0 72px);
-  }
-  .hero-stage .room {
-    width: 100%;
+    margin-top: 40px;
   }
   /* editor above the interviewer panel so nothing is cut at phone width */
   .room-body {
@@ -994,15 +959,13 @@
   .fr,
   .hiw-text,
   .hiw-stage,
-  .models-col,
-  .models-note,
   .cta-copy,
   .cta-dialog {
     grid-column: 1 / -1;
   }
   .fr-group {
     display: flex;
-    flex-direction: column-reverse;
+    flex-direction: column; /* the state label heads its card, as it does beside it on desktop */
     gap: 10px;
   }
   .fr-state {
@@ -1030,9 +993,6 @@
   }
   .hiw-frag {
     width: 100%;
-  }
-  .models-note {
-    margin-top: 48px;
   }
   .cta {
     display: flex;

@@ -12,10 +12,11 @@ from starlette.websockets import WebSocketDisconnect
 
 from crucible.coding.problems import ProblemBank
 from crucible.coding.session import CodingMode
+from crucible.config import Settings
 from crucible.contracts.common import Mode
 from crucible.contracts.events import TimelineKind
 from crucible.contracts.ws import ChatSend, SessionState
-from crucible.engine.api import SESSION_NOT_FOUND_CLOSE, router
+from crucible.engine.api import FORBIDDEN_ORIGIN_CLOSE, SESSION_NOT_FOUND_CLOSE, router
 from crucible.engine.hub import SessionHub
 from crucible.engine.store import MemoryStore
 
@@ -27,7 +28,7 @@ def client() -> Iterator[TestClient]:
     app = FastAPI()
     app.include_router(router)
     app.state.hub = SessionHub(
-        MemoryStore(), {Mode.CODING: CodingMode(ProblemBank([]))}, idle_ttl_s=IDLE_TTL_S
+        MemoryStore(), {Mode.CODING: CodingMode(ProblemBank([]), warm_up=False)}, idle_ttl_s=IDLE_TTL_S
     )
     with TestClient(app) as test_client:
         yield test_client
@@ -98,6 +99,36 @@ def test_unknown_session_socket_is_closed(client: TestClient) -> None:
     with pytest.raises(WebSocketDisconnect) as exc, client.websocket_connect("/ws/sessions/nope") as ws:
         ws.receive_json()
     assert exc.value.code == SESSION_NOT_FOUND_CLOSE
+
+
+@pytest.mark.parametrize(
+    ("origin", "production", "allowed"),
+    [
+        ("https://evil.example", False, False),  # another site's page in the visitor's browser
+        ("https://ares.example", True, True),  # the deployed frontend (CORS_ORIGINS)
+        ("http://127.0.0.1:3000", False, True),  # local dev on the other loopback name
+        ("http://127.0.0.1:3000", True, False),  # ...but not in production
+        (None, True, True),  # no browser page: tests and scripts
+    ],
+)
+def test_the_session_socket_checks_the_page_origin(
+    client: TestClient, origin: str | None, production: bool, allowed: bool
+) -> None:
+    client.app.state.settings = Settings(
+        _env_file=None, CORS_ORIGINS="https://ares.example", APP_ENV="prod" if production else "dev"
+    )
+    session = new_session(client)
+    headers = {"origin": origin} if origin else {}
+    if allowed:
+        with client.websocket_connect(f"/ws/sessions/{session['id']}", headers=headers) as ws:
+            assert sync(ws)["session"]["id"] == session["id"]
+    else:
+        with (
+            pytest.raises(WebSocketDisconnect) as exc,
+            client.websocket_connect(f"/ws/sessions/{session['id']}", headers=headers) as ws,
+        ):
+            ws.receive_json()
+        assert exc.value.code == FORBIDDEN_ORIGIN_CLOSE
 
 
 def test_first_connect_starts_the_session_and_hello_returns_state(client: TestClient) -> None:

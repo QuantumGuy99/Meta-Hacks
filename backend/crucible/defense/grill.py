@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import asyncio
 import json
 import re
 import uuid
@@ -96,6 +97,19 @@ def score_answer(
     return score, root_cause_hit
 
 
+def agreed(a: GrillEval, b: GrillEval, n_points: int) -> GrillEval:
+    """Code decides between two graders: a point counts when both marked it. A split on the root cause
+    (point 0) asks the follow-up instead of failing the candidate outright: the second answer can settle it."""
+    hit = sorted({i for i in a.points_hit if 0 <= i < n_points} & set(b.points_hit))
+    split_on_root = (0 in a.points_hit) != (0 in b.points_hit)
+    return GrillEval(
+        points_hit=hit,
+        points_missed=[i for i in range(n_points) if i not in hit],
+        needs_follow_up=0 not in hit or split_on_root or a.needs_follow_up or b.needs_follow_up,
+        feedback=a.feedback or b.feedback,
+    )
+
+
 def keyword_eval(points: list[str], answer: str) -> GrillEval:
     """Deterministic fallback when no model answers: a point is hit when ≥ 40% of its content words (by
     5-letter stem) appear in the answer (25% for point 0, the root cause). Cruder than the model; always
@@ -112,19 +126,39 @@ def keyword_eval(points: list[str], answer: str) -> GrillEval:
 async def evaluate_answer(
     finding: Finding, chaos_summary: str, answer: str, llm: ModelClient, sink: EventSink
 ) -> GrillEval:
-    try:
-        ev = await llm.complete_json(
-            "grill_eval", _messages(finding, chaos_summary, answer), GrillEval, timeout_s=GRILL_EVAL_TIMEOUT_S
-        )
-    except ModelUnavailable as exc:
+    """Two Meta models grade in parallel (DEF-13, PLAN §11.11): Muse Spark (`grill_eval`) and a second model
+    (`grill_check`). Code keeps only the points both marked. With one model down, the other grades alone;
+    with both down, the keyword fallback grades."""
+    messages = _messages(finding, chaos_summary, answer)
+    primary, check = await asyncio.gather(
+        _grade_with(llm, "grill_eval", messages), _grade_with(llm, "grill_check", messages)
+    )
+    if isinstance(primary, ModelUnavailable) and isinstance(check, ModelUnavailable):
         await note(
-            sink, "warning", f"Grill grading model unavailable for {finding.id}; keyword fallback. ({exc})"
+            sink,
+            "warning",
+            f"Grill grading models unavailable for {finding.id}; keyword fallback. ({primary})",
         )
         return keyword_eval(finding.grill.expected_points, answer)
+    if isinstance(primary, ModelUnavailable) or isinstance(check, ModelUnavailable):
+        down = "grill_eval" if isinstance(primary, ModelUnavailable) else "grill_check"
+        await note(sink, "info", f"Grill for {finding.id} graded by one model ({down} unavailable).")
+        ev = check if isinstance(primary, ModelUnavailable) else primary
+    else:
+        ev = agreed(primary, check, len(finding.grill.expected_points))
+        if set(primary.points_hit) != set(check.points_hit):
+            await note(sink, "info", f"Grill graders split on {finding.id}; only points both marked count.")
     if looks_like_code(ev.feedback):
         await note(sink, "warning", f"Grill feedback for {finding.id} contained code; replaced.")
         ev = ev.model_copy(update={"feedback": SAFE_FEEDBACK})
     return ev
+
+
+async def _grade_with(llm: ModelClient, role: str, messages: list[dict]) -> GrillEval | ModelUnavailable:
+    try:
+        return await llm.complete_json(role, messages, GrillEval, timeout_s=GRILL_EVAL_TIMEOUT_S)
+    except ModelUnavailable as exc:
+        return exc
 
 
 async def grade(

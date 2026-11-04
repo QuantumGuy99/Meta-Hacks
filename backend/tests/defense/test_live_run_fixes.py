@@ -14,7 +14,8 @@ from crucible.defense.audit import audit_from_flaws, check_audit, derive_topolog
 from crucible.defense.chaos import ChaosDone, decide_verdict
 from crucible.defense.controller import DefenseController
 from crucible.defense.grill import keyword_eval
-from crucible.defense.pipeline import reference_target
+from crucible.defense.model_client import WrapperModelClient
+from crucible.defense.pipeline import DefensePipeline, reference_target
 from tests.defense.fixtures import WEAK_ANSWER, FakeLLM
 
 # What a live Wonder audit wrote for bank-transfer: long compound points (#43 point 1).
@@ -151,3 +152,27 @@ def test_resource_leaks_are_listed_but_not_load_tested(bank):
     leak = result.findings[0].model_copy(update={"id": "leak", "category": "resource_leak"})
     checked = check_audit(result.model_copy(update={"findings": [leak]}), bank.files)
     assert checked.findings[0].id == "leak" and checked.findings[0].chaos is None
+
+
+async def test_defense_model_calls_carry_the_session_id():
+    class Recorder:
+        def __init__(self):
+            self.kwargs = None
+
+        async def complete_json(self, role, messages, schema, **kwargs):
+            self.kwargs = kwargs
+            return "ok"
+
+    llm = Recorder()
+    await WrapperModelClient(llm).for_session("sess-1").complete_json("audit", [], AuditResult, timeout_s=5)
+    assert llm.kwargs["session_id"] == "sess-1"
+
+
+async def test_a_cached_audit_still_shows_muse_wonder_on_the_strip(bank, sink, llm_down):
+    first = DefensePipeline(bank, None, llm_down, sink)
+    await first.run_audit()
+    assert "model_activity" not in sink.kinds()  # a real audit's activity comes from the model wrapper
+    second = DefensePipeline(bank, None, llm_down, sink)
+    await second.run_audit()
+    cached = [e.payload for e in sink.events if e.kind.value == "model_activity"]
+    assert cached and cached[0]["model_name"] == "Muse Wonder" and cached[0]["status"] == "cached"

@@ -409,14 +409,26 @@ class _Failed(Exception):
         self.retryable = retryable
 
 
+# A healthy connection to the model API opens in well under a second, but now and then one hangs. The SDK's
+# default waits 5 s before giving up, which a live interview hears as a 7 s pause (Oct 28); at 2 s the wrapper's
+# retry gets a fresh connection sooner. The role timeouts still bound the whole call.
+CONNECT_TIMEOUT_S = 2.0
+_HTTP_TIMEOUT = openai.Timeout(600.0, connect=CONNECT_TIMEOUT_S)
+
+
 def _build_clients(settings: LLMSettings) -> dict[Provider, AsyncOpenAI]:
     # max_retries=0: this module owns retries, so the SDK's own can't stack up under the role timeout.
     clients: dict[Provider, AsyncOpenAI] = {
-        "meta": AsyncOpenAI(base_url=settings.base_url, api_key=settings.api_key, max_retries=0)
+        "meta": AsyncOpenAI(
+            base_url=settings.base_url, api_key=settings.api_key, max_retries=0, timeout=_HTTP_TIMEOUT
+        )
     }
     if settings.baseten_base_url and settings.baseten_api_key:
         clients["baseten"] = AsyncOpenAI(
-            base_url=settings.baseten_base_url, api_key=settings.baseten_api_key, max_retries=0
+            base_url=settings.baseten_base_url,
+            api_key=settings.baseten_api_key,
+            max_retries=0,
+            timeout=_HTTP_TIMEOUT,
         )
     return clients
 

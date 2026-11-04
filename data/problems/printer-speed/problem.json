@@ -1,0 +1,337 @@
+{
+  "slug": "printer-speed",
+  "title": "Printer Speed",
+  "difficulty": "medium",
+  "topics": [
+    "binary search"
+  ],
+  "function": {
+    "name": "min_print_speed",
+    "params": [
+      {
+        "name": "pages",
+        "type": "list[int]"
+      },
+      {
+        "name": "h",
+        "type": "int"
+      }
+    ],
+    "returns": "int"
+  },
+  "starter_code": "def min_print_speed(pages: list[int], h: int) -> int:\n    pass\n",
+  "examples": [
+    {
+      "input": "pages = [3, 6, 7, 11], h = 8",
+      "output": "4",
+      "explanation": "At 4 pages per hour the documents take 1 + 2 + 2 + 3 = 8 hours. At 3 they'd take 10."
+    },
+    {
+      "input": "pages = [30, 11, 23, 4, 20], h = 5",
+      "output": "30",
+      "explanation": "With one hour per document, the speed must cover the largest one."
+    }
+  ],
+  "constraints": [
+    "1 <= len(pages) <= 10^4",
+    "len(pages) <= h <= 10^9",
+    "1 <= pages[i] <= 10^9"
+  ],
+  "tests_visible": [
+    {
+      "id": "v1",
+      "args": [
+        [
+          3,
+          6,
+          7,
+          11
+        ],
+        8
+      ],
+      "expected": 4,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v2",
+      "args": [
+        [
+          30,
+          11,
+          23,
+          4,
+          20
+        ],
+        5
+      ],
+      "expected": 30,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v3",
+      "args": [
+        [
+          30,
+          11,
+          23,
+          4,
+          20
+        ],
+        6
+      ],
+      "expected": 23,
+      "comparator": "exact",
+      "edge_case_id": null
+    }
+  ],
+  "tests_hidden": [
+    {
+      "id": "h1",
+      "args": [
+        [
+          1
+        ],
+        1
+      ],
+      "expected": 1,
+      "comparator": "exact",
+      "edge_case_id": "e1"
+    },
+    {
+      "id": "h2",
+      "args": [
+        [
+          10
+        ],
+        1
+      ],
+      "expected": 10,
+      "comparator": "exact",
+      "edge_case_id": "e2"
+    },
+    {
+      "id": "h3",
+      "args": [
+        [
+          10
+        ],
+        100
+      ],
+      "expected": 1,
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    },
+    {
+      "id": "h4",
+      "args": [
+        [
+          1,
+          1,
+          1
+        ],
+        3
+      ],
+      "expected": 1,
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    },
+    {
+      "id": "h5",
+      "args": [
+        [
+          1000000000
+        ],
+        2
+      ],
+      "expected": 500000000,
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    },
+    {
+      "id": "h6",
+      "args": [
+        [
+          1000000000,
+          1000000000
+        ],
+        3
+      ],
+      "expected": 1000000000,
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    },
+    {
+      "id": "h7",
+      "args": [
+        [
+          5,
+          5,
+          5,
+          5
+        ],
+        7
+      ],
+      "expected": 5,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h8",
+      "args": [
+        [
+          312884470
+        ],
+        312884469
+      ],
+      "expected": 2,
+      "comparator": "exact",
+      "edge_case_id": "e5"
+    },
+    {
+      "id": "h9",
+      "args": [
+        [
+          9,
+          8,
+          7,
+          6
+        ],
+        10
+      ],
+      "expected": 4,
+      "comparator": "exact",
+      "edge_case_id": null
+    }
+  ],
+  "rubric": {
+    "approaches": [
+      {
+        "name": "binary search on the speed",
+        "time": "O(n log max)",
+        "space": "O(1)",
+        "acceptable": true
+      },
+      {
+        "name": "try every speed from 1 upward",
+        "time": "O(n * max)",
+        "space": "O(1)",
+        "acceptable": false
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "title": "Clarify the input",
+        "required": true,
+        "order": 1,
+        "description": "Confirms the printer works on one document per hour and doesn't carry leftover capacity to the next document.",
+        "look_for": [
+          "asks whether the printer can split an hour between documents",
+          "mentions h at least the number of documents"
+        ],
+        "hints": [
+          "Before you start, is there anything about how the printer spends an hour that you'd want to confirm?",
+          "If a document finishes halfway through an hour, can the printer start the next one?",
+          "Confirm each hour goes to one document, so a document takes pages over speed hours, rounded up."
+        ]
+      },
+      {
+        "id": "s2",
+        "title": "Count the hours for a given speed",
+        "required": true,
+        "order": 2,
+        "description": "Computes the total hours needed at a speed using rounded-up division.",
+        "look_for": [
+          "rounds up per document",
+          "sums over all documents"
+        ],
+        "hints": [
+          "Look at how many hours one document takes at a given speed.",
+          "If a document has 7 pages at 4 pages per hour, is that 1.75 hours or 2?",
+          "Each document takes its pages divided by the speed, rounded up; add those up."
+        ]
+      },
+      {
+        "id": "s3",
+        "title": "Search over the speed",
+        "required": true,
+        "order": 3,
+        "description": "Notices that faster speeds never take more hours, and binary searches for the slowest speed that fits.",
+        "look_for": [
+          "says the hours go down as speed goes up",
+          "binary searches between 1 and the largest document"
+        ],
+        "hints": [
+          "Look at how the total hours change as the speed increases.",
+          "If speed 5 fits in the time, could speed 6 ever fail?",
+          "The answer is monotonic, so binary search for the smallest speed whose hours fit."
+        ]
+      },
+      {
+        "id": "s4",
+        "title": "Pick the right bounds",
+        "required": true,
+        "order": 4,
+        "description": "Searches from 1 to the largest document, and converges on the smallest valid speed.",
+        "look_for": [
+          "lower bound 1",
+          "upper bound is the largest page count",
+          "keeps a valid speed when it fits"
+        ],
+        "hints": [
+          "Check the smallest and largest speeds your search can try.",
+          "Is there any point printing faster than the biggest document?",
+          "Search between 1 and the largest document, keeping the boundary when a speed fits."
+        ]
+      }
+    ],
+    "edge_cases": [
+      {
+        "id": "e1",
+        "description": "a single one-page document"
+      },
+      {
+        "id": "e2",
+        "description": "exactly one hour per document"
+      },
+      {
+        "id": "e3",
+        "description": "lots of spare hours"
+      },
+      {
+        "id": "e4",
+        "description": "huge page counts"
+      },
+      {
+        "id": "e5",
+        "description": "the answer is just above 1"
+      }
+    ],
+    "common_mistakes": [
+      {
+        "id": "m1",
+        "description": "uses normal division instead of rounding up",
+        "symptom": "thinks speed 3 fits for [3, 6, 7, 11] in 8 hours"
+      },
+      {
+        "id": "m2",
+        "description": "tries every speed from 1 upward",
+        "symptom": "correct but far too slow when documents have a billion pages"
+      },
+      {
+        "id": "m3",
+        "description": "returns the first speed that fits in a search that doesn't keep the minimum",
+        "symptom": "gives a valid but too-fast answer"
+      }
+    ],
+    "wrap_up_questions": [
+      "What are the time and space complexity?",
+      "How would this change if the printer could switch documents mid-hour?"
+    ]
+  },
+  "time_limit_min": 30,
+  "illustration": null,
+  "origin_note": "Original. Pattern: binary search on the speed."
+}

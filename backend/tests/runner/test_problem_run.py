@@ -33,7 +33,7 @@ def submit(spec: ProblemSpec, code: str) -> RunRequest:
 
 
 async def test_reference_passes_every_case_and_the_starter_fails(local_settings):
-    spec = ProblemSpec.model_validate(json.loads(FIXTURE.read_text()))
+    spec = ProblemSpec.model_validate(json.loads(FIXTURE.read_text(encoding="utf-8")))
     runner = LocalRunner(local_settings)
 
     ref = await runner.run_tests("s", submit(spec, REFERENCE))

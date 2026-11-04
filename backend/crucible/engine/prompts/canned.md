@@ -14,4 +14,6 @@ Never put code, a fix or anything from a hidden test in a line. -->
 - plan_mismatch: Your code seems to be going a different way from the plan you described. Has the plan changed?
 - silent: Talk me through what you're doing.
 - idle: Where are you at?
+- reply: Okay, go on.
+- probe: Walk me through why this part of your code works.
 - concept: Let's step back from the code. In plain words, what idea does this part of the problem need?

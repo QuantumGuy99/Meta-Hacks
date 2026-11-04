@@ -184,7 +184,7 @@ def test_a_hint_request_for_a_named_step_is_about_that_step() -> None:
 
 
 def test_a_hint_request_follows_the_analyzers_step_and_wording() -> None:
-    state = seen(analysis(s1="done"))
+    state = seen(analysis(s1="done", level="nudge"))
     state.request_hint(None)
     decision = decide(state, facts())
     assert decision is not None and decision.step_id == "s1"
@@ -336,9 +336,9 @@ def test_a_failing_test_points_at_the_step_marked_incorrect() -> None:
 # --- MISSED_STEP -----------------------------------------------------------------------------------------------
 
 
-def test_a_step_missed_in_two_analyses_gets_a_nudge_in_the_analyzers_words() -> None:
+def test_a_step_missed_in_two_analyses_is_asked_about_in_the_analyzers_words() -> None:
     decision = decide(seen(analysis(), analysis()), facts())
-    assert what(decision) == (Trigger.MISSED_STEP, Level.NUDGE, "s1")
+    assert what(decision) == (Trigger.MISSED_STEP, Level.QUESTION, "s1")
     assert (
         decision is not None
         and decision.draft == "Before you go further, what should an empty list give you?"
@@ -362,13 +362,14 @@ def test_a_draft_at_another_level_falls_back_to_the_rubric() -> None:
     assert decision is not None and decision.draft is None
 
 
-def test_a_missed_step_climbs_the_ladder_only_on_fresh_analyses() -> None:
+def test_a_missed_step_is_asked_once_and_never_climbs_to_a_hint_on_its_own() -> None:
     state = seen(analysis(), analysis())
-    assert decide(state, facts()) is not None
-    later = NOW + COOLDOWN_MS
-    assert decide(state, facts(later)) is None  # same two analyses: no new evidence
-    seen(analysis(), analysis(), state=state)
-    assert what(decide(state, facts(later))) == (Trigger.MISSED_STEP, Level.QUESTION, "s1")
+    assert what(decide(state, facts())) == (Trigger.MISSED_STEP, Level.QUESTION, "s1")
+    for i in range(1, 4):  # still missed, with fresh evidence each time: no more help unless they ask
+        seen(analysis(), analysis(), state=state)
+        assert decide(state, facts(NOW + i * COOLDOWN_MS)) is None
+    state.request_hint("s1")
+    assert what(decide(state, facts(NOW + 4 * COOLDOWN_MS))) == (Trigger.HINT_REQUESTED, Level.HINT, "s1")
 
 
 # --- BUG_SUSPECTED ---------------------------------------------------------------------------------------------
@@ -500,7 +501,7 @@ def test_the_first_matching_rule_wins() -> None:
 
 
 def test_unsolicited_messages_are_45_s_apart() -> None:
-    state = seen(analysis(), analysis(), state=PolicyState(last_message_ms=NOW - COOLDOWN_MS + 1))
+    state = seen(analysis(), analysis(), state=PolicyState(last_help_ms=NOW - COOLDOWN_MS + 1))
     assert decide(state, facts()) is None
     assert decide(state, facts(NOW + 1)) is not None
 
@@ -534,7 +535,7 @@ def test_a_message_waits_for_typing_to_pause_then_goes_out() -> None:
     later = NOW - 1_000 + QUIET_AFTER_EDIT_MS
     assert what(decide(state, facts(later, last_edit_ms=NOW - 1_000))) == (
         Trigger.MISSED_STEP,
-        Level.NUDGE,
+        Level.QUESTION,
         "s1",
     )
 
@@ -553,7 +554,7 @@ def test_a_message_held_for_more_than_20_s_is_dropped_until_new_evidence() -> No
     assert state.held is None
     assert decide(state, facts(stale + 10_000)) is None  # quiet now, but the evidence is old
     seen(analysis(), analysis(), state=state)
-    assert what(decide(state, facts(stale + 10_000))) == (Trigger.MISSED_STEP, Level.NUDGE, "s1")
+    assert what(decide(state, facts(stale + 10_000))) == (Trigger.MISSED_STEP, Level.QUESTION, "s1")
 
 
 # --- passive mode ----------------------------------------------------------------------------------------------

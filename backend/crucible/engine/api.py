@@ -5,13 +5,15 @@ The app (main.py, S-0) includes `router` and puts a `SessionHub` on `app.state.h
 
 import contextlib
 import logging
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import TypeAdapter, ValidationError
 
+from crucible.config import get_settings
 from crucible.contracts.common import ApiError, ApiErrorBody, Phase, ReportPending, Session, SessionConfig
-from crucible.contracts.events import TimelineEvent
+from crucible.contracts.events import Intervention, TimelineEvent, TimelineKind
 from crucible.contracts.report import Report
 from crucible.contracts.ws import ClientMessage
 from crucible.engine.hub import (
@@ -26,6 +28,7 @@ from crucible.engine.hub import (
 from crucible.engine.limits import Verdict, audio_gate, session_gate
 from crucible.engine.timeline import public_view
 from crucible.engine.voice import AudioControl, VoiceBridge
+from crucible.models.tts import MEDIA_TYPE, Speech, SpeechUnavailable, speech_from
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +36,8 @@ router = APIRouter()
 CLIENT_MESSAGE: TypeAdapter[ClientMessage] = TypeAdapter(ClientMessage)
 AUDIO_CONTROL: TypeAdapter[AudioControl] = TypeAdapter(AudioControl)
 SESSION_NOT_FOUND_CLOSE = 4404  # WebSocket close code for an unknown session id
+FORBIDDEN_ORIGIN_CLOSE = 4403  # a browser page from a site that isn't ours
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 # Audio socket close codes (§8.3). The browser shows "use chat" for all three.
 VOICE_OFF_CLOSE = 4403  # the session was created with voice off
 VOICE_UNAVAILABLE_CLOSE = 4503  # no transcription configured, or it failed for good (§9.7)
@@ -102,9 +107,41 @@ async def get_report(session_id: str, request: Request) -> Report | JSONResponse
     return _error(409, "session_live", "The report is built once the session ends.")
 
 
+@router.get(
+    "/api/sessions/{session_id}/speech/{intervention_id}",
+    response_class=StreamingResponse,
+    response_model=None,
+    responses={200: {"content": {MEDIA_TYPE: {}}}, 404: {"model": ApiError}, 503: {"model": ApiError}},
+)
+async def get_speech(
+    session_id: str, intervention_id: str, request: Request
+) -> StreamingResponse | JSONResponse:
+    """One interviewer line read aloud (§14.7), as it streams. Only a line this session showed and marked to speak:
+    the endpoint never reads out text it's sent, so the voice key can't be used for anything else. 503 means
+    the browser voice speaks it instead."""
+    speech = _speech(request)
+    if speech is None:
+        return _error(503, "voice_unavailable", "No voice service is configured.")
+    hub = _hub(request)
+    if await hub.get_session(session_id) is None:
+        return _not_found(session_id)
+    line = _spoken_line(await hub.read_timeline(session_id), intervention_id)
+    if line is None:
+        return _error(404, "line_not_found", f"No spoken line {intervention_id} in this session.")
+    try:
+        audio = await speech.open(line)
+    except SpeechUnavailable as exc:
+        logger.warning("voice unavailable in %s: %s", session_id, exc)
+        return _error(503, "voice_unavailable", "The voice service didn't answer.")
+    return StreamingResponse(audio, media_type=MEDIA_TYPE, headers={"Cache-Control": "private, max-age=3600"})
+
+
 @router.websocket("/ws/sessions/{session_id}")
 async def session_socket(websocket: WebSocket, session_id: str) -> None:
     hub: SessionHub = websocket.app.state.hub
+    if not origin_allowed(websocket):
+        await websocket.close(code=FORBIDDEN_ORIGIN_CLOSE)
+        return
     if await hub.get_session(session_id) is None:
         await websocket.close(code=SESSION_NOT_FOUND_CLOSE)
         return
@@ -152,6 +189,9 @@ async def session_socket(websocket: WebSocket, session_id: str) -> None:
 async def audio_socket(websocket: WebSocket, session_id: str) -> None:
     """Raw PCM from the candidate's microphone plus start/stop/ask text frames (§8.3), into the VoiceBridge."""
     hub: SessionHub = websocket.app.state.hub
+    if not origin_allowed(websocket):
+        await websocket.close(code=FORBIDDEN_ORIGIN_CLOSE)
+        return
     session = await hub.get_session(session_id)
     if session is None:
         await websocket.close(code=SESSION_NOT_FOUND_CLOSE)
@@ -230,6 +270,36 @@ async def _over_rate(
 
 def _hub(request: Request) -> SessionHub:
     return request.app.state.hub
+
+
+def origin_allowed(websocket: WebSocket) -> bool:
+    """CORS doesn't cover WebSockets, so the socket checks the page's Origin itself: another site's page can't
+    open (and drive) a session in the visitor's browser. No Origin header means no browser page (tests, scripts),
+    which the session id alone admits. Outside production any loopback page is ours (localhost or 127.0.0.1)."""
+    origin = websocket.headers.get("origin")
+    if origin is None:
+        return True
+    settings = getattr(websocket.app.state, "settings", None) or get_settings()
+    allowed = settings.cors_origins
+    if "*" in allowed or origin.rstrip("/") in {o.rstrip("/") for o in allowed}:
+        return True
+    return not settings.is_production and urlsplit(origin).hostname in _LOOPBACK_HOSTS
+
+
+def _speech(request: Request) -> Speech | None:
+    """The voice service, made on first use from the app's settings (tests set `app.state.speech` themselves)."""
+    state = request.app.state
+    if not hasattr(state, "speech"):
+        state.speech = speech_from(state.settings)
+    return state.speech
+
+
+def _spoken_line(events: list[TimelineEvent], intervention_id: str) -> str | None:
+    for event in events:
+        if event.kind == TimelineKind.INTERVENTION and event.payload.get("id") == intervention_id:
+            line = Intervention.model_validate(event.payload)
+            return line.text if line.speak and not line.suppressed else None
+    return None
 
 
 def _error(status: int, code: str, message: str) -> JSONResponse:

@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     BASETEN_BASE_URL: str = ""
     BASETEN_API_KEY: str = Field(default="", repr=False)
     SPARK_OPEN_MODEL: str = "meta-models/muse-spark-open-1026"
+    # Voice output (PLAN §14.7): ElevenLabs reads the interviewer's lines aloud; unset → the browser voice.
+    TTS_API_KEY: str = Field(default="", repr=False)
+    TTS_VOICE_ID: str = ""  # an ElevenLabs voice id from their voice library
     MODAL_TOKEN_ID: str = Field(default="", repr=False)
     MODAL_TOKEN_SECRET: str = Field(default="", repr=False)
     MODAL_APP_NAME: str = "crucible-runner"
@@ -81,6 +84,10 @@ class Settings(BaseSettings):
     @property
     def has_meta_key(self) -> bool:
         return bool(self.MODEL_API_KEY)
+
+    @property
+    def has_tts(self) -> bool:
+        return bool(self.TTS_API_KEY and self.TTS_VOICE_ID)
 
     @property
     def is_production(self) -> bool:

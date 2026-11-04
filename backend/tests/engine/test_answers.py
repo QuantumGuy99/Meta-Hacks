@@ -154,7 +154,7 @@ def client(tmp_path: Path) -> Iterator[TestClient]:
     app.include_router(router)
     app.state.hub = SessionHub(
         MemoryStore(),
-        {Mode.CODING: CodingMode(ProblemBank.load(tmp_path))},
+        {Mode.CODING: CodingMode(ProblemBank.load(tmp_path), warm_up=False)},
         model=RoleModel("It can be empty. What would make sense to return then?"),
     )
     with TestClient(app) as test_client:

@@ -59,6 +59,7 @@ export type ServerMessage =
   | DefenseChaosDone
   | DefenseGrillEval
   | DefenseSamHighlight
+  | DefenseReplay
   | DefenseVerdict
   | ModelActivityMsg
   | ReportReady
@@ -92,7 +93,10 @@ export type InterventionTrigger =
   | "time_warning"
   | "phase"
   | "praise"
-  | "grill";
+  | "grill"
+  | "warmup"
+  | "reply"
+  | "probe";
 /**
  * This interface was referenced by `CrucibleContracts`'s JSON-Schema
  * via the `definition` "InterventionLevel".
@@ -123,7 +127,8 @@ export type TimelineKind =
   | "sam_highlight"
   | "verdict"
   | "system"
-  | "model_activity";
+  | "model_activity"
+  | "replay";
 /**
  * This interface was referenced by `CrucibleContracts`'s JSON-Schema
  * via the `definition` "FeedbackLevel".
@@ -670,6 +675,45 @@ export interface SamHighlight {
 }
 /**
  * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "DefenseReplay".
+ */
+export interface DefenseReplay {
+  type: "defense.replay";
+  replay: RaceReplay;
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "RaceReplay".
+ */
+export interface RaceReplay {
+  finding_id: string;
+  file: string;
+  lanes: ReplayLane[];
+  steps: ReplayStep[];
+  detail: string;
+  attempts: number;
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "ReplayLane".
+ */
+export interface ReplayLane {
+  lane: "A" | "B";
+  start_ms: number;
+  end_ms: number;
+  status: number;
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "ReplayStep".
+ */
+export interface ReplayStep {
+  lane: "A" | "B";
+  action: string;
+  line: number | null;
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
  * via the `definition` "DefenseVerdict".
  */
 export interface DefenseVerdict {
@@ -843,17 +887,7 @@ export interface GuideAsk {
   question: string;
   page: "home" | "coding_setup" | "defense_picker" | "room" | "report" | "other";
   in_session: boolean;
-  /**
-   * @maxItems 6
-   */
-  history?:
-    | []
-    | [GuideTurn]
-    | [GuideTurn, GuideTurn]
-    | [GuideTurn, GuideTurn, GuideTurn]
-    | [GuideTurn, GuideTurn, GuideTurn, GuideTurn]
-    | [GuideTurn, GuideTurn, GuideTurn, GuideTurn, GuideTurn]
-    | [GuideTurn, GuideTurn, GuideTurn, GuideTurn, GuideTurn, GuideTurn];
+  history?: GuideTurn[];
 }
 /**
  * This interface was referenced by `CrucibleContracts`'s JSON-Schema

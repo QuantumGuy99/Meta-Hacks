@@ -1,0 +1,21 @@
+{
+  "app": "ticket-drop",
+  "expected_findings": [
+    {
+      "flaw_id": "f1",
+      "file": "app/checkout.py",
+      "line_start": 27,
+      "line_end": 37,
+      "category": "race_condition"
+    },
+    {
+      "flaw_id": "f2",
+      "file": "app/checkout.py",
+      "line_start": 52,
+      "line_end": 76,
+      "category": "complexity"
+    }
+  ],
+  "baseline": "broke",
+  "verify_with_fix_patch": "held"
+}

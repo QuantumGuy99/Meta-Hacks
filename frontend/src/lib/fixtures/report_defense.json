@@ -1,0 +1,125 @@
+{
+  "session_id": "d9e8f7a6b5c4",
+  "mode": "defense",
+  "overall": 78,
+  "dimensions": [
+    {"name": "system_understanding", "score": 8, "evidence": "Named the read-modify-write race without help."},
+    {"name": "debugging", "score": 7, "evidence": "Fixed it on the first verify."},
+    {"name": "communication", "score": 7, "evidence": "Explained the interleaving clearly; needed the follow-up for the fix."}
+  ],
+  "summary": "You explained why money disappeared and fixed the race with a lock. The verify run held.",
+  "strengths": ["Found the root cause first", "Small, targeted fix", "Re-ran your own check before verifying"],
+  "improvements": ["Name the fix strategy before you're asked", "Mention what a transaction would change", "Check the other routes that touch balances"],
+  "moments": [
+    {"t": 64000, "kind": "issue", "title": "Chaos run broke", "detail": "Under 200 concurrent transfers, $1,240 disappeared.", "tip": null},
+    {"t": 212000, "kind": "good", "title": "Root cause named", "detail": "Explained the await between the read and the write.", "tip": null},
+    {"t": 498000, "kind": "milestone", "title": "Verify held", "detail": "The same attack kept the total at $10,000.", "tip": null}
+  ],
+  "metrics": {
+    "duration_s": 642,
+    "time_to_first_edit_s": 301,
+    "time_to_first_run_s": null,
+    "runs": 0,
+    "submits": 0,
+    "hidden_passed": null,
+    "hidden_total": null,
+    "interventions_shown": 1,
+    "hints_by_level": {"nudge": 1},
+    "chars_typed": 240,
+    "chars_pasted": 0,
+    "tab_hidden_s": 0,
+    "talk_time_s": 151,
+    "longest_silence_s": 88
+  },
+  "coding": null,
+  "defense": {
+    "findings": [
+      {
+        "id": "f1",
+        "title": "Balance transfers under load",
+        "category": "race_condition",
+        "severity": "critical",
+        "file": "app/main.py",
+        "line_start": 41,
+        "line_end": 58,
+        "node_id": "n1",
+        "explanation": "The route reads the sender balance, awaits the fraud check, then writes balance - amount. Concurrent transfers read the same balance, so later writes overwrite earlier ones and money disappears.",
+        "chaos": {
+          "endpoint": "/transfer",
+          "method": "POST",
+          "body_example": "{\"from\": \"acc-1\", \"to\": \"acc-2\", \"amount\": 10}",
+          "concurrency": 200,
+          "duration_s": 10,
+          "invariant": "the sum of all balances stays 10000",
+          "p95_threshold_ms": null
+        },
+        "grill": {
+          "question": "Under load, money disappeared from this service. Why did that happen?",
+          "expected_points": [
+            "the balance is read, then written after an await, with nothing guarding it (read-modify-write race)",
+            "concurrent requests read the same stale balance and overwrite each other's writes",
+            "make the read and write atomic: a lock per account or a database transaction"
+          ],
+          "follow_up": "What would you change so two transfers can't interleave like that?"
+        },
+        "fix_steps": []
+      }
+    ],
+    "chaos_runs": [
+      {
+        "id": "c1",
+        "finding_id": "f1",
+        "kind": "baseline",
+        "attempt": 1,
+        "script": "# attack.py (template + three generated bodies)",
+        "verdict": "broke",
+        "summary": "Under 200 concurrent transfers, $1,240 disappeared.",
+        "detail": "total 8760, expected 10000",
+        "metrics": [
+          {"run_id": "c1", "t_ms": 500, "in_flight": 200, "rps": 388.0, "p50_ms": 41.0, "p95_ms": 96.0, "p99_ms": 131.0, "errors": 0, "violations": 0},
+          {"run_id": "c1", "t_ms": 1000, "in_flight": 200, "rps": 402.0, "p50_ms": 43.0, "p95_ms": 101.0, "p99_ms": 140.0, "errors": 0, "violations": 37}
+        ]
+      },
+      {
+        "id": "c2",
+        "finding_id": "f1",
+        "kind": "verify",
+        "attempt": 1,
+        "script": "# attack.py (same script as c1)",
+        "verdict": "held",
+        "summary": "Under 200 concurrent transfers, the total stayed at $10,000.",
+        "detail": "total 10000, expected 10000",
+        "metrics": [
+          {"run_id": "c2", "t_ms": 500, "in_flight": 200, "rps": 251.0, "p50_ms": 70.0, "p95_ms": 154.0, "p99_ms": 199.0, "errors": 0, "violations": 0}
+        ]
+      }
+    ],
+    "grill": [
+      {
+        "finding_id": "f1",
+        "question": "Under 200 concurrent transfers, $1,240 disappeared. Why did that happen?",
+        "answer_turn_ids": ["tt-07", "tt-09"],
+        "follow_up_asked": true,
+        "eval": {
+          "points_hit": [0, 1],
+          "points_missed": [2],
+          "needs_follow_up": true,
+          "feedback": "You found why it broke. What would you change so it can't happen again?"
+        },
+        "sam_node_id": null,
+        "root_cause_hit": true,
+        "score": 7
+      }
+    ],
+    "verdict": {
+      "passed": true,
+      "reasons": ["f1 fixed: violations 37 → 0", "average grill score 7.0 ≥ 6", "root cause named for every finding"],
+      "findings_fixed": ["f1"],
+      "findings_unfixed": [],
+      "avg_grill_score": 7.0
+    },
+    "card_url": null
+  },
+  "model": "muse-wonder-1.0",
+  "generated_at": "2026-10-29T21:42:03Z"
+}

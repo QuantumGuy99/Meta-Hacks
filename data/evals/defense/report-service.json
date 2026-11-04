@@ -1,0 +1,14 @@
+{
+  "app": "report-service",
+  "expected_findings": [
+    {
+      "flaw_id": "f1",
+      "file": "app/reports.py",
+      "line_start": 20,
+      "line_end": 24,
+      "category": "blocking_io"
+    }
+  ],
+  "baseline": "broke",
+  "verify_with_fix_patch": "held"
+}

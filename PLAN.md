@@ -84,7 +84,7 @@ coding agents daily. Both modes solve problems we have firsthand.
 
 | Area | P0 (demo-critical) | P1 (should) | P2 (stretch) |
 |---|---|---|---|
-| **Room** | Monaco editor (Python), edit capture, interviewer panel, text chat, timer, phase stepper | Voice in (Muse Voice Transcribe), voice out (browser TTS), "interviewer's notes" panel | Multi-language (JS) |
+| **Room** | Monaco editor (Python), edit capture, interviewer panel, text chat, timer, phase stepper | Voice in: speech to text (Muse Voice Transcribe); voice out: ElevenLabs, browser voice as fallback (§14.7); "interviewer's notes" panel | Multi-language (JS) |
 | **Coding mode** | 12 validated problems, difficulty picker, run/submit tests, analyzer + policy (active and passive), hint ladder, paste/tab notes, report | 30 problems, plan-vs-code check, coded-before-plan check, wrap-up complexity question, problem illustrations | 40+ problems, SAM 3.1 paper sketch, proctor mode |
 | **Defense mode** | 3 sample apps, Wonder audit + topology diagram, chaos run (breaks before the fix, holds after), grill (text answers OK), fix in editor, verify, verdict | Voice grill, "circle the flaw" with SAM 3.1, Muse fix assistant (DEF-11, logged), attack refine loop, zip upload, 5 sample apps | GitHub URL import, suggested refactor patch / Muse Code handoff, Muse Image merge-gate card |
 | **Report** | Scores, summary, strengths/improvements, metrics, moments, replay (code playback + transcript + nudges) | Defense before/after charts in the report, share link | Muse Image report card |
@@ -104,9 +104,9 @@ coding agents daily. Both modes solve problems we have firsthand.
 
 ### 3.1 Live Coding Interview
 1. `/` → choose **Live Coding Interview**.
-2. `/coding` setup: difficulty (easy/medium/hard), optional topic, feedback **active/passive**, voice on/off,
-   "speak replies" on/off. → `POST /api/sessions` → redirect to `/coding/{id}`.
-3. **Intro** (≈30 s): the interviewer greets and presents the problem (text + TTS). The problem panel shows
+2. `/coding` setup: difficulty (easy/medium/hard), optional topic, feedback **active/passive**, voice (speech to
+   text) on/off. → `POST /api/sessions` → redirect to `/coding/{id}`.
+3. **Intro** (≈30 s): the interviewer greets and presents the problem (text + voice). The problem panel shows
    the statement, examples and constraints.
 4. **Clarify:** the candidate asks questions (voice or chat) and states an approach. The interviewer answers
    clarifying questions from the problem spec only. The editor is unlocked the whole time; coding before
@@ -169,7 +169,7 @@ Monaco change ──► EditorCapture batches 500 ms ──► WS editor.events 
                  └─► Timeline.append(analysis) ──► Policy.decide(analysis, state)
                         ├─ no  → nothing (passive mode: log a suppressed intervention)
                         └─ yes → Interviewer.phrase() ──► leak guard ──► Timeline.append(intervention)
-                                   ──► WS interviewer.message ──► panel + TTS
+                                   ──► WS interviewer.message ──► panel + voice (§14.7)
 ```
 
 Runs, final transcript turns and explicit asks also trigger the scheduler (§9.4).
@@ -208,12 +208,12 @@ Finding.chaos (plan) ──► AttackWriter (Spark → reference attack) fills 3
 | Storage | **SQLite** via SQLModel (file at `DATABASE_URL`) | One file; volume-mounted when deployed |
 | Code execution | **Modal Sandboxes** (`modal` SDK); `LocalRunner` subprocess for dev | |
 | Frontend | **Next.js 16** (App Router, Turbopack) + **React 19** + TypeScript, **Tailwind v4**, **shadcn/ui** (`base-nova` style, Base UI primitives) | Desktop-first (≥ 1280 px); an editor app. Next 16 changed APIs, so read `frontend/AGENTS.md` before writing frontend code |
-| UI rules | [`frontend-schematic/UI_TEMPLATE.md`](frontend-schematic/UI_TEMPLATE.md): dark theme tokens, one accent, Hanken Grotesk (Geist Mono only in code), taste-skill look + Vercel's Web Interface Guidelines | Every screen is checked against it before its PR. Lives on the `frontend` branch until it merges |
+| UI rules | [`frontend-schematic/UI_TEMPLATE.md`](frontend-schematic/UI_TEMPLATE.md): black, cobalt `#2f6bff` and white; Space Grotesk headings and controls, Inter for reading text, Geist Mono for code and terminal cues; taste-skill look + Vercel's Web Interface Guidelines | Every screen is checked against it before its PR |
 | Editor | `@monaco-editor/react` | Disable quick suggestions to keep it interview-like |
-| Diagram / charts | `@xyflow/react` (React Flow) with `@dagrejs/dagre` auto-layout, **Recharts** | |
-| Other frontend libs | `react-markdown` (problem statements), `motion` (state-change animation), `lucide-react` (icons) | Each listed in the PR that adds it (§22 rule 12) |
+| Diagram / charts | `@xyflow/react` (React Flow) with `@dagrejs/dagre` auto-layout; **uPlot** for the live chaos-lab charts; **Recharts** (shadcn `chart`) for the report's static charts | uPlot draws on a canvas with no tweening, so it stays cheap at a metric sample every 500 ms; Recharts is fine where nothing streams |
+| Other frontend libs | `streamdown` (problem statements and streamed interviewer replies), `shiki` (static code on the landing page), `motion` (state-change animation), `gsap` + `lenis` (landing-page scroll motion only), `@number-flow/react` (animated numbers), `sonner` (toasts), `lucide-react` (icons) | Each listed in the PR that adds it (§22 rule 12) |
 | Client state | **zustand** | One store per session |
-| TTS | Browser **`speechSynthesis`** | Meta has no TTS model; this is free and needs no key |
+| TTS | **ElevenLabs** Flash v2.5 through the backend (§14.7), browser **`speechSynthesis`** as the fallback | Meta has no TTS model; the browser voices sounded robotic in real runs (Nov 3) |
 | Lint/test | ruff, pytest, pytest-asyncio; eslint, tsc, Playwright (P1) | |
 | CI | GitHub Actions: `make check` | |
 | Hosting | Frontend **Vercel**; backend **Railway** or **Fly.io** (Docker, WebSockets, volume) | |
@@ -277,7 +277,7 @@ Owners: **SG** Srinithin Ganesh · **SS** Shreyas Sahoo · **LG** Likhil Gudipat
         │   ├── capture/editor.ts              (SG)  Monaco → EditorEvent batches + snapshots
         │   ├── capture/audio/*                (SG)  mic → AudioWorklet → PCM 24 kHz Int16 frames
         │   ├── replay.ts                      (SG)  code at time t (mirrors engine/codestate.py)
-        │   ├── tts.ts                         (LG)
+        │   ├── tts.ts                         (SG)  interviewer voice, speechSynthesis (LG reviews)
         │   └── defense.ts                     (SS)  defense-stage helpers/selectors
         └── types/contracts.ts                 # GENERATED (make contracts); do not edit
 ```
@@ -331,7 +331,7 @@ class SessionConfig(Strict):
     mode: Mode
     feedback: FeedbackLevel = FeedbackLevel.ACTIVE
     voice: bool = True               # mic + Muse Voice Transcribe
-    speak_replies: bool = True       # browser TTS for interviewer messages
+    speak_replies: bool = True       # interviewer lines read aloud (§14.7); the setup form leaves it on
     proctor: bool = False            # P2: SAM 3.1 webcam checks (opt-in)
     problem_slug: str | None = None  # coding: explicit problem
     difficulty: Difficulty | None = None  # coding: random problem at this difficulty
@@ -409,6 +409,7 @@ class InterventionTrigger(StrEnum):
     BUG_SUSPECTED = "bug_suspected"; PLAN_MISMATCH = "plan_mismatch"; CODED_BEFORE_PLAN = "coded_before_plan"
     PASTE = "paste"; ASKED = "asked"; HINT_REQUESTED = "hint_requested"; TIME_WARNING = "time_warning"
     PHASE = "phase"; PRAISE = "praise"; GRILL = "grill"
+    WARMUP = "warmup"; REPLY = "reply"; PROBE = "probe"   # conversation, not help (§10.1, §9.5)
 
 class InterventionLevel(StrEnum):
     INFO = "info"; NUDGE = "nudge"; QUESTION = "question"; HINT = "hint"; CONCEPT = "concept"
@@ -853,11 +854,11 @@ Client → server:
 |---|---|---|
 | `hello` | `client_now_ms` | Server replies `session.state` (includes `started_at`) |
 | `editor.events` | `events: EditorEvent[]` | Sent every 500 ms when non-empty |
-| `editor.snapshot` | `CodeSnapshot` | Every 20 changes, every 15 s with changes, and before run/submit |
+| `editor.snapshot` | `CodeSnapshot` | Once on attach (the baseline), every 20 changes, every 15 s with changes, and before run/submit |
 | `code.run` / `code.submit` | `file`, `code` | Runs tests → `run.result` |
 | `chat.send` | `text` | Text alternative to voice; becomes a candidate `TranscriptTurn` (source=text) addressed to the interviewer |
 | `hint.request` | `step_id?` | Explicit hint (counted) |
-| `phase.advance` | `to: Phase` | Candidate-driven transitions only: clarify → coding ("Start coding") and coding → wrap_up ("I'm done"); the server rejects anything else |
+| `phase.advance` | `to: Phase` | Candidate-driven transitions only: intro → clarify ("Skip intro"), clarify → coding ("Start coding") and coding → wrap_up ("I'm done"); the server rejects anything else |
 | `defense.run_chaos` | `finding_id` | Normally automatic; manual retry button |
 | `defense.verify` | `finding_id`, `files: {path: code}` | Re-run the attack on edited files |
 | `assistant.ask` | `text`, `file: str \| None`, `selection: str \| None` | P1 (§11.9): ask the Muse fix assistant → `assistant.reply` |
@@ -914,7 +915,7 @@ Server → client:
 - The client sends **raw PCM, signed 16-bit little-endian, mono, 24 kHz**, in **80 ms frames (1,920 samples =
   3,840 bytes)** at real-time pace. Text frames: `{"type":"start"}` / `{"type":"stop"}`, and
   `{"type":"ask","holding":true|false}` when the **Ask** button is pressed and released.
-- While TTS speaks, the client sends **silence** instead of the mic (not nothing): the stream keeps real-time
+- While the interviewer speaks (§14.7), the client sends **silence** instead of the mic (not nothing): the stream keeps real-time
   pace (Meta closes streams that fall behind) and the audio clock stays aligned with session time.
 - The server forwards the frames to Meta's realtime ASR (§9.7) and publishes transcripts on the JSON socket.
 - Close codes: `4404` unknown session, `4403` the session has voice off, `4503` voice unavailable (no key, or
@@ -1068,8 +1069,10 @@ request, a run or an analysis.
 - Never deliver within **2.5 s** of the last edit or while candidate speech is in progress. Hold it in a
   one-slot queue, re-check the rules each tick, and deliver when quiet. If it's held for more than **20 s**,
   drop it; the rule then waits for fresh evidence (2 new analyses, or a new run).
-- **45 s** minimum between unsolicited messages; answers (`ASKED`, `HINT_REQUESTED`) restart that clock too,
-  so a nudge never lands right after an answer. At most **8 unsolicited per 30 min**.
+- **45 s** minimum between unsolicited help messages; answers (`ASKED`, `HINT_REQUESTED`) restart that clock
+  too, so a nudge never lands right after an answer. At most **8 unsolicited per 30 min**. Talk (`REPLY`,
+  `PROBE`) uses neither, but every unsolicited line (help or talk) is at least **15 s** after the previous line,
+  with one exception: a reply in the candidate's turn (the `REPLY` row).
 - Never repeat the same `(trigger, subject)` at the same level. The subject is the step for ladder rules, the
   issue for `BUG_SUSPECTED` and the plan for `PLAN_MISMATCH`. `SILENT` and `IDLE` repeat on their own clocks.
 - An analysis rule fires again for the same step or issue only after **2 analyses newer than its last fire**,
@@ -1086,12 +1089,25 @@ request, a run or an analysis.
 | `PASTE` | paste ≥ 40 chars or ≥ 2 non-blank lines, or a bulk insert (≥ 80 chars in one change) | INFO, text only, neutral ("I noticed a pasted block. I'll focus my feedback on the parts you wrote.") | said once; COD-4 logs every flag |
 | `CODED_BEFORE_PLAN` (P1) | ≥ 3 non-blank lines written beyond the starter code (the editor's first snapshot) while no plan has been stated this session (the policy keeps the latest `stated_plan`, so a plan older than the analyzer's 90 s window still counts), voice on, in `clarify`/`coding` | QUESTION ("Before you go further, what's your approach?") | once |
 | `RUN_FAILED` | the same visible test failed on 2 runs in a row, or 1 failure then 30 s with no edit or speech (hidden tests never count) | ladder for the step: the analyzer's `RUN_FAILED` step, else the first `incorrect` step, else the first required step not done | — |
-| `MISSED_STEP` | a required step is `skipped`/`not_started` while a step with higher `order` is `in_progress`/`done`/`incorrect`, seen in **2 consecutive analyses**; waits while the analyzer's own proposal for it is below 0.7 | ladder | — |
+| `MISSED_STEP` | a required step is `skipped`/`not_started` while a step with higher `order` is `in_progress`/`done`/`incorrect`, seen in **2 consecutive analyses**; waits while the analyzer's own proposal for it is below 0.7 | QUESTION, asked once per step: the interviewer tests, it doesn't hint. HINT and CONCEPT only when the candidate asks (`HINT_REQUESTED`) or is stuck (`RUN_FAILED`) | per step |
 | `BUG_SUSPECTED` | a `bug` or `edge_case` issue with a line and confidence ≥ 0.75, seen in 2 consecutive analyses, its line's text unchanged for 20 s | NUDGE, canned "Take another look around line N" (never the analyzer's draft, which may hint at the fix) | per issue |
 | `PLAN_MISMATCH` (P1) | `plan_matches_code == false` in 2 consecutive analyses, with a stated plan (the latest, or the one the policy remembers) | QUESTION | per plan |
-| `SILENT` (P1, voice on) | in `coding`, ≥ 120 s without a final candidate turn (voice or chat) | NUDGE ("Talk me through what you're doing.") | every 5 min max |
-| `IDLE` | in `coding` (or defense `fix`), no edit and no speech ≥ 75 s | QUESTION ("Where are you at?") | every 3 min max |
+| `SILENT` (P1, voice on) | in `coding`, ≥ 75 s without a final candidate turn (voice or chat) | NUDGE, a check-in the model words from the screen (`reply(kind="checkin")`), canned "Talk me through what you're doing." | every 3 min max |
+| `IDLE` | in `coding` (or defense `fix`), no edit and no speech ≥ 60 s | QUESTION, a model-worded check-in, canned "Where are you at?" | every 2 min max |
+| `REPLY` (talk, active) | in `clarify`/`coding`, the candidate said or typed something that isn't a question (≥ 6 words; a voice turn the classifier labels thinking aloud), the interviewer has been quiet ≥ 20 s (counting from the problem's presentation), within 8 s of it being said. **In their turn** (Nov 2) it needn't wait for the 15 s and 20 s clocks: what they say right after an answer to their question has reached them, or right after the problem is presented ("tell me your approach"), is the other half of a conversation, so it gets a reply at once (`PolicyState.turn_ms`, set when `LiveEngine` delivers the answer). It stays ≥ 15 s from the interviewer's own last unprompted line, one reply per turn. It goes out as soon as it's written: the final transcript already ended their turn, so it skips the quiet window unless they talk or type again | INFO: the model (`reply(kind="reply")`) asks one follow-up that makes them justify it, or acknowledges briefly; never confirms or hints | 1 per 40 s, 12 per session |
+| `PROBE` (talk, active) | in `coding`, a step became `done` that wasn't probed yet, no serious issue open, quiet ≥ 45 s. Code decides when; the model (`reply(kind="probe")`, never shown the rubric) asks why their code works, what a line does for an input, or what a part costs | QUESTION | 4 per session; steps done together get one probe |
 | `PRAISE` | a step marked tricky in the rubric becomes `done` | INFO | max 1 per 10 min |
+
+**Response time (Oct 28).** A real run felt slow (3–4 s), so the engine doesn't make the candidate wait for
+steps in a row: on a final spoken turn it starts writing the answer and, if a reply could go out, the reply
+while the classifier decides which it is, then sends the one that fits (`LiveEngine._write_ahead`). The warm-up
+reply is written during the pause after an answer. Measured before: thinking aloud → reply 3.6 s after the
+final transcript (classifier 0.6 s, quiet window 1.5 s, model 1.3 s); question → answer 2.0 s; warm-up 4.4 s.
+
+**Talk vs help (built Oct 28).** `REPLY`, `PROBE` and the check-ins are the interviewer's side of the
+conversation, not help: they don't count as interventions shown or against independence (`NOT_HELP`), and the
+model writes them on delivery with the `conversation` role (Spark low, 6 s; the strip says "talking with you"),
+falling back to canned lines. They're active-mode only.
 
 `PRAISE` isn't built: `RubricStep` has no "tricky" flag, so it needs a contract change (SG + SS). It's a
 `TODO(ENG-5)` in `policy.py`.
@@ -1192,8 +1208,9 @@ One `VoiceBridge` per session (`rt.voice`), opened by the audio socket; `models/
 
 ### 9.8 ReportBuilder (`report.py`)
 1. **Metrics in code** from the stored timeline (`Metrics`, §7.5). Interventions shown and `hints_by_level`
-   count only help the candidate saw: not suppressed ones, phase lines, grill questions, or paste and time
-   notes. Talk time is voice turns only. The longest silence is the longest stretch with no talking, typing or
+   count only help the candidate saw: not suppressed ones, phase lines, grill questions, talk, answers to the
+   candidate's own questions (asking is what clarifying should look like; they're still moments and reach the
+   report model), or paste and time notes. Talk time is voice turns only. The longest silence is the longest stretch with no talking, typing or
    runs, counted only in phases where the candidate is expected to act (clarify, coding, wrap-up, grill, fix).
 2. **Candidate moments in code** (up to 14, sorted by `t`; a short session has fewer): first edit, approach
    stated, each intervention shown (with "time to recover": when its step next became `done`), questions the
@@ -1228,7 +1245,12 @@ Owner: **SG**. Data: **ST**.
 
 ### 10.1 Phases and timers
 `setup → intro → clarify → coding → wrap_up → ended → reporting → reported`
-- `intro → clarify`: automatically after the intro message (or 30 s).
+- `intro → clarify`: after the warm-up (2 answers, 90 s, 25 s with no answer, or "Skip intro"). The clock
+  doesn't run during the intro: leaving it adds the elapsed time to `time_limit_s`.
+- **Warm-up (built Oct 28):** a greeting that asks about the candidate (`WARMUP`, QUESTION); the model
+  (`interviewer.reply()`, prompt `interviewer_warmup.md`, never shown the problem) reacts with one follow-up,
+  then a closing line; then the problem. Spoken answers wait for the quiet gap, like wrap-up answers. Canned
+  lines when the model fails. `CodingMode(warm_up=False)` goes straight to the problem (engine tests, evals).
 - `clarify → coding`: the candidate clicks **Start coding** (`phase.advance`) or makes the first substantive
   edit (≥ 3 non-blank lines).
 - `coding → wrap_up`: on a submit that passes all hidden tests, when time runs out, or on the candidate's
@@ -1248,6 +1270,14 @@ Owner: **SG**. Data: **ST**.
     "That's time", or a plain one for "I'm done"). The live engine is detached, so chat answers aren't treated
     as questions. The rubric's `wrap_up_questions` are asked one per candidate answer, then the closing line,
     and the session ends. With no answer for 3 min (`wrap_up_limit_s`), it closes anyway.
+  - **When an answer is over:** a typed answer moves on at once. A spoken one moves on after **1.2 s** with no
+    new candidate speech (`ANSWER_GAP_MS`; 2.5 s felt slow in a real run, Oct 28): Muse Voice ends a turn at
+    every pause, so "It's O of n time" [pause] "and O of one space" arrives as two final turns. Each new final
+    turn restarts the wait, and a turn still being spoken (speechStart has set the interviewer state to
+    `listening` and the turn isn't final yet) holds it. A typed answer while a spoken one is waiting moves on at
+    once and drops the wait. Two answers to the same question move on once. The 3-minute limit still closes the
+    session, even mid-sentence. Live check (real Muse Voice, two clips 1.5 s apart with silence streaming
+    between): one next question, 2.5 s after the second half's final turn.
   - **Resuming during the wrap-up** recounts the questions already asked from the timeline and waits for the
     next answer.
   - Phase lines show in passive mode too: they run the interview, they aren't feedback.
@@ -1278,8 +1308,9 @@ Owner: **SG**. Data: **ST**.
   failure leaves a `system` note and sends `runner_unavailable` (retryable) to the tab that pressed Run, via
   `rt.sender` (the connection whose message the mode is handling). Run works from `clarify` on; a submit that
   passes every test during `coding` moves to `wrap_up` (§10.1).
-- The Modal runner's `run_tests` is RUN-2. Until then, coding sessions need `RUNNER=local` +
-  `ALLOW_LOCAL_RUNNER=1` (dev).
+- The Modal runner's `run_tests` is RUN-2 (#67). COD-3 step 3: `CodingController.on_start` warms the
+  session's sandbox in a background task (`RunService.open_session`; a failure is logged and ignored, Run
+  opens it lazily), and `close_session` runs once when the session ends or the runtime closes.
 
 ### 10.4 Integrity (`integrity.py`)
 - Editor `paste` with ≥ 40 chars or ≥ 2 lines → `IntegrityFlag(kind="paste")`.
@@ -1489,6 +1520,55 @@ the AI wrote.
 
 ---
 
+### 11.10 P1: Any vibe-coded project, not only web apps (DEF-12, after IC2)
+Decided by Shreyas on 2026-10-29. Not every project a candidate brings is a web app: many are scripts, CLIs or
+small libraries. Defense audits the **whole project** and proves what it can.
+
+**1. Project kinds** (`projects.py`): `web_app` when `crucible.json` has a uvicorn `entrypoint` or a FastAPI/Flask
+app is auto-detected (§11.1); otherwise `python_project` (any Python files; same size limits). A
+`python_project` sandbox gets the files and its `requirements.txt` image but starts no server.
+
+**2. The audit is project-level** (`audit.py`, Muse Wonder): up to 5 ranked weaknesses across correctness,
+security, error handling, concurrency, performance and structure, not only load bugs. **If it finds none, the
+audit says so and lists 3 future improvements instead** (code shows improvements only when there are no
+findings). Each finding carries at most one proof plan:
+- `chaos` (load test, §11.4): web apps only, as today.
+- `probe` (targeted test): any project. What to call, with what input, and what must hold.
+- neither: reported, graded in the report, but not attacked or grilled.
+
+**3. Proof by test** (`probe_writer.py`, `harness/probe_template.py`, Muse Spark): the same idea as the attack
+template. The model fills `setup_body` and `probe_body` (returns `(ok, violations, detail)`) in a fixed
+template that imports the project's modules from `/work/app`, runs the probe (with threads for concurrency
+claims) and prints the same `{"done": ...}` line as a chaos run, so `chaos.py` parsing and `decide_verdict`
+are reused. The validator allows imports of the project's own top-level modules plus a stdlib allowlist; it
+still bans network, subprocess, `os`, files outside `/work` and dunder access. Verify re-runs the same probe on
+the candidate's fix. `ChaosRun` gains `method: "load" | "test"`.
+
+**4. Flow and verdict**: audit → proofs (load or test) → grill on what broke → fix → verify → verdict, as §11.2.
+New outcome **clean**: the audit found no weaknesses, so there is nothing to defend. The verdict shows the
+improvements and no merge gate. (Weaknesses found but none proven stays FAIL, "nothing was proven".)
+
+**5. Contract changes** (SG + SS): `Project.kind`; `Finding.probe: ProbePlan | None`;
+`AuditResult.improvements` and `AuditPublic.improvements: list[Improvement {title, why}]`; `FindingCategory`
+gains `correctness` and `design`; `ChaosRun.method`; `ProbeFunctions` (LLM output); `Verdict.outcome:
+"pass" | "fail" | "clean"`; `DefenseExtra.improvements`.
+
+**6. Work**: SS backend Sat Oct 31 (with OPS-1); SG approves the contracts; LG shows the improvements, a test
+proof (the failing check and its detail instead of a load chart) and the "clean" verdict, Sun Nov 1; ST adds
+one non-app sample (a vibe-coded CLI or library with `flaws.json` probe plans and `fixed/`) by Sat Oct 31.
+The demo still uses `bank-transfer`; this widens what judges can bring.
+
+### 11.11 P1: Meta's models in ways nobody expected (DEF-13..16, decided 2026-10-29)
+Judges score "Use of Meta AI Tooling" on going beyond a basic integration (§2). Each of these gives a Meta model
+a job the candidate can watch, and each keeps the rule: the model suggests, code decides.
+
+| WP | What | Models | Proof it works | When |
+|---|---|---|---|---|
+| **DEF-13 Two graders must agree** | Every grill answer is graded by two Meta models in parallel; a point counts only when both mark it. A split on the root cause asks the follow-up instead of failing the candidate. The strip lights both. | Muse Spark (`grill_eval`) + Muse Wonder low (`grill_check`); Spark Open replaces Wonder once Baseten is configured | Unit tests for agree / split / one model down; one live run | Thu Oct 29 |
+| **DEF-14 Replay the race step by step** | After a race breaks, Muse Wonder writes the exact interleaving that loses money (A reads, B reads, A writes, B writes) as a small schedule; code replays that schedule deterministically in the sandbox and shows it as a two-lane timeline with the balance after each step. A schedule that doesn't reproduce the loss is never shown. | Muse Wonder (`replay`) | The replayed schedule loses the same money on `bank-transfer` and holds on `fixed/` | Fri Oct 30 |
+| **DEF-15 Vibe-code an app on demand** | "Defend a fresh app": Muse Spark writes a small web app from a one-line idea, the runner checks it boots, Muse Wonder audits it, and Crucible attacks it. AI wrote it, AI breaks it, the human proves they understand it. Only apps that boot and pass a smoke request are offered. | Muse Spark (`drafter`) + the Defense pipeline | 3 of 5 generated apps boot and break under their own attack | Sat Oct 31 (after DEF-12 project kinds) |
+| **DEF-16 Circle the flaw with SAM** | §11.7 (DEF-9) pulled forward: the candidate circles a node on the diagram (or a sketch on webcam); SAM 3.1 finds it; code picks the node. | SAM 3.1 | ≥ 4 of 5 circles select the right node | Sun Nov 1, with Likhil's pen |
+
 ## 12. Runner
 
 Owner: **SS**. Shared by both modes.
@@ -1624,8 +1704,9 @@ style: plausible, readable, subtly wrong), `requirements.txt`, `crucible.json`, 
 | `rate-limiter` | unsynchronized counter + unbounded dict | allowed ≤ limit per window | P1 |
 
 `flaws.json`: `[{id, category, file, line_start, line_end, explanation, expected_fix, grill_expected_points,
-chaos_invariant}]`. `validate_apps` checks: the app boots in the runner, the reference chaos script **breaks**
-the original, and `fix.patch` applied → the same script **holds**.
+chaos_invariant}]`. `reference_attack.json`: `{flaw_id, concurrency, duration_s, functions}`, or a list with one
+per chaos flaw. `validate_apps` (`make validate`) checks: the app boots in the runner, every reference attack
+**breaks** the original, and with the reference fix applied the same attack **holds**.
 
 ### 13.3 Evals (`data/evals/`)
 - **Coding** (`evals/coding/*.jsonl`): scripted timelines (editor events + transcript + runs) with expected
@@ -1649,7 +1730,7 @@ the original, and `fix.patch` applied → the same script **holds**.
 Owner: **LG** (UI). Capture/replay libs: **SG**. Defense helpers: **SS**.
 
 LG scaffolded `frontend/` and built the landing page (most of FE-1) on the `frontend` branch. His detailed plan
-is in `frontend-schematic/CRUCIBLE_FRONTEND_PLAN.md`, and the UI rules are in `frontend-schematic/UI_TEMPLATE.md`.
+is in `frontend-schematic/ARES_FRONTEND_PLAN.md`, and the UI rules are in `frontend-schematic/UI_TEMPLATE.md`.
 Until S-1 and OPS-2 land, the frontend uses two **dev-only bridges**, and neither may appear in the demo:
 - `src/types/contracts.draft.ts`, hand-transcribed from §7 and §8.2 behind an `@/types` barrel. It's deleted
   the day `contracts.ts` is generated.
@@ -1660,7 +1741,7 @@ Until S-1 and OPS-2 land, the frontend uses two **dev-only bridges**, and neithe
 | Route | Content |
 |---|---|
 | `/` | Hero, the two mode cards, "how it works", the Meta models strip |
-| `/coding` | Setup form (difficulty, topic, feedback, voice, speak replies); pre-fills from the `?topic=&feedback=` the landing page's start dialog sends |
+| `/coding` | Setup form (difficulty, topic, feedback, voice: speech to text, on by default); pre-fills from the `?topic=&feedback=` the landing page's start dialog sends |
 | `/coding/[id]` | `InterviewRoom` in coding configuration |
 | `/defense` | Sample app cards (+ zip upload, P1) |
 | `/defense/[id]` | Stage stepper: Audit → Chaos → Grill → Fix → Verify → Verdict |
@@ -1690,6 +1771,8 @@ Layout (desktop ≥ 1280 px):
   - A flush (`setValue`) and anything inside `programmatic(edit)` (resetting to starter code, loading a file)
     become a snapshot, never typing, so they can't trigger paste or bulk-insert notes.
   - `document.visibilitychange` → `hidden` / `visible`; `window.blur` / `window.focus` → `blur` / `focus`.
+  - Attaching sends one snapshot of the editor's current code (the starter code, or the code restored after
+    a reload): the baseline that later edits apply to (§9.3) and that CODED_BEFORE_PLAN counts from (§9.5).
   - Batch every 500 ms; snapshot every 20 changes, every 15 s with changes, and before run/submit/verify
     (the room calls `snapshot()`).
   - `t` comes from `performance.now()`, aligned once to `session.started_at`, so system clock changes don't
@@ -1706,7 +1789,7 @@ Layout (desktop ≥ 1280 px):
 ### 14.4 Defense views
 - **Audit:** React Flow topology (auto-layout with dagre/elkjs; flagged nodes red) + findings list (severity
   chips; click → highlight node + open the file preview).
-- **Chaos lab:** live Recharts line charts (rps, p95 ms) + counters (errors, invariant violations) streaming
+- **Chaos lab:** live uPlot line charts (rps, p95 ms) + counters (errors, invariant violations) streaming
   from `defense.chaos.metric`; a big verdict banner ("BROKE: $1,240 missing"); a collapsible generated attack
   script.
 - **Grill:** a large question card, a 90 s countdown, live captions, Answer by voice or chat, then the
@@ -1742,8 +1825,45 @@ a retry button), because recorded results shown as live would be a faked demo.
 ### 14.7 TTS (`lib/tts.ts`)
 `speechSynthesis` with a chosen English voice (prefer a natural voice when available), a queue, `cancel()`
 when the candidate starts speaking (barge-in), and an `onstart`/`onend` that drives the speaking indicator.
-No third-party TTS (e.g. ElevenLabs): it would be the only non-Meta model call at runtime, needs another
-key, and `speechSynthesis` has no outage to fall back from.
+**Server voice (Nov 3).** The browser voices sounded robotic in real runs (the natural ones need Edge or a
+manual download), so `createVoice()` plays each line from **`GET /api/sessions/{id}/speech/{intervention_id}`**,
+which streams ElevenLabs Flash v2.5 audio (`models/tts.py`, `audio/mpeg`). Output only, and the one non-Meta call:
+the endpoint reads only a line this session showed with `speak: true` (never text it's sent, so the key can't be
+used for anything else), after the leak guard; code blocks and markers are stripped. Key and voice in `.env`
+(`TTS_API_KEY`, `TTS_VOICE_ID`); unset → 503. Timeouts: connect 2 s, first audio 3 s, 10 s between chunks; repeated
+lines (greeting, phase lines) come from a 64-line cache. In the browser, no sound within **1.5 s**, an error, or a
+503 → `createTts` (below) says that line; after 2 failures in a row the session stays on the browser voice. Lines
+play one at a time in order, `onStart`/`onEnd` span the run (mic silence, §8.3), a refused `play()` waits for
+`unlock()`, and `cancel()`/mute stop it. The room calls `createVoice({…, speechUrl})` and `speak(text, id)`.
+- **API:** `createTts({onStart, onEnd, onBlocked, onVoices, voiceName})` → `{speak(text), cancel(),
+  setMuted(bool), setVoice(name | null), warm(), unlock(), dispose(), speaking, blocked, voices, voice,
+  supported}`, plus `rankVoices`, `isNaturalVoice`, `voiceLabel` and `loadVoiceChoice`/`saveVoiceChoice`
+  (localStorage, per browser). Without `speechSynthesis` (or on the server render) every call is a no-op.
+- **Voice, as human as the browser allows:** waits for `voiceschanged` (at most 1.5 s), then ranks the English
+  voices, en-US first within each tier: Edge's neural voices ("… Online (Natural)", Ava, Andrew, Emma and Brian
+  first), macOS "(Premium)" then "(Enhanced)" voices, any other natural or neural voice, Google's ("Google US
+  English", then "Google UK English Female"), then Samantha, Daniel, Karen and Moira, then the rest. The novelty
+  voices (Albert, Bad News, Bells, Zarvox, …) and the robotic Eloquence ones (Eddy, Flo, Grandma, Grandpa, Reed,
+  Rocko, Sandy, Shelley) are never picked or listed. The candidate's own pick wins when it's installed.
+- **Prosody:** rate 1.05, pitch 1. One utterance per sentence, so the first sentence starts at once and nothing
+  breaks mid-phrase; only a sentence over 220 characters (Chrome cuts an utterance off after about 15 s) splits,
+  at its commas, semicolons and colons. Markdown is read as plain text and code blocks are skipped. `warm()`
+  speaks one silent, empty utterance in the default local voice to start the engine (the room calls it on load
+  and on the first click; Google's network voices don't warm up, each sentence is its own request).
+- **Queue:** sentences are spoken one at a time. `onStart` fires when the first one starts and `onEnd` once the
+  queue is empty or cancelled. Chrome can wedge its queue when `speak()` follows `cancel()` at once (seen with
+  the room's remount in development), so the next sentence waits 120 ms after any cancel, and a sentence the
+  busy engine hasn't started within 3 s is cleared and retried once, then skipped. A lost end event is caught
+  once the engine goes idle, and a sentence stuck far past its length is cut, so the mic is never held silent
+  for good.
+- **Blocked:** a browser that refuses to speak before the user has interacted with the page (`not-allowed`, or
+  Safari dropping it silently) sets `blocked` and holds the newest message; the room shows "Turn on voice",
+  whose click calls `unlock()`.
+- **The room:** speaks each new interviewer message with `speak: true` as it appears, and calls the audio
+  capture's `setPaused(true)` from `onStart` until `onEnd`, so the mic sends silence (§8.3). Holding Ask cancels
+  the speech. The header has the mute toggle and a voice picker (the ranked list, remembered per browser). When
+  the best voice installed is Google's or older, a one-line hint suggests Microsoft Edge or a macOS Premium voice
+  (System Settings → Accessibility → Spoken Content).
 
 ---
 
@@ -1771,8 +1891,10 @@ async def complete_text(role: ModelRole, messages, *, effort=None, timeout_s=8) 
 | `interviewer` | `muse-spark-1.3` | low | canned/rubric text |
 | `classifier` (P1) | `muse-spark-1.3` | minimal | treat as thinking aloud |
 | `complexity` (P1, COD-5) | `muse-spark-1.3` | low | leave the answer ungraded (null) |
-| `grill_eval` | `muse-spark-1.3` | medium | Spark (low) → Spark Open (Baseten) → keyword grading |
-| `audit` | `muse-wonder-1.0` | xhigh | `muse-spark-1.3` (high) → `flaws.json` (samples only) |
+| `conversation` (warm-up, replies, probes, check-ins) | `muse-spark-1.3` | minimal (short lines; every second is a pause the candidate hears) | the canned line |
+| `grill_eval` | `muse-spark-1.3` | low | Spark (minimal) → Spark Open (Baseten) |
+| `grill_check` (DEF-13) | `muse-wonder-1.0` | low | Spark Open; runs in parallel with `grill_eval`, and only points both mark count (§11.5) |
+| `audit` | `muse-wonder-1.0` | high (xhigh until Nov 3: 104–167 s on `bank-transfer`, and a 120 s timeout in a live run) | `muse-spark-1.3` (high) → `flaws.json` (samples only) |
 | `report` | `muse-wonder-1.0` | high | `muse-spark-1.3` → metrics-only template |
 | `attacker` | `muse-spark-1.3` | low | Spark (medium) → reference attack (sample apps only) |
 | `drafter` (datatools) | `muse-wonder-1.0` | high | Spark (medium) → Spark Open |
@@ -1790,6 +1912,10 @@ low, with every attack valid; at low, 2 of 2 full Defense runs broke the app. gr
   audit Wonder high 31 s / $0.10 (2 topology nodes) vs xhigh 44 s / $0.15 (6 nodes); attacker Spark medium 14 s,
   Spark high 18 s, Wonder medium 20 s, Wonder high 29 s (30 s budget), all valid; grill_eval Spark medium 4–5 s,
   Spark high 7–8 s (10 s budget), Wonder low 4–11 s, all marked the same points.
+  **Audit, Nov 3 (real samples):** Wonder xhigh timed out at 120 s in a live `bank-transfer` session (104–167 s on
+  Oct 28), so the audit is now Wonder **high**: 9 of 9 runs found every seeded flaw (`bank-transfer` 79–96 s,
+  `report-service` 48–121 s, `ticket-drop` 59–72 s; median 72 s). One run in nine overruns 120 s and falls back
+  to Spark high. Audits are cached per project, so run each sample once after a deploy.
 - **Dev cost switch:** `USE_CONTRIBUTOR_MODELS=1` maps `muse-spark-1.3` → `muse-spark-1.3-contributor`
   ($0.10/$0.20 per 1M tokens, but content may be used for training and the limit is 150 RPM). Use it only
   with synthetic data, never for real users' sessions. It doesn't support `max` effort.
@@ -2093,6 +2219,7 @@ Record each segment separately on the deployed build, at real speed (speed-ups a
 | Analyzer latency | `reasoning_effort="minimal"` (measured 4 s vs 8–12 s at `low`, §9.4), static-first prompts, single-flight, skip on timeout |
 | Solution leakage | Leak guard + rubric-text fallback + the `asks-for-answer` eval |
 | Realtime ASR problems | Chunked file transcription → chat-only fallback; voice is P1, so text works end to end |
+| Voice service (ElevenLabs) slow, down or out of credit | No audio in 1.5 s, an error or a 503 → the browser voice says the line; 2 failures in a row → browser voice for the session (§14.7) |
 | Wonder slow or down | Spark fallback for audit and report; audit cached per project |
 | Modal sandbox slow to start | Warm sandbox per coding session; pre-build sample-app images at startup; LocalRunner for dev |
 | Chaos doesn't break a sample | Sample apps are validated with a reference script (`validate_apps`); the demo uses `bank-transfer` |
@@ -2100,7 +2227,7 @@ Record each segment separately on the deployed build, at real speed (speed-ups a
 | Problem text rights | Original statements only + review checklist (§13.1) |
 | Demo-day failure | Pre-recorded takes on the deployed build by Tue Nov 3; never present MOCK as live |
 
-**Timeouts:** analyzer 12 s · interviewer 6 s · classifier 3 s · complexity 8 s (20 s guard, report time) · grill eval 20 s (Spark medium measured 4–15 s) · audit 120 s · report 45 s per model (Wonder measured 15–21 s, once over 90 s; then Spark) ·
+**Timeouts:** analyzer 12 s · interviewer 6 s · conversation 6 s · classifier 3 s · complexity 8 s (20 s guard, report time) · grill eval 20 s (Spark medium measured 4–15 s) · audit 120 s · report 45 s per model (Wonder measured 15–21 s, once over 90 s; then Spark) ·
 attack writer 30 s · test run 10 s · chaos run 60 s · ASR handshake 10 s · SAM 5 s · image 20 s.
 
 ---

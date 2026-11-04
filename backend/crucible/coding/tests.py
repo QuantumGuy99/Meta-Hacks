@@ -46,6 +46,14 @@ class RunService:
     def busy(self) -> bool:
         return self._lock.locked()
 
+    async def open_session(self, session_id: str) -> None:
+        """Warm the session's sandbox (COD-3 step 3). The runner decides what that means; a lazy
+        runner opens one on the first Run instead."""
+        await self.runner.open_session(session_id)
+
+    async def close_session(self, session_id: str) -> None:
+        await self.runner.close_session(session_id)
+
     async def run(
         self,
         rt: SessionRuntime,

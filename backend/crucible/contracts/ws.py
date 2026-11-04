@@ -16,6 +16,7 @@ from crucible.contracts.defense import (
     ChaosRun,
     Finding,
     GrillTurn,
+    RaceReplay,
     SamHighlight,
     Verdict,
 )
@@ -83,7 +84,7 @@ class HintRequest(Strict):
 
 class PhaseAdvance(Strict):
     type: Literal["phase.advance"]
-    to: Phase  # the server accepts only clarify → coding and coding → wrap_up
+    to: Phase  # the server accepts only intro → clarify, clarify → coding and coding → wrap_up
 
 
 class DefenseRunChaos(Strict):
@@ -189,6 +190,11 @@ class DefenseSamHighlight(Strict):  # P1 (§11.7)
     highlight: SamHighlight
 
 
+class DefenseReplay(Strict):  # DEF-14: the race, step by step, after the grill
+    type: Literal["defense.replay"]
+    replay: RaceReplay
+
+
 class DefenseVerdict(Strict):
     type: Literal["defense.verdict"]
     verdict: Verdict
@@ -223,6 +229,7 @@ ServerMessage = Annotated[
     | DefenseChaosDone
     | DefenseGrillEval
     | DefenseSamHighlight
+    | DefenseReplay
     | DefenseVerdict
     | ModelActivityMsg
     | ReportReady

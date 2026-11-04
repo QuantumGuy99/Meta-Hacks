@@ -1,4 +1,4 @@
-"""The "Ask Crucible" guide (#25): Muse Spark suggests a reply and one app action; code decides what is shown.
+"""The "Ask Ares" guide (#25): Muse Spark suggests a reply and one app action; code decides what is shown.
 
 The model only ever sees the question, the page name and public facts about the app, so there is nothing
 secret it could leak. Code still drops actions during a live session, checks every action against what
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 GUIDE_TIMEOUT_S = 8
 MAX_REPLY_CHARS = 600
 NO_ACTION = GuideAction(kind="none", page=None, difficulty=None, project_id=None)
-SAFE_REPLY = "I can only help you find your way around Crucible. What would you like to do?"
+SAFE_REPLY = "I can only help you find your way around Ares. What would you like to do?"
 IN_SESSION_REPLY = (
     "You're in a live interview, so I'll stay out of the way. Ask the interviewer if you're stuck."
 )
@@ -93,7 +93,7 @@ def fallback_reply(body: GuideAsk) -> GuideReply:
         reply = "Your report has your scores and a replay of the session. Opening it now."
         return GuideReply(reply=reply, action=_open("report"), source="fallback")
     reply = (
-        "Crucible has two modes: a Live Coding Interview, and Project Defense, where your code is broken under "
+        "Ares has two modes: a Live Coding Interview, and Project Defense, where your code is broken under "
         "load and you defend the fix. Which would you like?"
     )
     return GuideReply(reply=reply, action=NO_ACTION, source="fallback")

@@ -1,18 +1,20 @@
 """Turns a policy decision into what the candidate sees and hears (PLAN §9.6).
 
 The leak guard (code shape plus overlap with the reference), the analyzer's draft or a rubric hint or canned line,
-delivery, `answer()` for the candidate's questions, and `say()` for lines a mode chooses.
+delivery, `answer()` for the candidate's questions, `reply()` for the conversational lines (the warm-up), and
+`say()` for lines a mode chooses.
 """
 
 from __future__ import annotations
 
 import ast
 import asyncio
+import json
 import logging
 import math
 import re
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from crucible.contracts.common import FeedbackLevel
 from crucible.contracts.events import (
@@ -166,34 +168,114 @@ async def answer(
     messages: list[dict[str, str]] = [
         {"role": "system", "content": PROMPTS["interviewer_answer"]},
         {"role": "user", "content": f"# Problem: {context.title}\n\n{context.brief_md}"},
-        {"role": "user", "content": _answer_state(rt, context, question)},
+        {"role": "user", "content": _session_state(rt, context, "Their question", question)},
     ]
+    return await _spoken_line(
+        rt,
+        model,
+        messages,
+        "answer",
+        "one short Socratic question",
+        role="interviewer",
+        reference=context.reference_text,
+    )
+
+
+ReplyKind = Literal["warmup", "warmup_close", "reply", "checkin", "probe"]
+# What the warm-up reply ends with: a light follow-up, or nothing because the problem comes next (§3.1).
+_WARMUP_ENDINGS: dict[ReplyKind, str] = {
+    "warmup": "one light, friendly follow-up question about what they shared",
+    "warmup_close": "no question: you're about to move on to the problem",
+}
+
+
+async def reply(
+    rt: SessionRuntime,
+    model: StructuredModel,
+    kind: ReplyKind,
+    said: str,
+    context: RubricContext | None = None,
+) -> str | None:
+    """A short conversational line from the model (§9.6), or None so the caller uses its canned line.
+
+    - `warmup`, `warmup_close`: a reaction to what the candidate shared about themselves; the model never sees
+      the problem then.
+    - `reply`: a reply to something the candidate said while solving (REPLY); `checkin`: a check-in after they've
+      gone quiet (SILENT, IDLE); `probe`: a question that checks they understand the code they just wrote
+      (PROBE). The model sees what the candidate sees (`context` is required), like `answer()`, never the rubric.
+    Same leak guard and single retry as `answer()`.
+    """
+    if kind in _WARMUP_ENDINGS:
+        user = json.dumps({"candidate_said": said, "end_with": _WARMUP_ENDINGS[kind]})
+        messages = [
+            {"role": "system", "content": PROMPTS["interviewer_warmup"]},
+            {"role": "user", "content": user},
+        ]
+        return await _spoken_line(
+            rt, model, messages, "warm-up reply", "one short, friendly sentence", role="conversation"
+        )
+    if context is None:
+        raise ValueError(f"a {kind} needs the problem's context")
+    last = {
+        "reply": ("What they just said", said),
+        "checkin": ("Now", "They've gone quiet for a while."),
+        "probe": ("Now", "They've just finished a part of their solution."),
+    }[kind]
+    messages = [
+        {"role": "system", "content": PROMPTS[f"interviewer_{kind}"]},
+        {"role": "user", "content": f"# Problem: {context.title}\n\n{context.brief_md}"},
+        {"role": "user", "content": _session_state(rt, context, *last)},
+    ]
+    return await _spoken_line(
+        rt,
+        model,
+        messages,
+        kind,
+        "one short question about their thinking",
+        role="conversation",
+        reference=context.reference_text,
+    )
+
+
+async def _spoken_line(
+    rt: SessionRuntime,
+    model: StructuredModel,
+    messages: list[dict[str, str]],
+    what: str,
+    instead: str,
+    *,
+    role: Literal["interviewer", "conversation"],
+    reference: str | None = None,
+) -> str | None:
+    """One interviewer line from the model, through the leak guard. A rejected line gets one retry asking for
+    `instead`; a failure or a second rejection is None, and the caller sends its canned line, never silence."""
     for _attempt in range(2):
         try:
             async with asyncio.timeout(ANSWER_DEADLINE_S):
-                reply = await model.complete_json(
-                    "interviewer", messages, InterventionText, session_id=rt.session.id
-                )
-        except Exception:  # task boundary: no answer from the model means the canned line, never silence
-            logger.exception("interviewer answer failed in %s", rt.session.id)
-            await rt.note("warning", "the interviewer model didn't answer; sent the canned reply")
+                result = await model.complete_json(role, messages, InterventionText, session_id=rt.session.id)
+        except Exception:  # task boundary: no line from the model means the canned one
+            logger.exception("interviewer %s failed in %s", what, rt.session.id)
+            await rt.note(
+                "warning", f"the interviewer model didn't answer for the {what}; sent the canned line"
+            )
             return None
-        text = reply.text.strip()
-        reason = leak_reason(text, context.reference_text) if text else "it was empty"
+        text = result.text.strip()
+        reason = leak_reason(text, reference) if text else "it was empty"
         if reason is None:
             return text
-        logger.warning("leak guard rejected an answer in %s: %s", rt.session.id, reason)
-        await rt.note("info", f"leak guard rejected the interviewer's answer: {reason}")
-        retry = f"That reply was rejected because {reason}. Reply with one short Socratic question instead."
+        logger.warning("leak guard rejected the %s in %s: %s", what, rt.session.id, reason)
+        await rt.note("info", f"leak guard rejected the interviewer's {what}: {reason}")
+        retry = f"That reply was rejected because {reason}. Reply with {instead} instead."
         messages = [
             *messages,
-            {"role": "assistant", "content": reply.text},
+            {"role": "assistant", "content": result.text},
             {"role": "user", "content": retry},
         ]
     return None
 
 
-def _answer_state(rt: SessionRuntime, context: RubricContext, question: str) -> str:
+def _session_state(rt: SessionRuntime, context: RubricContext, heading: str, last: str) -> str:
+    """What the candidate can see now (their code, the recent conversation), then `last` under `heading`."""
     main = context.files[0] if context.files else "solution.py"
     code = rt.code.code(main)
     numbered = "\n".join(f"{i:>3} | {line}" for i, line in enumerate(code.splitlines(), start=1)) or "(empty)"
@@ -204,7 +286,7 @@ def _answer_state(rt: SessionRuntime, context: RubricContext, question: str) -> 
     conversation = "\n".join(f"- {t['speaker']}: {t['text']}" for t in turns) or "(nothing yet)"
     return (
         f"# Now\nPhase: {rt.session.phase}.\n\n## Their code ({main})\n```python\n{numbered}\n```\n\n"
-        f"## Recent conversation\n{conversation}\n\n## Their question\n{question}"
+        f"## Recent conversation\n{conversation}\n\n## {heading}\n{last}"
     )
 
 

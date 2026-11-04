@@ -33,7 +33,7 @@ packages = ["crucible"]
 line-length = 110
 target-version = "py312"
 # The chaos template has placeholders until it's rendered; fixture apps imitate AI-written code on purpose.
-extend-exclude = ["crucible/runner/harness/chaos_template.py", "tests/fixtures/apps"]
+extend-exclude = ["crucible/runner/harness/chaos_template.py", "crucible/runner/harness/replay_runner.py", "tests/fixtures/apps"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC", "SIM", "RUF"]

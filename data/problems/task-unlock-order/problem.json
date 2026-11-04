@@ -1,0 +1,499 @@
+{
+  "slug": "task-unlock-order",
+  "title": "Task Unlock Order",
+  "difficulty": "hard",
+  "topics": [
+    "graphs",
+    "topological sort",
+    "heaps"
+  ],
+  "function": {
+    "name": "build_order",
+    "params": [
+      {
+        "name": "n",
+        "type": "int"
+      },
+      {
+        "name": "deps",
+        "type": "list[list[int]]"
+      }
+    ],
+    "returns": "list[int]"
+  },
+  "starter_code": "def build_order(n: int, deps: list[list[int]]) -> list[int]:\n    pass\n",
+  "examples": [
+    {
+      "input": "n = 4, deps = [[0, 1], [0, 2], [1, 3], [2, 3]]",
+      "output": "[0, 1, 2, 3]",
+      "explanation": "0 unlocks 1 and 2; both unlock 3. Among valid orders this one is smallest."
+    },
+    {
+      "input": "n = 2, deps = [[0, 1], [1, 0]]",
+      "output": "[]",
+      "explanation": "Each task waits on the other, so no order works."
+    }
+  ],
+  "constraints": [
+    "1 <= n <= 10^4",
+    "0 <= len(deps) <= 5 * 10^4",
+    "deps[i] = [before, after] with before != after"
+  ],
+  "tests_visible": [
+    {
+      "id": "v1",
+      "args": [
+        4,
+        [
+          [
+            0,
+            1
+          ],
+          [
+            0,
+            2
+          ],
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ],
+      "expected": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v2",
+      "args": [
+        2,
+        [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ]
+      ],
+      "expected": [],
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v3",
+      "args": [
+        3,
+        [
+          [
+            2,
+            0
+          ]
+        ]
+      ],
+      "expected": [
+        1,
+        2,
+        0
+      ],
+      "comparator": "exact",
+      "edge_case_id": null
+    }
+  ],
+  "tests_hidden": [
+    {
+      "id": "h1",
+      "args": [
+        1,
+        []
+      ],
+      "expected": [
+        0
+      ],
+      "comparator": "exact",
+      "edge_case_id": "e1"
+    },
+    {
+      "id": "h2",
+      "args": [
+        4,
+        []
+      ],
+      "expected": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "comparator": "exact",
+      "edge_case_id": "e2"
+    },
+    {
+      "id": "h3",
+      "args": [
+        3,
+        [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            0
+          ]
+        ]
+      ],
+      "expected": [],
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    },
+    {
+      "id": "h4",
+      "args": [
+        4,
+        [
+          [
+            3,
+            0
+          ],
+          [
+            2,
+            1
+          ]
+        ]
+      ],
+      "expected": [
+        2,
+        1,
+        3,
+        0
+      ],
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    },
+    {
+      "id": "h5",
+      "args": [
+        3,
+        [
+          [
+            0,
+            1
+          ],
+          [
+            0,
+            1
+          ]
+        ]
+      ],
+      "expected": [
+        0,
+        1,
+        2
+      ],
+      "comparator": "exact",
+      "edge_case_id": "e5"
+    },
+    {
+      "id": "h6",
+      "args": [
+        5,
+        [
+          [
+            4,
+            3
+          ],
+          [
+            3,
+            2
+          ],
+          [
+            2,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ]
+      ],
+      "expected": [
+        4,
+        3,
+        2,
+        1,
+        0
+      ],
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h7",
+      "args": [
+        6,
+        [
+          [
+            0,
+            1
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            3,
+            1
+          ],
+          [
+            5,
+            4
+          ]
+        ]
+      ],
+      "expected": [
+        0,
+        2,
+        3,
+        1,
+        5,
+        4
+      ],
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    },
+    {
+      "id": "h8",
+      "args": [
+        5,
+        [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            1
+          ],
+          [
+            3,
+            4
+          ]
+        ]
+      ],
+      "expected": [],
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    },
+    {
+      "id": "h9",
+      "args": [
+        6,
+        [
+          [
+            5,
+            0
+          ],
+          [
+            4,
+            0
+          ],
+          [
+            5,
+            2
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            3,
+            1
+          ],
+          [
+            4,
+            1
+          ]
+        ]
+      ],
+      "expected": [
+        4,
+        5,
+        0,
+        2,
+        3,
+        1
+      ],
+      "comparator": "exact",
+      "edge_case_id": null
+    }
+  ],
+  "rubric": {
+    "approaches": [
+      {
+        "name": "Kahn's algorithm with a min-heap of ready tasks",
+        "time": "O((V + E) log V)",
+        "space": "O(V + E)",
+        "acceptable": true
+      },
+      {
+        "name": "depth-first topological sort",
+        "time": "O(V + E)",
+        "space": "O(V + E)",
+        "acceptable": false
+      },
+      {
+        "name": "try every ordering",
+        "time": "O(V!)",
+        "space": "O(V)",
+        "acceptable": false
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "title": "Clarify the input",
+        "required": true,
+        "order": 1,
+        "description": "Asks which order to give when several are valid, what to return for a cycle, and whether dependencies can repeat.",
+        "look_for": [
+          "asks which valid order to return",
+          "asks about cycles",
+          "asks about duplicate dependencies"
+        ],
+        "hints": [
+          "Before you start, is there anything about the answer you'd want to pin down?",
+          "Several orders can be valid; which one does the problem want?",
+          "Settle tie-breaking, cycles and repeated dependencies before choosing an algorithm."
+        ]
+      },
+      {
+        "id": "s2",
+        "title": "Track what each task waits on",
+        "required": true,
+        "order": 2,
+        "description": "Builds the list of tasks each task unlocks and a count of unfinished prerequisites per task.",
+        "look_for": [
+          "builds an adjacency list",
+          "counts incoming dependencies"
+        ],
+        "hints": [
+          "Look at what you need to know to decide a task is ready.",
+          "How can you tell, at any moment, whether a task's prerequisites are all done?",
+          "Keep, for each task, how many prerequisites it's still waiting on."
+        ]
+      },
+      {
+        "id": "s3",
+        "title": "Always take the smallest ready task",
+        "required": true,
+        "order": 3,
+        "description": "Keeps ready tasks in a min-heap so the smallest available task is done next.",
+        "look_for": [
+          "uses heapq for ready tasks",
+          "explains why a plain queue isn't enough"
+        ],
+        "hints": [
+          "Check which ready task your code picks when several are available.",
+          "Would a normal queue always give the smallest valid order?",
+          "Use Kahn's algorithm with a min-heap of tasks whose waiting count is zero."
+        ]
+      },
+      {
+        "id": "s4",
+        "title": "Unlock as you go",
+        "required": true,
+        "order": 4,
+        "description": "When a task finishes, lowers the waiting count of the tasks it unlocks and adds any that reach zero.",
+        "look_for": [
+          "decrements counts",
+          "pushes tasks that reach zero"
+        ],
+        "hints": [
+          "Look at what happens to other tasks when one finishes.",
+          "When does a waiting task become ready?",
+          "After taking a task, decrement each task it unlocks and push those that hit zero."
+        ]
+      },
+      {
+        "id": "s5",
+        "title": "Detect a cycle",
+        "required": true,
+        "order": 5,
+        "description": "Returns an empty list when fewer than n tasks were ordered.",
+        "look_for": [
+          "compares the order length with n"
+        ],
+        "hints": [
+          "Try your code on two tasks that wait on each other.",
+          "If some tasks never become ready, what does that mean?",
+          "If the order has fewer than n tasks, there's a cycle; give back an empty list."
+        ]
+      }
+    ],
+    "edge_cases": [
+      {
+        "id": "e1",
+        "description": "a single task"
+      },
+      {
+        "id": "e2",
+        "description": "no dependencies"
+      },
+      {
+        "id": "e3",
+        "description": "a cycle"
+      },
+      {
+        "id": "e4",
+        "description": "the smallest-first choice changes the order"
+      },
+      {
+        "id": "e5",
+        "description": "a repeated dependency"
+      }
+    ],
+    "common_mistakes": [
+      {
+        "id": "m1",
+        "description": "uses a regular queue instead of a min-heap",
+        "symptom": "returns [2, 3, 1, 0] instead of [2, 1, 3, 0] for n = 4, deps = [[3, 0], [2, 1]]"
+      },
+      {
+        "id": "m2",
+        "description": "doesn't check for a cycle at the end",
+        "symptom": "returns a partial order instead of []"
+      },
+      {
+        "id": "m3",
+        "description": "treats a repeated dependency as one but counts it twice",
+        "symptom": "a task never reaches zero and the answer is wrongly []"
+      }
+    ],
+    "wrap_up_questions": [
+      "What are the time and space complexity?",
+      "How would you find the minimum number of rounds if tasks with no remaining prerequisites could run in parallel?"
+    ]
+  },
+  "time_limit_min": 40,
+  "illustration": null,
+  "origin_note": "Original. Pattern: Kahn's algorithm with a min-heap of ready tasks."
+}

@@ -1,0 +1,420 @@
+{
+  "slug": "break-even-stretch",
+  "title": "Break-Even Stretch",
+  "difficulty": "medium",
+  "topics": [
+    "prefix sums",
+    "hashing"
+  ],
+  "function": {
+    "name": "longest_zero_net",
+    "params": [
+      {
+        "name": "changes",
+        "type": "list[int]"
+      }
+    ],
+    "returns": "int"
+  },
+  "starter_code": "def longest_zero_net(changes: list[int]) -> int:\n    pass\n",
+  "examples": [
+    {
+      "input": "changes = [3, -1, -2, 4, -4, 1]",
+      "output": "5",
+      "explanation": "The first five days add up to 3 - 1 - 2 + 4 - 4 = 0."
+    },
+    {
+      "input": "changes = [1, 2, 3]",
+      "output": "0",
+      "explanation": "No stretch of days breaks even."
+    }
+  ],
+  "constraints": [
+    "0 <= len(changes) <= 10^5",
+    "-10^4 <= changes[i] <= 10^4"
+  ],
+  "tests_visible": [
+    {
+      "id": "v1",
+      "args": [
+        [
+          3,
+          -1,
+          -2,
+          4,
+          -4,
+          1
+        ]
+      ],
+      "expected": 5,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v2",
+      "args": [
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "expected": 0,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "v3",
+      "args": [
+        [
+          2,
+          -2
+        ]
+      ],
+      "expected": 2,
+      "comparator": "exact",
+      "edge_case_id": null
+    }
+  ],
+  "tests_hidden": [
+    {
+      "id": "h1",
+      "args": [
+        []
+      ],
+      "expected": 0,
+      "comparator": "exact",
+      "edge_case_id": "e1"
+    },
+    {
+      "id": "h2",
+      "args": [
+        [
+          0
+        ]
+      ],
+      "expected": 1,
+      "comparator": "exact",
+      "edge_case_id": "e2"
+    },
+    {
+      "id": "h3",
+      "args": [
+        [
+          5
+        ]
+      ],
+      "expected": 0,
+      "comparator": "exact",
+      "edge_case_id": "e2"
+    },
+    {
+      "id": "h4",
+      "args": [
+        [
+          1,
+          -1,
+          1,
+          -1
+        ]
+      ],
+      "expected": 4,
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    },
+    {
+      "id": "h5",
+      "args": [
+        [
+          0,
+          0,
+          0
+        ]
+      ],
+      "expected": 3,
+      "comparator": "exact",
+      "edge_case_id": "e2"
+    },
+    {
+      "id": "h6",
+      "args": [
+        [
+          4,
+          1,
+          -1,
+          2,
+          -2
+        ]
+      ],
+      "expected": 4,
+      "comparator": "exact",
+      "edge_case_id": "e4"
+    },
+    {
+      "id": "h7",
+      "args": [
+        [
+          1,
+          2,
+          -3,
+          3,
+          0
+        ]
+      ],
+      "expected": 3,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h8",
+      "args": [
+        [
+          2,
+          3,
+          -5,
+          7,
+          1,
+          -8,
+          6
+        ]
+      ],
+      "expected": 6,
+      "comparator": "exact",
+      "edge_case_id": null
+    },
+    {
+      "id": "h9",
+      "args": [
+        [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1,
+          -1
+        ]
+      ],
+      "expected": 100,
+      "comparator": "exact",
+      "edge_case_id": "e3"
+    }
+  ],
+  "rubric": {
+    "approaches": [
+      {
+        "name": "running total with the first index of each total",
+        "time": "O(n)",
+        "space": "O(n)",
+        "acceptable": true
+      },
+      {
+        "name": "check every stretch",
+        "time": "O(n^2)",
+        "space": "O(1)",
+        "acceptable": false
+      }
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "title": "Clarify the input",
+        "required": true,
+        "order": 1,
+        "description": "Asks what to return when no stretch breaks even and whether a single day of 0 counts.",
+        "look_for": [
+          "asks what happens if nothing breaks even",
+          "asks about a day with 0 change"
+        ],
+        "hints": [
+          "Before you start, is there anything about the answer you'd want to pin down?",
+          "Does a single day with no change count as breaking even?",
+          "Confirm that a stretch must be consecutive days and that nothing found means 0."
+        ]
+      },
+      {
+        "id": "s2",
+        "title": "Think in running totals",
+        "required": true,
+        "order": 2,
+        "description": "Notices that a stretch breaks even exactly when the running total is the same before and after it.",
+        "look_for": [
+          "mentions prefix sums or a running total",
+          "says equal totals mean zero in between"
+        ],
+        "hints": [
+          "Look at what a running total tells you about any stretch of days.",
+          "If the running total is the same on two different days, what happened in between?",
+          "A stretch sums to zero when the running total before it equals the running total at its end."
+        ]
+      },
+      {
+        "id": "s3",
+        "title": "Remember the first time you saw each total",
+        "required": true,
+        "order": 3,
+        "description": "Stores only the earliest index for each running total, so stretches are as long as possible.",
+        "look_for": [
+          "only stores a total the first time",
+          "uses a dict from total to index"
+        ],
+        "hints": [
+          "Check which index your code keeps when a total repeats.",
+          "To get the longest stretch, do you want the earliest or the latest day with that total?",
+          "Keep the first index of each running total and never overwrite it."
+        ]
+      },
+      {
+        "id": "s4",
+        "title": "Count stretches from day one",
+        "required": true,
+        "order": 4,
+        "description": "Seeds the map with a total of 0 before any day, so stretches starting on day one are found.",
+        "look_for": [
+          "starts the map with total 0 at index -1",
+          "tests a list whose prefix breaks even"
+        ],
+        "hints": [
+          "Try your code where the break-even stretch starts on the very first day.",
+          "What running total do you have before any day has happened?",
+          "Put a total of 0 at position -1 before the loop."
+        ]
+      }
+    ],
+    "edge_cases": [
+      {
+        "id": "e1",
+        "description": "no days"
+      },
+      {
+        "id": "e2",
+        "description": "a single day"
+      },
+      {
+        "id": "e3",
+        "description": "the whole list breaks even"
+      },
+      {
+        "id": "e4",
+        "description": "the best stretch doesn't start at day one"
+      }
+    ],
+    "common_mistakes": [
+      {
+        "id": "m1",
+        "description": "doesn't seed the map with total 0 at index -1",
+        "symptom": "misses stretches that start on day one, like [2, -2]"
+      },
+      {
+        "id": "m2",
+        "description": "overwrites the stored index each time a total repeats",
+        "symptom": "finds shorter stretches than the longest"
+      },
+      {
+        "id": "m3",
+        "description": "checks every stretch with nested loops",
+        "symptom": "correct but O(n^2) on long histories"
+      }
+    ],
+    "wrap_up_questions": [
+      "What are the time and space complexity?",
+      "How would you find the longest stretch that adds up to some target other than zero?"
+    ]
+  },
+  "time_limit_min": 30,
+  "illustration": null,
+  "origin_note": "Original. Pattern: running total with the first index of each total."
+}

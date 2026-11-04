@@ -85,6 +85,11 @@ class InterventionTrigger(StrEnum):
     PHASE = "phase"
     PRAISE = "praise"
     GRILL = "grill"
+    # The interviewer's side of the conversation, not help (§9.5): the warm-up before the problem, a short reply
+    # to what the candidate said, and a question that checks they understand what they wrote.
+    WARMUP = "warmup"
+    REPLY = "reply"
+    PROBE = "probe"
 
 
 class InterventionLevel(StrEnum):
@@ -164,6 +169,7 @@ class TimelineKind(StrEnum):
     VERDICT = "verdict"
     SYSTEM = "system"
     MODEL_ACTIVITY = "model_activity"
+    REPLAY = "replay"
 
 
 class TimelineEvent(Strict):

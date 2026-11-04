@@ -1,7 +1,8 @@
-"""The "Ask Crucible" guide: code decides every action, replies can't leak, and it works without a model."""
+"""The "Ask Ares" guide: code decides every action, replies can't leak, and it works without a model."""
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from crucible.config import Settings
 from crucible.contracts.guide import GuideAction, GuideAsk, GuideDraft
@@ -114,3 +115,11 @@ def test_guide_endpoint_answers_without_a_model_and_is_rate_limited(client):
     assert client.post("/api/guide", json=body).status_code == 200
     third = client.post("/api/guide", json=body)
     assert third.status_code == 429 and third.json()["error"]["code"] == "http_429"
+
+
+def test_ask_accepts_six_earlier_turns_and_refuses_seven() -> None:
+    turn = {"role": "user", "text": "hi"}
+    base = {"question": "Where do I start?", "page": "home", "in_session": False}
+    assert len(GuideAsk.model_validate({**base, "history": [turn] * 6}).history) == 6
+    with pytest.raises(ValidationError):
+        GuideAsk.model_validate({**base, "history": [turn] * 7})

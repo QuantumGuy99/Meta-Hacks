@@ -1,4 +1,4 @@
-"""POST /api/guide: the "Ask Crucible" helper (#25). Rate-limited per client; rule-based without a model."""
+"""POST /api/guide: the "Ask Ares" helper (#25). Rate-limited per client; rule-based without a model."""
 
 from __future__ import annotations
 

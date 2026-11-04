@@ -108,7 +108,7 @@ async def test_falls_back_when_the_retry_also_fails() -> None:
     wrapper, sleeps, records = make_llm({"meta": meta})
 
     assert await wrapper.complete_json("audit", MESSAGES, Verdict) == OK
-    assert sent(meta) == [(WONDER, "xhigh"), (WONDER, "xhigh"), (SPARK, "high")]
+    assert sent(meta) == [(WONDER, "high"), (WONDER, "high"), (SPARK, "high")]
     assert len(sleeps) == 1
     assert [r.error for r in records] == ["HTTP 500", "HTTP 503", None]
 
@@ -119,7 +119,7 @@ async def test_timeout_falls_back_without_retrying() -> None:
     wrapper, sleeps, records = make_llm({"meta": meta})
 
     assert await wrapper.complete_json("audit", MESSAGES, Verdict, timeout_s=0.01) == OK
-    assert sent(meta) == [(WONDER, "xhigh"), (SPARK, "high")]
+    assert sent(meta) == [(WONDER, "high"), (SPARK, "high")]
     assert sleeps == []
     assert records[0].error == "timeout after 0.01s"
 
@@ -148,7 +148,7 @@ async def test_bad_requests_and_refusals_fall_back_without_retrying() -> None:
 async def test_raises_all_models_failed_when_every_model_fails() -> None:
     meta = FakeClient(
         {SPARK: [http_error(openai.InternalServerError, 502)] * 4}
-    )  # medium, then low, each retried
+    )  # low, then minimal, each retried
     baseten = FakeClient({SPARK_OPEN: [invalid_output()]})
     wrapper, _, _ = make_llm({"meta": meta, "baseten": baseten})
 
@@ -160,7 +160,7 @@ async def test_raises_all_models_failed_when_every_model_fails() -> None:
         f"{SPARK}: HTTP 502",
         f"{SPARK_OPEN}: ValidationError",
     ]
-    assert sent(meta) == [(SPARK, "medium")] * 2 + [(SPARK, "low")] * 2
+    assert sent(meta) == [(SPARK, "low")] * 2 + [(SPARK, "minimal")] * 2
     assert sent(baseten) == [(SPARK_OPEN, None)]  # Spark Open never gets reasoning_effort
 
 
@@ -283,3 +283,10 @@ async def test_module_functions_need_configure_first(monkeypatch: pytest.MonkeyP
 
     wrapper = llm.configure(LLMSettings(api_key="k"))
     assert llm.default_llm() is wrapper
+
+
+def test_a_hanging_connection_gives_up_after_two_seconds() -> None:
+    from crucible.models.llm import CONNECT_TIMEOUT_S, _build_clients
+
+    clients = _build_clients(LLMSettings(api_key="k", base_url="https://example.invalid/v1"))
+    assert clients["meta"].timeout.connect == CONNECT_TIMEOUT_S == 2.0  # type: ignore[union-attr]

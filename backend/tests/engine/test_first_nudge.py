@@ -28,7 +28,7 @@ def make_client(tmp_path: Path, model: FakeModel) -> TestClient:
     write_quiet_streak(tmp_path)
     app = FastAPI()
     app.include_router(router)
-    modes = {Mode.CODING: CodingMode(ProblemBank.load(tmp_path))}
+    modes = {Mode.CODING: CodingMode(ProblemBank.load(tmp_path), warm_up=False)}
     app.state.hub = SessionHub(MemoryStore(), modes, model=model)
     return TestClient(app)
 
@@ -87,20 +87,21 @@ def test_an_unknown_problem_is_a_bad_config(client: TestClient) -> None:
     assert response.status_code == 400 and response.json()["error"]["code"] == "bad_config"
 
 
-def test_a_missed_step_seen_twice_becomes_a_nudge(client: TestClient, model: FakeModel) -> None:
+def test_a_missed_step_seen_twice_becomes_a_question(client: TestClient, model: FakeModel) -> None:
     _, socket = join(client)
     with socket as ws:
         receive_until(ws, lambda m: m["type"] == "session.state" and m["phase"] == "clarify")
         ws.send_json({"type": "chat.send", "text": "I'll loop over the readings."})
         notes = receive_until(ws, lambda m: m["type"] == "notes.update")
         assert [s["status"] for s in notes["steps"]] == ["not_started", "in_progress"]
-        ws.send_json({"type": "chat.send", "text": "Then I'll track the best run."})
+        # Five words: too short for a reply (REPLY_MIN_WORDS), so the first line is the missed step's question.
+        ws.send_json({"type": "chat.send", "text": "Then track the best run."})
         message = receive_until(ws, lambda m: m["type"] == "interviewer.message")
     intervention = message["intervention"]
     assert intervention["text"] == DRAFT
     assert (intervention["trigger"], intervention["level"], intervention["step_id"]) == (
         "missed_step",
-        "nudge",
+        "question",
         "s1",
     )
     assert len(model.calls) == 2

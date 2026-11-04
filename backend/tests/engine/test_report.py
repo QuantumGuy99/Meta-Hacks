@@ -42,6 +42,7 @@ from crucible.engine.report import (
     compute_metrics,
     draft_messages,
     longest_silence,
+    measured_scores,
     merge,
     pick_moments,
     template_draft,
@@ -57,8 +58,10 @@ from tests.factories import (
     write_quiet_streak,
 )
 
-DRAFT = json.loads((FIXTURES / "report_draft.json").read_text())
-DEFENSE = DefenseExtra.model_validate(json.loads((FIXTURES / "report_defense.json").read_text())["defense"])
+DRAFT = json.loads((FIXTURES / "report_draft.json").read_text(encoding="utf-8"))
+DEFENSE = DefenseExtra.model_validate(
+    json.loads((FIXTURES / "report_defense.json").read_text(encoding="utf-8"))["defense"]
+)
 CODING = CodingExtra(problem_slug="quiet-streak", steps=[], approach=None, complexity_answer_ok=None)
 NOW = datetime(2026, 10, 31, 12, 0, tzinfo=UTC)
 
@@ -208,6 +211,20 @@ def test_metrics_come_from_the_timeline() -> None:
     assert m.longest_silence_s == 185
 
 
+def test_answers_to_the_candidates_own_questions_are_not_help() -> None:
+    timeline = events(
+        phase(0, Phase.CLARIFY),
+        said(
+            5_000, InterventionLevel.QUESTION, InterventionTrigger.ASKED, step_id=None, text="Yes, it can be."
+        ),
+        said(60_000),  # a nudge on s1
+    )
+    m = compute_metrics(timeline, 100_000)
+    assert m.interventions_shown == 1
+    assert m.hints_by_level == {"nudge": 1, "question": 0, "hint": 0, "concept": 0}
+    assert "Asked the interviewer" in [p.title for p in pick_moments(timeline, 100_000, {})]  # still a moment
+
+
 def test_no_submit_means_no_hidden_results() -> None:
     m = compute_metrics(events(phase(0, Phase.CODING), run(10_000)), 20_000)
     assert (m.hidden_passed, m.hidden_total, m.submits, m.runs) == (None, None, 0, 1)
@@ -259,7 +276,7 @@ def test_moments_are_capped_keeping_the_most_important() -> None:
         phase(0, Phase.CODING),
         edit(1_000),
         *(
-            said(10_000 + i * 1_000, InterventionLevel.NUDGE, InterventionTrigger.IDLE, step_id=None)
+            said(10_000 + i * 1_000, InterventionLevel.NUDGE, InterventionTrigger.RUN_FAILED, step_id=None)
             for i in range(20)
         ),
         run(80_000, visible=(2, 2)),
@@ -279,7 +296,9 @@ def test_a_final_submit_that_first_passes_is_one_moment() -> None:
 
 
 def test_defense_moments_cover_chaos_grill_and_verdict() -> None:
-    audit = AuditResult.model_validate(json.loads((FIXTURES / "audit_result.json").read_text()))
+    audit = AuditResult.model_validate(
+        json.loads((FIXTURES / "audit_result.json").read_text(encoding="utf-8"))
+    )
     timeline = events(
         (1_000, TimelineKind.AUDIT, audit),
         (2_000, TimelineKind.CHAOS_RUN, DEFENSE.chaos_runs[0]),
@@ -398,6 +417,46 @@ def test_without_a_submit_the_template_scores_correctness_from_the_last_run(
     assert {d.name: d.score for d in draft.dimensions}["correctness"] == expected
 
 
+def test_a_session_with_no_work_gets_no_independence_points() -> None:
+    """A coding session ended at once used no hints, but that isn't independence: it scored 50 overall."""
+    idle = events(phase(0, Phase.CODING))
+    metrics = compute_metrics(idle, 10_000)
+    draft = template_draft(metrics, [], CODING, idle)
+    assert {d.name: d.score for d in draft.dimensions} == {"correctness": 0, "independence": 0}
+    report = merge("s1", Mode.CODING, draft, metrics, [], CODING, "m", NOW)
+    assert report.overall == 0
+    # the model's own independence score is overridden too
+    report = merge("s1", Mode.CODING, ReportDraft.model_validate(DRAFT), metrics, [], CODING, "m", NOW)
+    assert {d.name: d.score for d in report.dimensions}["independence"] == 0
+
+
+def test_a_session_with_work_keeps_its_independence_score() -> None:
+    draft = template_draft(coding_metrics(), [], CODING, SESSION)
+    assert {d.name: d.score for d in draft.dimensions}["independence"] == 6
+
+
+def test_defense_ended_before_the_attack_isnt_a_perfect_correctness() -> None:
+    early = DEFENSE.model_copy(update={"chaos_runs": [], "grill": []})
+    early = early.model_copy(
+        update={"verdict": early.verdict.model_copy(update={"findings_fixed": [], "findings_unfixed": []})}
+    )
+    scores = measured_scores(coding_metrics(hidden_total=None, hidden_passed=None), early)
+    assert scores["correctness"].score == 0 and scores["independence"].score == 0
+
+
+def test_defense_where_nothing_needed_an_attack_still_scores_correctness() -> None:
+    calm = DEFENSE.model_copy(
+        update={
+            "chaos_runs": [],
+            "findings": [f.model_copy(update={"chaos": None}) for f in DEFENSE.findings],
+        }
+    )
+    calm = calm.model_copy(
+        update={"verdict": calm.verdict.model_copy(update={"findings_fixed": [], "findings_unfixed": []})}
+    )
+    assert measured_scores(coding_metrics(), calm)["correctness"].score == 10
+
+
 # --- the prompt ---------------------------------------------------------------------------------------------------
 
 
@@ -487,7 +546,7 @@ def make_client(tmp_path: Path, model: FakeModel | None, store: MemoryStore | No
     write_quiet_streak(tmp_path)
     app = FastAPI()
     app.include_router(router)
-    modes = {Mode.CODING: CodingMode(ProblemBank.load(tmp_path))}
+    modes = {Mode.CODING: CodingMode(ProblemBank.load(tmp_path), warm_up=False)}
     app.state.hub = SessionHub(store or MemoryStore(), modes, model=model)
     return TestClient(app)
 

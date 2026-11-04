@@ -28,9 +28,9 @@ def test_drafts_and_missing_roots_are_ignored(tmp_path: Path) -> None:
 
 def test_a_bad_problem_fails_in_strict_mode_and_is_skipped_otherwise(tmp_path: Path) -> None:
     folder = write_quiet_streak(tmp_path)
-    raw = json.loads((folder / "problem.json").read_text())
+    raw = json.loads((folder / "problem.json").read_text(encoding="utf-8"))
     del raw["rubric"]
-    (folder / "problem.json").write_text(json.dumps(raw))
+    (folder / "problem.json").write_text(json.dumps(raw), encoding="utf-8")
     with pytest.raises(ProblemError):
         ProblemBank.load(tmp_path)
     assert len(ProblemBank.load(tmp_path, strict=False)) == 0

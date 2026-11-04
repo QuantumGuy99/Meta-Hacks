@@ -29,6 +29,7 @@ def main() -> int:
     ap.add_argument("--duration", type=int, default=None, help="override attack duration (s)")
     ap.add_argument("--no-fix", action="store_true", help="verify the ORIGINAL code (should fail)")
     ap.add_argument("--runner", choices=["local", "modal"], default=None)
+    ap.add_argument("--no-replay", action="store_true", help="skip DEF-14's race replay after the grill")
     args = ap.parse_args()
     logging.basicConfig(level=logging.WARNING)
 
@@ -50,7 +51,7 @@ def main() -> int:
         sample, runner, WrapperModelClient(), MemorySink(echo=True), duration_override_s=args.duration
     )
     fixed = None if args.no_fix else (sample.fixed_files or {})
-    verdict = asyncio.run(run_scripted(pipeline, args.answer, fixed))
+    verdict = asyncio.run(run_scripted(pipeline, args.answer, fixed, with_replay=not args.no_replay))
     print("\nMERGE GATE:", "PASS" if verdict.passed else "FAIL")
     for r in verdict.reasons:
         print("  -", r)

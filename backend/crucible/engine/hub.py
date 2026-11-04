@@ -58,8 +58,10 @@ logger = logging.getLogger(__name__)
 IDLE_TTL_S = 600  # a runtime lives 10 min after its last socket closes (§9.1); longer than a report takes
 FLUSH_INTERVAL_S = 0.25  # timeline writes are batched (§9.2)
 FINISHED = frozenset({Phase.ENDED, Phase.REPORTING, Phase.REPORTED, Phase.FAILED})
-# Only these moves may come from the browser (§8.2 phase.advance): "Start coding" and "I'm done".
-CANDIDATE_ADVANCES = frozenset({(Phase.CLARIFY, Phase.CODING), (Phase.CODING, Phase.WRAP_UP)})
+# Only these moves may come from the browser (§8.2 phase.advance): "Skip intro", "Start coding" and "I'm done".
+CANDIDATE_ADVANCES = frozenset(
+    {(Phase.INTRO, Phase.CLARIFY), (Phase.CLARIFY, Phase.CODING), (Phase.CODING, Phase.WRAP_UP)}
+)
 # After a session ends, the report builder (§9.8) moves it on; any live phase can end or fail.
 _AFTER_END: dict[Phase, set[Phase]] = {
     Phase.ENDED: {Phase.REPORTING, Phase.FAILED},
@@ -197,6 +199,8 @@ class SessionRuntime:
     def remaining_s(self) -> int | None:
         if self._anchor is None or self.session.phase in FINISHED or self.session.phase == Phase.SETUP:
             return None
+        if self.session.phase == Phase.INTRO:
+            return self.session.time_limit_s  # the clock starts when the intro ends (see set_phase)
         return max(0, self.session.time_limit_s - self.now_ms() // 1000)
 
     def state_message(self) -> SessionState:
@@ -267,6 +271,10 @@ class SessionRuntime:
             event = self.timeline.append(
                 TimelineKind.PHASE, {"from_phase": current, "to_phase": to, "reason": reason}
             )
+            if current == Phase.INTRO:
+                # The greeting and warm-up don't count against the problem's time (§3.1): add them to the limit,
+                # so the clock starts with the full time when the intro ends.
+                self.session.time_limit_s += self.now_ms() // 1000
             self.session.phase = to
             if to == Phase.ENDED:
                 self.session.ended_at = self._wall()

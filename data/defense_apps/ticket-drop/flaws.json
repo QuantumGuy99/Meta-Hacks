@@ -93,8 +93,8 @@
       "It runs on the event loop, so concurrent recommendation requests queue up and slow every endpoint.",
       "Index open seats by row and number so each lookup is constant time, and stop after the first few blocks."
     ],
-    "chaos_invariant": "/sections/{section}/recommendations p95 stays under 1,000 ms at 50 concurrent requests",
-    "grill_question": "Under 50 concurrent requests, seat recommendations got slower and slower. What in that code makes it expensive?",
+    "chaos_invariant": "/sections/{section}/recommendations p95 stays under 1,000 ms at 10 concurrent requests",
+    "grill_question": "Under concurrent requests, seat recommendations for groups took seconds each. What in that code makes it expensive?",
     "grill_follow_up": "For a section with 1,000 seats, roughly how many comparisons does finding one block of four take?",
     "fix_steps": [
       {
@@ -146,10 +146,10 @@
       }
     ],
     "chaos": {
-      "endpoint": "/sections/S001/recommendations?party_size=4",
+      "endpoint": "/sections/S001/recommendations?party_size=8",
       "method": "GET",
       "body_example": null,
-      "concurrency": 50,
+      "concurrency": 10,
       "duration_s": 10,
       "invariant": "p95 latency under 1,000 ms",
       "p95_threshold_ms": 1000

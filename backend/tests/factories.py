@@ -33,9 +33,11 @@ def write_quiet_streak(root: Path) -> Path:
     """The quiet-streak sample as a problem folder under `root` (a stand-in until the gold problems land)."""
     folder = root / "quiet-streak"
     folder.mkdir(parents=True)
-    (folder / "problem.json").write_text((FIXTURES / "problem_spec.json").read_text())
-    (folder / "statement.md").write_text(QUIET_STREAK_STATEMENT)
-    (folder / "reference.py").write_text(QUIET_STREAK_REFERENCE)
+    (folder / "problem.json").write_text(
+        (FIXTURES / "problem_spec.json").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (folder / "statement.md").write_text(QUIET_STREAK_STATEMENT, encoding="utf-8")
+    (folder / "reference.py").write_text(QUIET_STREAK_REFERENCE, encoding="utf-8")
     return folder
 
 
@@ -46,9 +48,10 @@ def analysis(
     proposal: bool = True,
     confidence: float = 0.8,
     text: str = "Before you go further, what should an empty list give you?",
-    level: str = "nudge",
+    level: str = "question",
 ) -> dict[str, Any]:
-    """An `Analysis` for quiet-streak. By default s1 (clarify the input) is missed while s2 is under way."""
+    """An `Analysis` for quiet-streak. By default s1 (clarify the input) is missed while s2 is under way, and the
+    analyzer proposes asking about it (missed steps are asked as questions, §9.5)."""
     return {
         "steps": [
             {"step_id": "s1", "status": s1, "evidence": "no mention of the empty list"},
@@ -156,4 +159,4 @@ def runtime(
 
 
 def problem_json() -> dict[str, Any]:
-    return json.loads((FIXTURES / "problem_spec.json").read_text())
+    return json.loads((FIXTURES / "problem_spec.json").read_text(encoding="utf-8"))

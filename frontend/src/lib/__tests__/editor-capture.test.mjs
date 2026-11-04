@@ -58,29 +58,58 @@ class FakeDoc extends EventTarget {
   visibilityState = "visible";
 }
 
-function setup(t) {
+// `baseline` is what attaching sent; `sent` starts empty, so each test sees only what it caused.
+function setup(t, { value = "", file, clockMs = 0 } = {}) {
   t.mock.timers.enable({ apis: ["setInterval"] });
-  const clock = { ms: 0 };
+  const clock = { ms: clockMs };
   const sent = [];
   const editor = new FakeEditor();
+  editor.value = value;
   const doc = new FakeDoc();
   const win = new EventTarget();
   const capture = attachEditorCapture(editor, (msg) => sent.push(msg), {
     startedAtMs: 0,
+    file,
     now: () => clock.ms,
     doc,
     win,
   });
   t.after(() => capture.dispose());
+  const baseline = sent.splice(0);
   const tick = (ms) => {
     clock.ms += ms;
     t.mock.timers.tick(ms);
   };
-  return { capture, clock, sent, editor, doc, win, tick };
+  return { capture, clock, sent, baseline, editor, doc, win, tick };
 }
 
 const events = (sent) => sent.filter((m) => m.type === "editor.events").flatMap((m) => m.events);
 const snapshots = (sent) => sent.filter((m) => m.type === "editor.snapshot").map((m) => m.snapshot);
+
+test("attaching sends one snapshot of the code the editor opened with", (t) => {
+  const { baseline } = setup(t, { value: "def two_sum(nums, target):\n    pass\n", clockMs: 1200 });
+  assert.deepEqual(baseline, [
+    {
+      type: "editor.snapshot",
+      snapshot: { t: 1200, file: "solution.py", version: 1, code: "def two_sum(nums, target):\n    pass\n" },
+    },
+  ]);
+});
+
+test("the baseline snapshot names the starting file, even when the editor is empty", (t) => {
+  const { baseline } = setup(t, { file: "app/main.py" });
+  assert.deepEqual(snapshots(baseline), [{ t: 0, file: "app/main.py", version: 1, code: "" }]);
+});
+
+test("edits after the baseline replay onto it", (t) => {
+  const { baseline, sent, editor, tick } = setup(t, { value: "def f():\n    pass\n" });
+  editor.edit(13, 4, "return 1");
+  tick(BATCH_MS);
+  const [base] = snapshots(baseline);
+  const [event] = events(sent);
+  const { range_offset: at, range_length: n, text } = event.changes[0];
+  assert.equal(base.code.slice(0, at) + text + base.code.slice(at + n), editor.getValue());
+});
 
 test("typing is batched into one editor.events message every 500 ms", (t) => {
   const { sent, editor, tick } = setup(t);
@@ -147,7 +176,7 @@ test("a snapshot follows 15 s after the last one when there were changes", (t) =
   assert.equal(snapshots(sent).length, 1);
 });
 
-test("no idle snapshot without changes", (t) => {
+test("no idle snapshot after the baseline without changes", (t) => {
   const { sent, tick } = setup(t);
   tick(SNAPSHOT_IDLE_MS * 2);
   assert.equal(sent.length, 0);

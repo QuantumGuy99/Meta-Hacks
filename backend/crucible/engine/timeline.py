@@ -15,6 +15,7 @@ from crucible.contracts.defense import (
     ChaosRun,
     FindingPublic,
     GrillTurn,
+    RaceReplay,
     SamHighlight,
     Verdict,
 )
@@ -52,6 +53,7 @@ PAYLOAD_MODELS: dict[TimelineKind, type[BaseModel]] = {
     TimelineKind.VERDICT: Verdict,
     TimelineKind.SYSTEM: SystemNote,
     TimelineKind.MODEL_ACTIVITY: ModelActivity,
+    TimelineKind.REPLAY: RaceReplay,
 }
 
 TAIL_SIZE = 500  # recent events kept in memory for the analyzer

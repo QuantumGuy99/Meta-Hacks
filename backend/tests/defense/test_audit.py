@@ -41,6 +41,44 @@ async def test_model_result_is_used_and_checked(bank, sink):
     assert [f.id for f in result.findings] == ["f1"]  # finding in an unknown file dropped
     assert result.findings[0].node_id is None  # unknown node id cleared
     assert result.findings[0].line_end == bank.files["app/main.py"].count("\n") + 1
+    assert llm.calls == ["audit", "audit"]  # asked again; the retry failed, so the first answer stands
+
+
+def _audit_with(bank, *files: str) -> AuditResult:
+    good = audit_mod.audit_from_flaws(bank)
+    base = good.findings[0]
+    findings = [base.model_copy(update={"id": f"f{i}", "file": f}) for i, f in enumerate(files)]
+    return AuditResult(summary="s", nodes=good.nodes, edges=good.edges, findings=findings)
+
+
+async def test_audit_asks_again_when_a_finding_names_an_unknown_file(bank, sink):
+    llm = FakeLLM()
+    llm.push("audit", _audit_with(bank, "hello world"))
+    llm.push("audit", _audit_with(bank, "app/main.py"))
+    result = await run_audit(bank, llm, sink)
+    assert llm.calls == ["audit", "audit"]
+    assert [f.file for f in result.findings] == ["app/main.py"]
+    assert any("hello world" in e.payload["message"] for e in sink.events)
+
+
+async def test_audit_does_not_ask_again_when_every_file_exists(bank, sink):
+    llm = FakeLLM()
+    llm.push("audit", _audit_with(bank, "app/main.py"))
+    await run_audit(bank, llm, sink)
+    assert llm.calls == ["audit"]
+
+
+async def test_audit_keeps_the_first_answer_when_the_retry_is_worse(bank, sink):
+    llm = FakeLLM()
+    llm.push("audit", _audit_with(bank, "app/main.py", "hello world"))
+    llm.push("audit", _audit_with(bank, "nope.py"))
+    result = await run_audit(bank, llm, sink)
+    assert [f.id for f in result.findings] == ["f0"]
+
+
+def test_unknown_files_lists_each_missing_file_once(bank):
+    a = _audit_with(bank, "app/main.py", "x.py", "x.py", "y.py")
+    assert audit_mod.unknown_files(a, bank.files) == ["x.py", "y.py"]
 
 
 def test_public_view_has_no_explanation_grill_or_fix(bank):
