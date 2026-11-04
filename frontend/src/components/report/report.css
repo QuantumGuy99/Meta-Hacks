@@ -10,6 +10,21 @@
   color: var(--muted-ink);
   font-size: 13px;
 }
+/* Back to Home / New Interview: the header's right end, and again under the replay */
+.rp-exits {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.rp-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding-top: 24px;
+  border-top: 1px solid var(--ui-line);
+  color: var(--muted-ink);
+}
 .rp-body {
   display: flex;
   flex-direction: column;
