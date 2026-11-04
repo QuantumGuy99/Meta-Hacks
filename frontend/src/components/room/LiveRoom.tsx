@@ -36,7 +36,9 @@ import { VoiceControls, VoiceHint } from "./VoiceControls";
 // The live coding room (/coding/[id], PLAN §14.2): everything on screen comes from the session socket.
 // Edits go out through the capture lib; Run/Submit, Ask, Hint and the phase buttons are ClientMessages.
 
-const FILE = "solution.py";
+const FILE = "solution.py"; // the editor's id on the timeline, whatever the language
+// What the editor's tab is called in each language (Java needs its class in Solution.java).
+const FILE_LABEL: Record<string, string> = { python: "solution.py", java: "Solution.java", cpp: "solution.cpp", c: "solution.c" };
 const PHASES: [Phase, string][] = [
   ["intro", "Warm-up"],
   ["clarify", "Clarify"],
@@ -97,6 +99,7 @@ export function LiveRoom({ id }: { id: string }) {
   const capture = useRef<EditorCapture | null>(null);
 
   const slug = state.session?.problem_slug ?? null;
+  const language = state.session?.config.language ?? "python";
   const phase = state.phase;
   // ended, reporting, reported or failed: the backend moves through all of them in a moment (#47)
   const ended = isFinished(phase);
@@ -110,7 +113,7 @@ export function LiveRoom({ id }: { id: string }) {
     if (!slug) return;
     let live = true;
     api
-      .problem(slug)
+      .problem(slug, language)
       .then(async (p) => {
         const timeline = await api.timeline(id).catch(() => []);
         if (!live) return;
@@ -127,7 +130,7 @@ export function LiveRoom({ id }: { id: string }) {
     return () => {
       live = false;
     };
-  }, [slug, id]);
+  }, [slug, id, language]);
 
   // Edits are timed from the session's start, so attach the capture lib once both exist.
   const startedAtMs = state.session?.started_at ? Date.parse(state.session.started_at) : null;
@@ -317,7 +320,7 @@ export function LiveRoom({ id }: { id: string }) {
             <ResizablePanel defaultSize="68%" minSize="30%">
               <section className="rm-panel rm-editor" aria-label="Editor">
                 <header className="rm-panel-head">
-                  <span translate="no">{FILE}</span>
+                  <span translate="no">{FILE_LABEL[language] ?? FILE}</span>
                   <span className="rm-actions">
                     <button type="button" className="ui-btn" onClick={reset} disabled={!editor || ended}>
                       Reset Code
@@ -339,7 +342,7 @@ export function LiveRoom({ id }: { id: string }) {
                   {warmingUp ? (
                     <p className="live-empty">The editor opens with the problem.</p>
                   ) : code !== null ? (
-                    <CodeEditor value={code} onChange={setCode} readOnly={ended} onRun={() => run("run")} onEditor={onEditor} path={FILE} />
+                    <CodeEditor value={code} onChange={setCode} readOnly={ended} onRun={() => run("run")} onEditor={onEditor} path={FILE} language={language} />
                   ) : (
                     <p className="live-empty">Loading your editor…</p>
                   )}

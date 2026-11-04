@@ -1,7 +1,7 @@
 """COD-3 step 3: a coding session warms its runner sandbox at start and closes it at the end (PLAN §10.3).
 
 With RUNNER=modal the first Run otherwise pays the sandbox cold start inside the 20 s run deadline
-(coding/tests.py RUN_DEADLINE_S). The warm-up runs in the background, so it never delays the greeting,
+(coding/tests.py: total_s + RUN_MARGIN_S). The warm-up runs in the background, so it never delays the greeting,
 and a runner that fails to warm is logged and ignored: Run still opens the sandbox lazily.
 """
 

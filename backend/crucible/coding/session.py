@@ -21,6 +21,7 @@ from collections import Counter
 from collections.abc import Callable, Coroutine, Mapping
 from typing import Any
 
+from crucible.coding import languages
 from crucible.coding.complexity import complexity_answer, complexity_question, grade_complexity_answer
 from crucible.coding.integrity import IntegrityDetector
 from crucible.coding.problems import ProblemBank
@@ -317,7 +318,8 @@ class CodingController:
             await rt.broadcast(IntegrityMsg(type="integrity.flag", flag=flag))
         if rt.session.phase == Phase.CLARIFY and edit.kind in ("change", "paste"):
             spec = self._spec(rt)
-            starter = spec.starter_code if spec else ""
+            language = rt.session.config.language
+            starter = languages.starter(spec.function, language, spec.starter_code) if spec else ""
             if new_lines(starter, rt.code.code(edit.file)) >= STARTED_CODING_LINES:
                 await rt.set_phase(Phase.CODING, "started coding")
 
@@ -545,7 +547,7 @@ class CodingController:
     async def _attach(self, rt: SessionRuntime) -> None:
         spec = self._spec(rt)
         if spec is not None:
-            await rt.attach(RubricContext.from_problem(spec))
+            await rt.attach(RubricContext.from_problem(spec, rt.session.config.language))
 
     # --- runner sandbox (COD-3 step 3) ----------------------------------------------------------------
 

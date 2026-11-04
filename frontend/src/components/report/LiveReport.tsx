@@ -22,7 +22,7 @@ import { ReportView, type ReportLine, type ReportMark } from "./ReportView";
 const POLL_MS = 2000;
 const sec = (ms: number) => Math.round(ms / 1000);
 
-type Loaded = { report: Report; timeline: TimelineEvent[]; title: string; file: string };
+type Loaded = { report: Report; timeline: TimelineEvent[]; title: string; file: string; language: string };
 type View =
   | { kind: "loading" }
   | { kind: "generating" }
@@ -98,14 +98,17 @@ export function LiveReport({ id }: { id: string }) {
           return;
         }
         const report = res.report;
-        const [timeline, title] = await Promise.all([
+        const [timeline, session, problemTitle] = await Promise.all([
           api.timeline(id).catch(() => [] as TimelineEvent[]),
+          api.session(id).catch(() => null),
           report.coding
             ? api.problem(report.coding.problem_slug).then((p) => p.title).catch(() => "Coding interview")
-            : api.session(id).then((s) => s.project_id ?? "Project defense").catch(() => "Project defense"),
+            : null,
         ]);
         if (!live) return;
-        setView({ kind: "ready", report, timeline, title, file: mainFile(timeline, "solution.py") });
+        const title = problemTitle ?? session?.project_id ?? "Project defense";
+        const language = report.coding ? (session?.config.language ?? "python") : "python";
+        setView({ kind: "ready", report, timeline, title, file: mainFile(timeline, "solution.py"), language });
       } catch (err) {
         if (!live) return;
         const stillLive = err instanceof ApiError && err.code === "session_live";
@@ -155,7 +158,7 @@ export function LiveReport({ id }: { id: string }) {
     );
   }
 
-  const { report, timeline, title, file } = view;
+  const { report, timeline, title, file, language } = view;
   const defense = report.defense;
   return (
     <ReportView
@@ -164,6 +167,7 @@ export function LiveReport({ id }: { id: string }) {
       report={report}
       replay={timeline}
       file={file}
+      language={language}
       transcript={linesOf(timeline)}
       marks={marksOf(report, timeline)}
       activity={timeline.filter((e) => e.kind === "model_activity").map((e) => e.payload as unknown as ModelActivity)}

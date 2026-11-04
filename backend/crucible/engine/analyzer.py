@@ -102,6 +102,7 @@ class AnalysisInput:
     previous: Analysis | None
     interventions: list[Intervention]
     plan: str | None = None  # the plan they stated earlier, which may be older than the transcript window
+    fence: str = "python"  # the code's language, for the Markdown fences
 
 
 def build_messages(context: RubricContext, view: AnalysisInput) -> list[dict[str, str]]:
@@ -228,6 +229,7 @@ class Analyzer:
             ],
             previous=self.previous,
             plan=self.plan,
+            fence=self._context.fence,
             interventions=[
                 Intervention.model_validate(e.payload)
                 for e in rt.timeline.tail([TimelineKind.INTERVENTION])
@@ -271,7 +273,7 @@ def _state_block(view: AnalysisInput) -> str:
         f"Phase: {view.phase}. Elapsed {elapsed}, {remaining}. Feedback mode: {view.feedback}.",
     ]
     for name, code in view.files.items():
-        parts.append(f"## Code: {name}\n```python\n{_numbered(code)}\n```")
+        parts.append(f"## Code: {name}\n```{view.fence}\n{_numbered(code)}\n```")
     for name, diff in view.diffs.items():
         parts.append(f"## Changes since your last look: {name}\n```diff\n{diff}\n```")
     parts.append("## Recent test runs\n" + ("\n".join(_run_line(r) for r in view.runs) or "None yet."))

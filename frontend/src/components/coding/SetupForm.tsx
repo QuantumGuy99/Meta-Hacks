@@ -5,9 +5,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { api, errorText } from "@/lib/api";
 import { levelLabel } from "@/lib/fixtures";
-import type { Difficulty, FeedbackLevel, ProblemSummary } from "@/types/contracts";
+import type { Difficulty, FeedbackLevel, Language, ProblemSummary } from "@/types/contracts";
 
 const DIFFICULTIES: (Difficulty | "any")[] = ["any", "easy", "medium", "hard"];
+// The ICPC languages; the server builds the starter code and runs the tests in each.
+const LANGUAGES: { id: Language; label: string }[] = [
+  { id: "python", label: "Python" },
+  { id: "java", label: "Java" },
+  { id: "cpp", label: "C++" },
+  { id: "c", label: "C" },
+];
 
 // /coding: pick a problem (or a difficulty and topic), feedback and voice, then POST /api/sessions and open the
 // room. Pre-fills from the ?topic=&feedback= the landing page's start dialog sends.
@@ -24,6 +31,7 @@ export function SetupForm() {
   });
   const [topic, setTopic] = useState("");
   const [feedback, setFeedback] = useState<FeedbackLevel>(params.get("feedback") === "passive" ? "passive" : "active");
+  const [language, setLanguage] = useState<Language>("python");
   const [voice, setVoice] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +68,7 @@ export function SetupForm() {
         problem_slug: slug || null,
         difficulty: slug || difficulty === "any" ? null : difficulty,
         topic: slug || !topic ? null : topic,
+        language,
       });
       router.push(`/coding/${session.id}`);
     } catch (err) {
@@ -122,6 +131,18 @@ export function SetupForm() {
           </label>
         </>
       )}
+      <fieldset className="dlg-seg">
+        <legend>Language</legend>
+        <div className="dlg-track setup-track-4" style={{ "--i": LANGUAGES.findIndex((l) => l.id === language) } as CSSProperties}>
+          <span className="dlg-pill" aria-hidden />
+          {LANGUAGES.map((l) => (
+            <label key={l.id} className={language === l.id ? "is-on" : undefined}>
+              <input type="radio" name="language" value={l.id} checked={language === l.id} onChange={() => setLanguage(l.id)} />
+              {l.label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <fieldset className="dlg-seg">
         <legend>Feedback</legend>
         <div className="dlg-track" style={{ "--i": feedback === "active" ? 0 : 1 } as CSSProperties}>

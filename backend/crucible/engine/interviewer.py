@@ -43,10 +43,11 @@ TEXT_ONLY = frozenset({InterventionTrigger.PASTE, InterventionTrigger.TIME_WARNI
 
 
 def looks_like_code(text: str) -> bool:
-    """A code fence, or two or more lines that parse as Python statements (§9.6 leak guard, code part)."""
+    """A code fence, or two or more lines of Python, Java, C++ or C statements (§9.6 leak guard, code part)."""
     if "```" in text:
         return True
-    return sum(_is_statement(line.strip()) for line in text.splitlines() if line.strip()) >= 2
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return sum(_is_statement(line) or _is_c_like(line) for line in lines) >= 2
 
 
 def leak_reason(text: str, reference: str | None = None) -> str | None:
@@ -101,6 +102,14 @@ def _is_statement(line: str) -> bool:
             not (isinstance(n, ast.Expr) and isinstance(n.value, ast.Name | ast.Constant)) for n in tree.body
         )
     return False
+
+
+# A line of Java/C++/C: ends like a statement or block (";", "{", "}") and has code punctuation in it.
+_C_LIKE = re.compile(r"^(?:[{}]|.*[=(\[<>+\-*/%!&|].*[;{]|.*\)\s*\{|.*;\s*\}?)$")
+
+
+def _is_c_like(line: str) -> bool:
+    return (bool(_C_LIKE.match(line)) and not line[:1].isupper()) or line in ("{", "}", "};")
 
 
 def rubric_hint(context: RubricContext, step_id: str | None, level: InterventionLevel) -> str:
@@ -285,7 +294,7 @@ def _session_state(rt: SessionRuntime, context: RubricContext, heading: str, las
     ][-ANSWER_CONTEXT_TURNS:]
     conversation = "\n".join(f"- {t['speaker']}: {t['text']}" for t in turns) or "(nothing yet)"
     return (
-        f"# Now\nPhase: {rt.session.phase}.\n\n## Their code ({main})\n```python\n{numbered}\n```\n\n"
+        f"# Now\nPhase: {rt.session.phase}.\n\n## Their code ({main})\n```{context.fence}\n{numbered}\n```\n\n"
         f"## Recent conversation\n{conversation}\n\n## {heading}\n{last}"
     )
 

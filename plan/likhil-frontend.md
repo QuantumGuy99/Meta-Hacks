@@ -104,7 +104,7 @@ These are where UI choices touch the spec. Breaking one breaks a design rule or 
   `setFile(path)`.
 - **Voice is speech to text only** (PLAN §14.7): the mic streams to the audio socket and the turns come back
   as captions and chat messages; Hold to Ask sends `ask` frames. No TTS: the interviewer's replies stay text.
-- **Monaco:** Python, `quickSuggestions: false`, `wordBasedSuggestions: "off"`, minimap off (PLAN §14.2).
+- **Monaco:** the session's language (`config.language`: python, java, cpp, c; PLAN §10.3), `quickSuggestions: false`, `wordBasedSuggestions: "off"`, minimap off (PLAN §14.2).
 - **`/coding` setup** pre-fills from the `?topic=&feedback=` your landing start dialog sends, and adds
   difficulty and voice (speech to text, on by default; `speak_replies: false`) → `POST /api/sessions`.
 - **No MOCK or fixtures in the demo video,** ever.

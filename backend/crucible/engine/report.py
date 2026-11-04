@@ -449,7 +449,9 @@ def _code_section(rt: SessionRuntime, context: RubricContext | None) -> str:
     for name in files:
         code = rt.code.code(name)
         if code.strip():
-            parts.append(f"## {name}\n```python\n{code[:MAX_CODE_CHARS]}\n```")
+            parts.append(
+                f"## {name}\n```{context.fence if context else 'python'}\n{code[:MAX_CODE_CHARS]}\n```"
+            )
     return "# Final code\n" + ("\n".join(parts) or "(no code)")
 
 
