@@ -100,6 +100,9 @@ A frozen screen loses the Demo score faster than any model upgrade wins it.
 
 ## The 3-minute video (v2; replaces the PLAN §20.1 draft)
 
+**Superseded by [docs/video/README.md](video/README.md)** (v3: the final format, voiceover script, recording
+guide and the build pipeline, with a preview cut). Kept here for history.
+
 | Time | Shot | What it proves |
 |---|---|---|
 | 0:00–0:20 | Black screen, then the line types out: "AI writes code faster than you can understand it." A real AI agent generating `bank-transfer` in seconds. "Ares proves you understand yours." | Impact: the problem, in human terms |
