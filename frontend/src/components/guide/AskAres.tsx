@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { api, errorText } from "@/lib/api";
-import type { GuideAction, GuideAsk, GuideTurn } from "@/types/guide.draft";
+import type { GuideAction, GuideAsk, GuideTurn } from "@/types/contracts";
 import "./guide.css";
 
 // "Ask Ares" (#25, PR #51): a small guide on every page that answers questions about using the app and can

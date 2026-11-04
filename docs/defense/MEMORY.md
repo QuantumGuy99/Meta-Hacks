@@ -1,11 +1,11 @@
-# Defense working memory (shared by Claude Code and Muse Code)
+# Defense working memory (shared by the coding agents)
 
 The one place where context survives between sessions and between agents. Read it at the start of every
 session. Update it before you finish any session that changed code, decisions or status.
 
 **Rules**
 - Facts, not narratives. One line per item. Absolute dates (2026-10-27), never "today" or "yesterday".
-- Sign entries with the agent: `[claude]`, `[muse]` or `[shreyas]`.
+- Sign entries with the agent: `[agent]`, `[muse]` or `[shreyas]`.
 - Keep this file under ~150 lines. When a section grows, delete what is done or no longer true. Git
   history keeps the old versions.
 - Don't copy what lives elsewhere: architecture is in PLAN.md, your build order, handoff dates and
@@ -48,26 +48,27 @@ session. Update it before you finish any session that changed code, decisions or
 - ST: confirm `QuantumGuy99` is your account (#11). LG: open a PR for `feat/fe-visual-stack` (#12).
 
 ## Verified facts and gotchas
-- 2026-10-28 [claude] Windows Python reads and writes text as cp1252 unless told otherwise: always pass encoding="utf-8" (a test checks).
+- 2026-10-28 [agent] Windows Python reads and writes text as cp1252 unless told otherwise: always pass encoding="utf-8" (a test checks).
 - Windows: with LOCAL_RUNNER_ISOLATE, `proc.terminate()` ends only `uv run`; the app it started survives and keeps the port and the log file. Stop the tree (`taskkill /T`), and never let cleanup raise out of a stage.
-<!-- e.g. "2026-10-28 [claude] Modal Sandbox.open() writes files into a running sandbox (V7)" -->
-- 2026-10-28 [claude] On Windows the harness timer is a thread raising SIGINT: it lands up to ~25 ms late, and like SIGALRM it can't stop a blocked lock or other C code (the runner's process kill does).
-- 2026-10-27 [claude] Modal `block_network=True` blocks egress and keeps loopback (V7 done).
-- 2026-10-27 [claude] Modal stdout arrives in chunks, not lines; ModalRunner.stream_exec splits them (V7).
-- 2026-10-27 [claude] Main moves under you: PR #2 landed while PR #4 was open. `git fetch` and check
+<!-- e.g. "2026-10-28 [agent] Modal Sandbox.open() writes files into a running sandbox (V7)" -->
+- 2026-10-28 [agent] On Windows the harness timer is a thread raising SIGINT: it lands up to ~25 ms late, and like SIGALRM it can't stop a blocked lock or other C code (the runner's process kill does).
+- 2026-10-27 [agent] Modal `block_network=True` blocks egress and keeps loopback (V7 done).
+- 2026-10-27 [agent] Modal stdout arrives in chunks, not lines; ModalRunner.stream_exec splits them (V7).
+- 2026-10-27 [agent] Main moves under you: PR #2 landed while PR #4 was open. `git fetch` and check
   `git log HEAD..origin/main` before starting work and before pushing.
-- 2026-10-27 [claude] MOCK fixture line format is `{"dt_ms": ..., "msg": <ServerMessage>}`; in MOCK mode
+- 2026-10-27 [agent] MOCK fixture line format is `{"dt_ms": ..., "msg": <ServerMessage>}`; in MOCK mode
   the session id is the scenario name (PLAN §14.6).
 
 ## Session log (keep the last 10, newest first)
+- 2026-10-31 [agent] #78: the audit asks again when a finding names a file that doesn't exist (a live run got the race back as file "hello world" and attacked nothing). #71 moved the agent rules to AGENTS.md.
 - 2026-10-29 [agent] Data/Defense weak spots fixed and Thursday leftovers built (see Handoff); 600+ tests pass.
-- 2026-10-28 [claude] for LG: every text read/write names encoding="utf-8" (Windows defaulted to cp1252: "→" in a problem was served as "â†’"), with `tests/test_text_encoding.py` as a guard. The full backend suite passes on Windows.
-- 2026-10-28 [claude] for LG: the harness's per-test timer works on Windows (a timer thread raises SIGINT; the SIGALRM path is unchanged). `test_harness.py` and `test_problem_run.py` pass on Windows.
-- 2026-10-28 [claude, for Likhil] `fix/windows-runner-cleanup`: LocalRunner stops the whole process tree on Windows and removes the app log best-effort; `run_attack` keeps a finished run when cleanup fails (a locked log crashed the stage and left sessions stuck in chaos). The 5 pipeline e2e tests now pass on Windows. Needs Shreyas's review.
-- 2026-10-27 [claude] Merged #13–#15; opened #17, #18; docs refreshed (README status, role plan, spec).
+- 2026-10-28 [agent] for LG: every text read/write names encoding="utf-8" (Windows defaulted to cp1252: "→" in a problem was served as "â†’"), with `tests/test_text_encoding.py` as a guard. The full backend suite passes on Windows.
+- 2026-10-28 [agent] for LG: the harness's per-test timer works on Windows (a timer thread raises SIGINT; the SIGALRM path is unchanged). `test_harness.py` and `test_problem_run.py` pass on Windows.
+- 2026-10-28 [agent, for Likhil] `fix/windows-runner-cleanup`: LocalRunner stops the whole process tree on Windows and removes the app log best-effort; `run_attack` keeps a finished run when cleanup fails (a locked log crashed the stage and left sessions stuck in chaos). The 5 pipeline e2e tests now pass on Windows. Needs Shreyas's review.
+- 2026-10-27 [agent] Merged #13–#15; opened #17, #18; docs refreshed (README status, role plan, spec).
 - 2026-10-29 [agent] RUN-2 + RUN-3 gaps: warm Modal sandbox per coding session, requirements.txt baked into per-project images (network is blocked at run time), images prebuilt at startup, asyncio timeouts on every Modal call. All 3 sample apps break and hold on real Modal.
-- 2026-10-28 [claude] #35 + #43 Defense fixes (reference attack matched by file/lines, keyword root-cause floor, p95 0 = no check, race load floor 50, empty-audit retry, harness configures models, stages cancelled on end). Live run on bank-transfer-min: attacker timed out twice (pre-#43 registry) → reference attack matched → broke $11,249 → grill 10/10 → held → PASS.
-- 2026-10-27 [claude] SG approved #13–#15. Attack containment in 3 layers (validator bans, loopback hook, Modal block_network); V7 done; samples load once.
-- 2026-10-27 [claude] Day 0 + Day 1 checklist complete; RUN-1 "done when" checked on a real problem.
-- 2026-10-27 [claude] DEF-6, RUN-1, OPS-2 built; Modal verified; deploy config PR #14; Glimmer dropped PR #13; folders consolidated.
-- 2026-10-27 [claude] S-0 PR #10 (CI green); Defense built on SG's stack in `feat/defense`, 194 tests pass; reviews posted on #5–#7.
+- 2026-10-28 [agent] #35 + #43 Defense fixes (reference attack matched by file/lines, keyword root-cause floor, p95 0 = no check, race load floor 50, empty-audit retry, harness configures models, stages cancelled on end). Live run on bank-transfer-min: attacker timed out twice (pre-#43 registry) → reference attack matched → broke $11,249 → grill 10/10 → held → PASS.
+- 2026-10-27 [agent] SG approved #13–#15. Attack containment in 3 layers (validator bans, loopback hook, Modal block_network); V7 done; samples load once.
+- 2026-10-27 [agent] Day 0 + Day 1 checklist complete; RUN-1 "done when" checked on a real problem.
+- 2026-10-27 [agent] DEF-6, RUN-1, OPS-2 built; Modal verified; deploy config PR #14; Glimmer dropped PR #13; folders consolidated.
+- 2026-10-27 [agent] S-0 PR #10 (CI green); Defense built on SG's stack in `feat/defense`, 194 tests pass; reviews posted on #5–#7.

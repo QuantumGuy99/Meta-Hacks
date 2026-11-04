@@ -37,7 +37,7 @@ The engine is the product (PLAN §1). If you fall behind, cut P1 coding features
       against `muse-wonder-1.0`. That answers V3 and V4 early.
 - [ ] Python 3.12 + uv; Node ≥ 22 + pnpm (`corepack enable`).
 - [ ] Muse Code: install it and try it on a throwaway task before using it on real work. Use the agent
-      prompt in [plan/README.md](README.md#using-a-coding-agent-muse-code-claude-code).
+      prompt in [plan/README.md](README.md#using-a-coding-agent-muse-code).
 - [ ] Read PLAN §4, §7–§10, §15 and §22.
 
 ---
@@ -146,7 +146,7 @@ async def say(rt: SessionRuntime, text: str, trigger: InterventionTrigger, level
 ## Work packages, in build order
 
 Each one lists what to read, the files, the steps and the "done when". Hand any of them to an agent with the
-prompt in [plan/README.md](README.md#using-a-coding-agent-muse-code-claude-code).
+prompt in [plan/README.md](README.md#using-a-coding-agent-muse-code).
 
 ### S-1 — Contracts v1 (with Shreyas)
 **P0 · Mon–Tue · needs S-0** · Read: PLAN §7, §8.2

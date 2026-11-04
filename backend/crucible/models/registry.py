@@ -21,6 +21,7 @@ ModelRole = Literal[
     "attacker",
     "drafter",
     "vision",
+    "guide",
     "replay",
 ]
 # "none" returns 400 on Spark and Wonder (PLAN §15.2).
@@ -106,6 +107,8 @@ ROLES: dict[ModelRole, RoleSpec] = {
     "attacker": RoleSpec(_spark("low"), timeout_s=30, fallbacks=(_spark("medium"),)),
     "drafter": RoleSpec(_wonder("high"), timeout_s=120, fallbacks=(_spark("medium"), _SPARK_OPEN)),
     "vision": RoleSpec(_spark("low"), timeout_s=10),
+    # The "Ask Ares" guide (#25): a quick, short answer; minimal effort if low is slow.
+    "guide": RoleSpec(_spark("low"), timeout_s=8, fallbacks=(_spark("minimal"),)),
     # DEF-14: narrates a race step by step after it's reproduced; runs in the background during the grill.
     "replay": RoleSpec(_wonder("medium"), timeout_s=60, fallbacks=(_spark("high"),)),
 }

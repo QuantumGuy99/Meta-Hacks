@@ -9,7 +9,7 @@
  * warranty of any kind. Keep this header on any copy or port.
  *
  * Pair with the `.liquid-glass` class from ./liquid-glass.css. Formulas, constants and
- * lifecycle follow ~/.claude/skills/liquid-glass/references/refraction.md one-to-one.
+ * lifecycle follow the liquid-glass skill's refraction reference one-to-one.
  */
 "use client";
 

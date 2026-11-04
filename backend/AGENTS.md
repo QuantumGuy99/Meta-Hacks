@@ -1,7 +1,7 @@
 # How backend code is written (Crucible, Python 3.12)
 
-Loaded whenever you work under `backend/`. Architecture rules are in the root CLAUDE.md and PLAN.md;
-this file is about the code itself. For file skeletons and templates, use the `crucible-code` skill.
+Loaded whenever you work under `backend/`. Architecture rules are in the root AGENTS.md and PLAN.md;
+this file is about the code itself. For file skeletons and templates, see `docs/agents/code-templates.md`.
 
 ## Stack and tooling
 - Python 3.12, FastAPI, Pydantic v2, SQLModel, `openai` SDK (Meta base URL), `modal`, `httpx`, `websockets`.
