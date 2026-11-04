@@ -22,6 +22,7 @@ ModelRole = Literal[
     "drafter",
     "vision",
     "guide",
+    "assistant",
     "replay",
 ]
 # "none" returns 400 on Spark and Wonder (PLAN §15.2).
@@ -105,6 +106,8 @@ ROLES: dict[ModelRole, RoleSpec] = {
     "audit": RoleSpec(_wonder("high"), timeout_s=120, fallbacks=(_spark("high"),)),
     "report": RoleSpec(_wonder("high"), timeout_s=45, fallbacks=(_spark("high"),)),
     "attacker": RoleSpec(_spark("low"), timeout_s=30, fallbacks=(_spark("medium"),)),
+    # DEF-11 fix assistant: writes code for the candidate, so the stronger effort, within PLAN §11.9's 20 s.
+    "assistant": RoleSpec(_spark("medium"), timeout_s=20, fallbacks=(_spark("low"),)),
     "drafter": RoleSpec(_wonder("high"), timeout_s=120, fallbacks=(_spark("medium"), _SPARK_OPEN)),
     "vision": RoleSpec(_spark("low"), timeout_s=10),
     # The "Ask Ares" guide (#25): a quick, short answer; minimal effort if low is slow.

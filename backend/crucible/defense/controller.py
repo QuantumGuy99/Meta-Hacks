@@ -20,7 +20,7 @@ from pydantic import BaseModel
 
 from crucible.config import Settings, get_settings
 from crucible.contracts.common import Phase, SessionConfig
-from crucible.contracts.defense import AuditResult, ChaosRun, GrillTurn, RaceReplay
+from crucible.contracts.defense import AssistantTurn, AuditResult, ChaosRun, GrillTurn, RaceReplay
 from crucible.contracts.events import (
     Intervention,
     InterventionLevel,
@@ -33,6 +33,9 @@ from crucible.contracts.events import (
 )
 from crucible.contracts.report import DefenseExtra
 from crucible.contracts.ws import (
+    AssistantApply,
+    AssistantAsk,
+    AssistantReplyMsg,
     ClientMessage,
     DefenseAudit,
     DefenseChaosDone,
@@ -46,13 +49,14 @@ from crucible.contracts.ws import (
     InterviewerMessage,
 )
 from crucible.defense import verdict as verdict_mod
+from crucible.defense.assistant import MAX_ASKS, UNAVAILABLE, ask_assistant
 from crucible.defense.attack_writer import extract_functions
 from crucible.defense.audit import AuditFailed
 from crucible.defense.chaos import run_attack
 from crucible.defense.grill import SAFE_FEEDBACK, plain_question
 from crucible.defense.model_client import WrapperModelClient
 from crucible.defense.pipeline import MAX_FIX_ROUNDS, DefensePipeline
-from crucible.defense.ports import ModelClient
+from crucible.defense.ports import ModelClient, ModelUnavailable
 from crucible.defense.projects import Sample, load_samples
 from crucible.defense.uploads import ProjectLibrary
 from crucible.engine.context import RubricContext
@@ -180,6 +184,7 @@ class DefenseController:
         # Set when an attack task is spawned, before it can take the lock: a second Verify or re-run sent in
         # the meantime would otherwise pass the `locked()` check and queue a second attack.
         self._attack_pending = False
+        self._assisting = False  # DEF-11: one assistant ask at a time
         self._tasks: set[asyncio.Task[None]] = set()
         self._queue: list[str] = []  # broken findings still to be grilled, in order
         self._current: str | None = None  # the finding the candidate is answering now
@@ -249,7 +254,86 @@ class DefenseController:
                     self._attack_pending = True
                     self._spawn(rt, self._rerun_baseline(rt, fid))
                 return True
+            case AssistantAsk(text=text, files=files):
+                await self._assistant_ask(rt, text, files)
+                return True
+            case AssistantApply(reply_id=reply_id, accepted=accepted):
+                await self._assistant_apply(rt, reply_id, accepted)
+                return True
         return False  # defense.circle (DEF-9) and anything else: unsupported for now
+
+    # --- the fix assistant (DEF-11, §11.9) -------------------------------------------------------------------
+
+    async def _assistant_ask(self, rt: SessionRuntime, text: str, files: dict[str, str]) -> None:
+        """Only once the grill is done (fix/verify), one at a time, MAX_ASKS a session, project files only."""
+        if rt.session.phase not in (Phase.FIX, Phase.VERIFY):
+            await self._error(rt, "bad_phase", "The assistant opens once you've answered the grill.")
+            return
+        if len(self._assistant_turns(rt, "ask")) >= MAX_ASKS:
+            await self._error(rt, "assistant_limit", f"You've used all {MAX_ASKS} assistant questions.")
+            return
+        if self._assisting:
+            await self._error(rt, "busy", "The assistant is still answering.", retryable=True)
+            return
+        p = self._pipeline(rt)
+        unknown = set(files) - set(p.sample.files)
+        if unknown:
+            await self._error(rt, "bad_request", f"Not files in this project: {sorted(unknown)[:3]}")
+            return
+        self._assisting = True  # set before the task runs, so a second ask in the meantime is refused
+        ask = AssistantTurn(
+            id=new_id(), t=rt.now_ms(), kind="ask", reply_to=None, text=text.strip(), edits=[], accepted=[]
+        )
+        await rt.record(TimelineKind.ASSISTANT, ask)
+        self._spawn(rt, self._assistant_reply(rt, ask, {**p.sample.files, **files}))
+
+    async def _assistant_reply(self, rt: SessionRuntime, ask: AssistantTurn, files: dict[str, str]) -> None:
+        p = self._pipeline(rt)
+        try:
+            findings = [p.finding(f) for f in p.state.broken]
+            runs = [*p.state.baseline.values(), *p.state.verify.values()]
+            try:
+                draft = await ask_assistant(p.llm, ask.text, files, findings, runs)
+            except ModelUnavailable as exc:
+                await rt.note("warning", f"fix assistant unavailable: {exc}")
+                await self._error(rt, "assistant_unavailable", UNAVAILABLE, retryable=True)
+                return
+            reply = AssistantTurn(
+                id=new_id(),
+                t=rt.now_ms(),
+                kind="reply",
+                reply_to=ask.id,
+                text=draft.text,
+                edits=draft.edits,
+                accepted=[],
+            )
+            await rt.record(TimelineKind.ASSISTANT, reply)
+            await rt.broadcast(AssistantReplyMsg(type="assistant.reply", turn=reply))
+        finally:
+            self._assisting = False
+
+    async def _assistant_apply(self, rt: SessionRuntime, reply_id: str, accepted: list[str]) -> None:
+        """Which proposed edits went into the editor: only paths that reply proposed count."""
+        reply = next((t for t in self._assistant_turns(rt, "reply") if t.id == reply_id), None)
+        if reply is None:
+            await self._error(rt, "bad_request", "That assistant reply isn't in this session.")
+            return
+        proposed = {e.path for e in reply.edits}
+        taken = [path for path in dict.fromkeys(accepted) if path in proposed]
+        await rt.record(
+            TimelineKind.ASSISTANT,
+            AssistantTurn(
+                id=new_id(), t=rt.now_ms(), kind="apply", reply_to=reply_id, text="", edits=[], accepted=taken
+            ),
+        )
+
+    @staticmethod
+    def _assistant_turns(rt: SessionRuntime, kind: str) -> list[AssistantTurn]:
+        return [
+            AssistantTurn.model_validate(e.payload)
+            for e in rt.timeline.tail([TimelineKind.ASSISTANT])
+            if e.payload["kind"] == kind
+        ]
 
     async def on_timeline(self, rt: SessionRuntime, event: TimelineEvent) -> None:
         if (

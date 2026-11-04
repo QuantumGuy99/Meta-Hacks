@@ -190,3 +190,28 @@ class Verdict(Strict):
     findings_fixed: list[str]
     findings_unfixed: list[str]
     avg_grill_score: float
+
+
+# --- the fix assistant (DEF-11, §11.9) -------------------------------------------------------------------------
+
+
+class AssistantEdit(Strict):  # a proposed change: one project file and its new contents
+    path: str
+    content: str
+
+
+class AssistantDraft(
+    Strict
+):  # LLM output (assistant role): an answer, and the edits it proposes (may be none)
+    text: str
+    edits: list[AssistantEdit]
+
+
+class AssistantTurn(Strict):  # timeline kind=assistant: an ask, its reply, or what the candidate applied
+    id: str
+    t: int
+    kind: Literal["ask", "reply", "apply"]
+    reply_to: str | None  # reply: the ask's id; apply: the reply's id
+    text: str  # ask: the question; reply: the answer; apply: ""
+    edits: list[AssistantEdit]  # reply: the proposed edits
+    accepted: list[str]  # apply: the paths whose edits went into the editor
