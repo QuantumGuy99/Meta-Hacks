@@ -478,6 +478,62 @@
   align-items: flex-start;
   gap: 14px;
 }
+/* the audit wait: big and centred, so a first audit of a few minutes doesn't look frozen */
+.df-wait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-height: min(60vh, 520px);
+  padding: 32px 16px;
+  text-align: center;
+}
+.df-wait-clock {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: clamp(56px, 12vw, 112px);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.df-wait-bar {
+  position: relative;
+  width: min(320px, 70%);
+  height: 3px;
+  overflow: hidden;
+  background: var(--ui-line);
+}
+.df-wait-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 35%;
+  background: var(--secondary-blue);
+}
+.df-wait-title {
+  font-size: clamp(22px, 3.4vw, 32px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.df-wait-note {
+  max-width: 44ch;
+  font-size: clamp(16px, 2vw, 19px);
+  color: var(--muted-ink);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .df-wait-bar::after {
+    animation: wait-sweep 1.6s var(--ease-out) infinite;
+  }
+}
+@keyframes wait-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(290%);
+  }
+}
 .lg-before {
   color: var(--muted-ink);
 }

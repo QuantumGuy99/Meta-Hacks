@@ -49,7 +49,7 @@ from crucible.defense import verdict as verdict_mod
 from crucible.defense.attack_writer import extract_functions
 from crucible.defense.audit import AuditFailed
 from crucible.defense.chaos import run_attack
-from crucible.defense.grill import SAFE_FEEDBACK, grill_question
+from crucible.defense.grill import SAFE_FEEDBACK, plain_question
 from crucible.defense.model_client import WrapperModelClient
 from crucible.defense.pipeline import MAX_FIX_ROUNDS, DefensePipeline
 from crucible.defense.ports import ModelClient
@@ -73,6 +73,9 @@ TRANSITIONS: dict[Phase, set[Phase]] = {
     Phase.VERIFY: {Phase.FIX, Phase.VERDICT},
     Phase.VERDICT: {Phase.ENDED},
 }
+# A spoken answer can arrive as several final turns (a pause mid-sentence): grade them together once they stop,
+# so one answer is graded once and gets one reply (#88 bug 1). Typed answers are graded at once.
+ANSWER_GAP_S = 2.5
 FIX_PROMPT = "Over to you: fix it in the editor, then press Verify. I'll run the exact same attack again."
 
 
@@ -177,6 +180,12 @@ class DefenseController:
         self._tasks: set[asyncio.Task[None]] = set()
         self._queue: list[str] = []  # broken findings still to be grilled, in order
         self._current: str | None = None  # the finding the candidate is answering now
+        # One answer per question (#88): open from when a question goes out until its answer is taken.
+        self._open = False
+        self._asked_ms = 0
+        self._heard: list[str] = []  # the final turns of a spoken answer, until they pause
+        self._gap: asyncio.Task[None] | None = None
+        self._lead: str | None = None  # the grader's reaction, said with the next line instead of on its own
         # DEF-14: replays computed in the background, sent once their finding's grill is final.
         self._replays: dict[str, RaceReplay | None] = {}
         self._graded: set[str] = set()
@@ -246,8 +255,20 @@ class DefenseController:
         if event.kind != TimelineKind.TRANSCRIPT or rt.session.phase != Phase.GRILL or self._current is None:
             return
         turn = TranscriptTurn.model_validate(event.payload)
-        if turn.speaker == "candidate" and turn.final and turn.text.strip():
-            self._spawn(rt, self._grade(rt, self._current, turn.text))
+        if turn.speaker != "candidate" or not turn.final or not turn.text.strip():
+            return
+        # Anything said or typed while an answer is being graded, or begun before the question went out, is
+        # not an answer to the question on screen: grading it would ask a second question at once.
+        if not self._open or turn.start_ms < self._asked_ms:
+            return
+        self._heard.append(turn.text.strip())
+        if self._gap is not None:
+            self._gap.cancel()
+            self._gap = None
+        if turn.source == "text":
+            self._take_answer(rt)
+        else:
+            self._gap = self._spawn(rt, self._after_gap(rt))
 
     async def report_extra(self, rt: SessionRuntime) -> DefenseExtra:
         p = self._pipeline(rt)
@@ -292,12 +313,12 @@ class DefenseController:
                 return
             turn = await p.answer_grill(fid, answer)
         finding = p.finding(fid)
-        if turn.eval.feedback:
-            await self._say(rt, turn.eval.feedback, InterventionLevel.INFO)
+        self._lead = turn.eval.feedback or None
         if p.needs_follow_up(fid):
             # The eval carries the full finding (explanation, expected points), so it goes out only once
             # the grill for this finding is final; revealing it before the follow-up hands over the answer.
-            await self._say(rt, finding.grill.follow_up, InterventionLevel.QUESTION)
+            text = await plain_question(finding, None, finding.grill.follow_up, p.llm, p.sink, answer=answer)
+            await self._ask(rt, text)
             return
         await rt.broadcast(DefenseGrillEval(type="defense.grill.eval", turn=turn, finding=finding))
         self._graded.add(fid)
@@ -368,12 +389,36 @@ class DefenseController:
         self._current = self._queue.pop(0)
         finding = p.finding(self._current)
         previous = p.state.grill.get(self._current)
-        text = (
-            finding.grill.follow_up
-            if previous
-            else grill_question(finding, p.state.baseline[finding.id].summary)
-        )
-        await self._say(rt, text, InterventionLevel.QUESTION)
+        if previous:
+            text = await plain_question(finding, None, finding.grill.follow_up, p.llm, p.sink)
+        else:
+            summary = p.state.baseline[finding.id].summary
+            text = await plain_question(finding, summary, finding.grill.question, p.llm, p.sink)
+        await self._ask(rt, text)
+
+    async def _ask(self, rt: SessionRuntime, question: str) -> None:
+        """A grill question, with the reaction to their last answer in front: one line, not two (#88)."""
+        await self._say(rt, self._with_lead(question), InterventionLevel.QUESTION)
+        self._heard = []
+        self._asked_ms = rt.now_ms()
+        self._open = True
+
+    def _with_lead(self, text: str) -> str:
+        lead, self._lead = self._lead, None
+        return f"{lead} {text}" if lead else text
+
+    def _take_answer(self, rt: SessionRuntime) -> None:
+        """Close the question and grade what was heard, once."""
+        if not self._open or not self._heard or self._current is None:
+            return
+        self._open = False
+        answer, self._heard = " ".join(self._heard), []
+        self._spawn(rt, self._grade(rt, self._current, answer))
+
+    async def _after_gap(self, rt: SessionRuntime) -> None:
+        await asyncio.sleep(ANSWER_GAP_S)
+        self._gap = None
+        self._take_answer(rt)
 
     async def _enter_fix(self, rt: SessionRuntime, *, announce: bool = True) -> None:
         p = self._pipeline(rt)
@@ -381,7 +426,7 @@ class DefenseController:
             await p.set_phase(Phase.FIX, "grill done")
         await rt.attach(self._fix_context(p))
         if announce:
-            await self._say(rt, FIX_PROMPT, InterventionLevel.INFO)
+            await self._say(rt, self._with_lead(FIX_PROMPT), InterventionLevel.INFO)
 
     def _fix_context(self, p: DefensePipeline) -> RubricContext:
         findings = [p.finding(f) for f in p.state.broken]
@@ -479,10 +524,11 @@ class DefenseController:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
 
-    def _spawn(self, rt: SessionRuntime, coro) -> None:
+    def _spawn(self, rt: SessionRuntime, coro) -> asyncio.Task[None]:
         task = asyncio.create_task(self._guard(rt, coro), name=f"defense-{rt.session.id}")
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
+        return task
 
     async def _guard(self, rt: SessionRuntime, coro) -> None:
         """Task boundary: a crash becomes an error note and message, never a silent dead session."""

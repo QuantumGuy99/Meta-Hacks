@@ -60,6 +60,17 @@ const nodeTypes = { service: ServiceNode };
 const NODE_W = 230;
 const NODE_H = 92;
 
+function mergeEdges(edges: TopoEdge[]): Map<string, TopoEdge> {
+  const merged = new Map<string, TopoEdge>();
+  for (const e of edges) {
+    const key = `${e.source}-${e.target}`;
+    const seen = merged.get(key);
+    const labels = [seen?.label, e.label].filter((l): l is string => !!l);
+    merged.set(key, { ...e, label: [...new Set(labels)].join(" · ") || null });
+  }
+  return merged;
+}
+
 function layout(nodes: TopoNode[], edges: TopoEdge[], flags: Record<string, string>) {
   const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
   g.setGraph({ rankdir: "LR", nodesep: 28, ranksep: 70 });
@@ -98,10 +109,11 @@ export function TopologyView({
       })),
     [nodes, edges, flags, selectedId, pulseId],
   );
-  // Edges stay still; flagged paths are red, everything else quiet grey.
+  // Edges stay still; flagged paths are red, everything else quiet grey. The audit can name two edges between
+  // the same nodes (a read and a write): they're drawn as one, with both labels, so their ids stay unique.
   const flowEdges = useMemo<Edge[]>(
     () =>
-      edges.map((e) => {
+      [...mergeEdges(edges).values()].map((e) => {
         const hot = nodes.find((n) => n.id === e.target)?.flagged || nodes.find((n) => n.id === e.source)?.flagged;
         return {
           id: `${e.source}-${e.target}`,

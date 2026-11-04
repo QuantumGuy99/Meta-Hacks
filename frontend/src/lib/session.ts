@@ -345,8 +345,15 @@ export function isFinished(phase: Phase | null): boolean {
 /** Seconds left, counting down locally between the server's session.state updates. */
 export function useRemaining(state: LiveState): number | null {
   const [now, setNow] = useState(0);
-  // The clock holds through the warm-up and starts with the problem (#57): the server sends the new time then.
-  const live = state.remainingS !== null && !isFinished(state.phase) && state.phase !== "setup" && state.phase !== "intro";
+  // The clock holds through the warm-up (#57) and the Defense audit and attack, and starts after them (at the
+  // problem, or the grill's first question): the server sends the new time then.
+  const live =
+    state.remainingS !== null &&
+    !isFinished(state.phase) &&
+    state.phase !== "setup" &&
+    state.phase !== "intro" &&
+    state.phase !== "audit" &&
+    state.phase !== "chaos";
   useEffect(() => {
     if (!live) return;
     const tick = () => setNow(performance.now());

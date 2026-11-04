@@ -9,7 +9,7 @@ import re
 import uuid
 
 from crucible.contracts.defense import Finding, GrillEval, GrillTurn
-from crucible.contracts.events import TimelineKind
+from crucible.contracts.events import InterventionText, TimelineKind
 from crucible.defense.ports import EventSink, ModelClient, ModelUnavailable, note
 from crucible.defense.prompts import PROMPTS
 
@@ -19,6 +19,10 @@ KEYWORD_HIT_RATIO = 0.4
 # Keywords alone shouldn't fail a correct explanation on the root cause (#35): point 0 needs fewer words.
 KEYWORD_ROOT_RATIO = 0.25
 MAX_ANSWER_CHARS = 4_000  # about 3 minutes of speech; longer answers are cut before they reach the model
+# The question waits on the plain-words rewrite (Spark low, about 1-3 s), so a slow one gives way to the audit's
+# wording rather than leaving the candidate on a silent room.
+PLAIN_TIMEOUT_S = 8
+PLAIN_MAX_CHARS = 600  # about 90 words: a longer rewrite is rambling, and the audit's wording goes out
 SAFE_FEEDBACK = "Think about what another request could be doing while this one waits. What could change?"
 _STOPWORDS = frozenset(
     [
@@ -80,6 +84,45 @@ _STOPWORDS = frozenset(
 def grill_question(finding: Finding, chaos_summary: str) -> str:
     """The question with the real numbers in front. (An LLM rewrite is P1; this is also its fallback.)"""
     return f"{chaos_summary}. {finding.grill.question}"
+
+
+async def plain_question(
+    finding: Finding,
+    chaos_summary: str | None,
+    question: str,
+    llm: ModelClient,
+    sink: EventSink,
+    *,
+    answer: str | None = None,
+) -> str:
+    """The grill question in everyday words (#88 item 6): for the first question, a sentence or two on what the
+    attack did and what went wrong first; for a follow-up, a smaller first step when they said they don't know.
+    The model sees only what the candidate already has (the finding's title, file and category, the load test,
+    the question and their answer), so it can't give the cause away. Falls back to the audit's wording."""
+    fallback = grill_question(finding, chaos_summary) if chaos_summary else question
+    user = {
+        "kind": "first" if chaos_summary else "follow_up",
+        "finding": finding.model_dump(include={"title", "file", "category"}),
+        "load_test": chaos_summary,
+        "question": question,
+        "their_answer": answer[:MAX_ANSWER_CHARS] if answer else None,
+    }
+    messages = [
+        {"role": "system", "content": PROMPTS["grill_plain_system"]},
+        {"role": "user", "content": json.dumps(user)},
+    ]
+    try:
+        out = await llm.complete_json("interviewer", messages, InterventionText, timeout_s=PLAIN_TIMEOUT_S)
+    except ModelUnavailable as exc:
+        await note(
+            sink, "info", f"Plain-words grill question for {finding.id} unavailable; audit wording. ({exc})"
+        )
+        return fallback
+    text = out.text.strip()
+    if not text or len(text) > PLAIN_MAX_CHARS or looks_like_code(text):
+        await note(sink, "info", f"Plain-words grill question for {finding.id} rejected; audit wording.")
+        return fallback
+    return text
 
 
 def score_answer(

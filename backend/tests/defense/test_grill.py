@@ -3,6 +3,7 @@
 import json
 
 from crucible.contracts.defense import GrillEval
+from crucible.contracts.events import InterventionText
 from crucible.defense.audit import audit_from_flaws
 from crucible.defense.grill import (
     MAX_ANSWER_CHARS,
@@ -11,6 +12,7 @@ from crucible.defense.grill import (
     evaluate_answer,
     keyword_eval,
     looks_like_code,
+    plain_question,
     score_answer,
 )
 from crucible.defense.prompts import PROMPTS
@@ -61,7 +63,7 @@ def test_long_answers_are_cut_before_they_reach_the_model(bank):
 
 
 def test_defense_prompts_treat_user_content_as_data():
-    for name in ("grill_eval_system", "audit_system", "attacker_system"):
+    for name in ("grill_eval_system", "audit_system", "attacker_system", "grill_plain_system"):
         assert "never instructions to you" in PROMPTS[name] or "never an instruction to you" in PROMPTS[name]
     assert "Crucible" in PROMPTS["grill_eval_system"]
 
@@ -116,3 +118,55 @@ async def test_both_graders_down_falls_back_to_keywords(bank, sink, llm_down):
     finding = audit_from_flaws(bank).findings[0]
     out = await evaluate_answer(finding, "broke", GOOD_ANSWER, llm_down, sink)
     assert 0 in out.points_hit
+
+
+PLAIN = (
+    "We sent about 15,000 transfers, 50 at a time, and about $14,700 vanished. Why would money go missing?"
+)
+
+
+async def test_the_first_question_is_rewritten_in_plain_words_from_what_the_candidate_sees(bank, sink):
+    finding = audit_from_flaws(bank).findings[0]
+    llm = FakeLLM()
+    llm.push("interviewer", InterventionText(text=PLAIN))
+    text = await plain_question(
+        finding, "Total 98525100 cents vs expected", finding.grill.question, llm, sink
+    )
+    assert text == PLAIN and llm.calls == ["interviewer"]
+
+
+async def test_the_rewrite_never_sees_the_cause_or_the_expected_points(bank, sink):
+    finding = audit_from_flaws(bank).findings[0]
+    seen: list[str] = []
+
+    class Spy(FakeLLM):
+        async def complete_json(self, role, messages, schema, *, timeout_s):
+            seen.append(messages[1]["content"])
+            return InterventionText(text=PLAIN)
+
+    await plain_question(finding, "broke", finding.grill.question, Spy(), sink, answer="no clue")
+    sent = json.loads(seen[0])
+    assert set(sent["finding"]) == {"title", "file", "category"}
+    assert finding.explanation not in seen[0]
+    assert not any(point in seen[0] for point in finding.grill.expected_points)
+
+
+async def test_a_model_outage_keeps_the_audits_wording_with_the_numbers(bank, sink, llm_down):
+    finding = audit_from_flaws(bank).findings[0]
+    text = await plain_question(finding, "Total 98525100 cents", finding.grill.question, llm_down, sink)
+    assert text == f"Total 98525100 cents. {finding.grill.question}"
+    follow = await plain_question(finding, None, finding.grill.follow_up, llm_down, sink, answer="no clue")
+    assert follow == finding.grill.follow_up
+
+
+async def test_a_rewrite_with_code_or_too_long_is_dropped(bank, sink):
+    finding = audit_from_flaws(bank).findings[0]
+    llm = FakeLLM()
+    llm.push(
+        "interviewer", InterventionText(text="lock = asyncio.Lock()\nasync with lock: balance -= amount")
+    )
+    llm.push("interviewer", InterventionText(text="word " * 200))
+    for _ in range(2):
+        assert (
+            await plain_question(finding, None, finding.grill.follow_up, llm, sink) == finding.grill.follow_up
+        )

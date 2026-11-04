@@ -60,6 +60,7 @@ session. Update it before you finish any session that changed code, decisions or
   the session id is the scenario name (PLAN §14.6).
 
 ## Session log (keep the last 10, newest first)
+- 2026-11-04 [agent, for SG] From SG's practice run (#88 bugs 1, 5, item 6): one answer per grill question (a message while grading, or speech begun before the question, is ignored; spoken parts are joined after a 2.5 s pause), the grader's reaction goes out with the next line instead of on its own, questions are reworded in plain words by `grill.plain_question` (`interviewer` role, audit wording as the fallback), and the Defense clock holds through audit and chaos (`HELD_CLOCK` in engine/hub.py). Needs Shreyas's review.
 - 2026-10-31 [agent] #78: the audit asks again when a finding names a file that doesn't exist (a live run got the race back as file "hello world" and attacked nothing). #71 moved the agent rules to AGENTS.md.
 - 2026-10-29 [agent] Data/Defense weak spots fixed and Thursday leftovers built (see Handoff); 600+ tests pass.
 - 2026-10-28 [agent] for LG: every text read/write names encoding="utf-8" (Windows defaulted to cp1252: "→" in a problem was served as "â†’"), with `tests/test_text_encoding.py` as a guard. The full backend suite passes on Windows.
@@ -69,6 +70,3 @@ session. Update it before you finish any session that changed code, decisions or
 - 2026-10-29 [agent] RUN-2 + RUN-3 gaps: warm Modal sandbox per coding session, requirements.txt baked into per-project images (network is blocked at run time), images prebuilt at startup, asyncio timeouts on every Modal call. All 3 sample apps break and hold on real Modal.
 - 2026-10-28 [agent] #35 + #43 Defense fixes (reference attack matched by file/lines, keyword root-cause floor, p95 0 = no check, race load floor 50, empty-audit retry, harness configures models, stages cancelled on end). Live run on bank-transfer-min: attacker timed out twice (pre-#43 registry) → reference attack matched → broke $11,249 → grill 10/10 → held → PASS.
 - 2026-10-27 [agent] SG approved #13–#15. Attack containment in 3 layers (validator bans, loopback hook, Modal block_network); V7 done; samples load once.
-- 2026-10-27 [agent] Day 0 + Day 1 checklist complete; RUN-1 "done when" checked on a real problem.
-- 2026-10-27 [agent] DEF-6, RUN-1, OPS-2 built; Modal verified; deploy config PR #14; Glimmer dropped PR #13; folders consolidated.
-- 2026-10-27 [agent] S-0 PR #10 (CI green); Defense built on SG's stack in `feat/defense`, 194 tests pass; reviews posted on #5–#7.
