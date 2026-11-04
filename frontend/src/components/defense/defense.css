@@ -590,3 +590,78 @@
     flex-wrap: wrap;
   }
 }
+
+/* The fix assistant (DEF-11): beside the fix stage, under Verify */
+.df-assist {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--ui-line);
+}
+.df-assist header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+.df-assist h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.df-assist-thread {
+  display: grid;
+  gap: 10px;
+  max-height: 320px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.df-assist-thread li {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+.df-assist-thread li p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.df-assist-thread .is-ai {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(47, 107, 255, 0.08);
+}
+.df-assist-edits {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.df-assist-edits li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.df-assist-edits button {
+  margin-left: auto;
+}
+.df-assist-ask {
+  display: grid;
+  gap: 8px;
+}
+.df-assist-ask textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-line);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+}
+

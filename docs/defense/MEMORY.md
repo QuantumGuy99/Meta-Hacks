@@ -30,16 +30,16 @@ session. Update it before you finish any session that changed code, decisions or
 | DEF-1..6 | Defense pipeline + DefenseController | merged (#15), review fixes open | 7 WebSocket e2e tests; resume works. Blockers 1-4 of #22 fixed in #29; items 5, 7, 9, 10 open |
 | OPS-2 | MOCK replay + recorder | merged (#15); re-recorded | `defense-bank-transfer.jsonl` now from the real `bank-transfer`; `rest/report-defense.json` serves the report page |
 | OPS-1 | Deploy | prep merged (#14) | No deployed URL is recorded in the repo: add it to README and docs/DEPLOY.md |
-| DEF-11 | Muse fix assistant (full coding assistant, logged) | not built | P1; spec in #17 |
+| DEF-11 | Muse fix assistant (full coding assistant, logged) | built | `defense/assistant.py`, `FixAssistant.tsx`; the report's AI-share line (§11.9) isn't built yet: the timeline has every turn |
+| DEF-1 upload | Zip upload + notes for the audit | built | `defense/uploads.py`; the audit and attacks need a model key (no flaws.json for uploads) |
 | — | Attacker prompt knows the new validator rules | #18 | Waiting on SG |
 | lib/defense.ts | Selectors for Likhil's views | built, with Node tests | Shape as in the role plan |
 | DEF-2 recall | `python -m crucible.defense.recall` over `data/evals/defense/` | built, not run live | Needs MODEL_API_KEY; the flaws.json fallback never counts |
 
 ## Handoff (overwrite every session)
-- **Last done:** 2026-11-04 [agent] Review of `main` and fixes: the editor loads Monaco from the app instead of
-  a CDN; the session and audio sockets check the page Origin; a session with no work gets no independence
-  points (and a Defense session ended before the attack no longer scores correctness 10); README and landing
-  no longer promise uploads or circling; examples and constraints show once in the room.
+- **Last done:** 2026-11-04 [agent] Upload your own project (zip, private, with optional notes for the audit),
+  the DEF-11 fix assistant (ask, reply, apply, all on the timeline), no answer box in the grill, profanity
+  warnings that end the session on the third strike.
 - **Next step:** run `python -m crucible.defense.recall` with a key (DEF-2 done-when).
 - **Blocked on:** a MODEL_API_KEY for the recall eval.
 

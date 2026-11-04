@@ -11,6 +11,7 @@ from pydantic import Field
 from crucible.contracts.coding import StepProgress, SuspectedIssue
 from crucible.contracts.common import Phase, Session, Strict
 from crucible.contracts.defense import (
+    AssistantTurn,
     AuditPublic,
     ChaosMetric,
     ChaosRun,
@@ -98,6 +99,18 @@ class DefenseVerify(Strict):
     files: dict[FilePath, SourceText] = Field(max_length=MAX_PROJECT_FILES)  # path → edited code
 
 
+class AssistantAsk(Strict):  # DEF-11 (§11.9): fix/verify only; the editor's files as they are now
+    type: Literal["assistant.ask"]
+    text: Annotated[str, Field(min_length=1, max_length=MAX_CHAT_CHARS)]
+    files: dict[FilePath, SourceText] = Field(max_length=MAX_PROJECT_FILES)
+
+
+class AssistantApply(Strict):  # which of a reply's edits the candidate took into the editor
+    type: Literal["assistant.apply"]
+    reply_id: Id
+    accepted: list[FilePath] = Field(max_length=MAX_PROJECT_FILES)
+
+
 class DefenseCircle(Strict):  # P1 (§11.7)
     type: Literal["defense.circle"]
     finding_id: Id
@@ -122,6 +135,8 @@ ClientMessage = Annotated[
     | DefenseRunChaos
     | DefenseVerify
     | DefenseCircle
+    | AssistantAsk
+    | AssistantApply
     | SessionEnd,
     Field(discriminator="type"),
 ]
@@ -195,6 +210,11 @@ class DefenseReplay(Strict):  # DEF-14: the race, step by step, after the grill
     replay: RaceReplay
 
 
+class AssistantTurnMsg(Strict):  # DEF-11: an ask, the assistant's reply, or an apply, as it's recorded
+    type: Literal["assistant.turn"]
+    turn: AssistantTurn
+
+
 class DefenseVerdict(Strict):
     type: Literal["defense.verdict"]
     verdict: Verdict
@@ -231,6 +251,7 @@ ServerMessage = Annotated[
     | DefenseSamHighlight
     | DefenseReplay
     | DefenseVerdict
+    | AssistantTurnMsg
     | ModelActivityMsg
     | ReportReady
     | ErrorMsg,

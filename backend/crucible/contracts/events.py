@@ -171,6 +171,7 @@ class TimelineKind(StrEnum):
     SYSTEM = "system"
     MODEL_ACTIVITY = "model_activity"
     REPLAY = "replay"
+    ASSISTANT = "assistant"  # DEF-11: fix-assistant asks, replies and applies (AssistantTurn)
 
 
 class TimelineEvent(Strict):

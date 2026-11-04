@@ -22,6 +22,8 @@ export type ClientMessage =
   | DefenseRunChaos
   | DefenseVerify
   | DefenseCircle
+  | AssistantAsk
+  | AssistantApply
   | SessionEnd;
 /**
  * This interface was referenced by `CrucibleContracts`'s JSON-Schema
@@ -61,6 +63,7 @@ export type ServerMessage =
   | DefenseSamHighlight
   | DefenseReplay
   | DefenseVerdict
+  | AssistantTurnMsg
   | ModelActivityMsg
   | ReportReady
   | ErrorMsg;
@@ -130,7 +133,8 @@ export type TimelineKind =
   | "verdict"
   | "system"
   | "model_activity"
-  | "replay";
+  | "replay"
+  | "assistant";
 /**
  * This interface was referenced by `CrucibleContracts`'s JSON-Schema
  * via the `definition` "FeedbackLevel".
@@ -297,6 +301,29 @@ export interface DefenseCircle {
   node_boxes?: {
     [k: string]: number[];
   } | null;
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "AssistantAsk".
+ */
+export interface AssistantAsk {
+  type: "assistant.ask";
+  text: string;
+  files: {
+    [k: string]: string;
+  };
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "AssistantApply".
+ */
+export interface AssistantApply {
+  type: "assistant.apply";
+  reply_id: string;
+  /**
+   * @maxItems 60
+   */
+  accepted: string[];
 }
 /**
  * This interface was referenced by `CrucibleContracts`'s JSON-Schema
@@ -738,6 +765,35 @@ export interface Verdict {
   findings_fixed: string[];
   findings_unfixed: string[];
   avg_grill_score: number;
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "AssistantTurnMsg".
+ */
+export interface AssistantTurnMsg {
+  type: "assistant.turn";
+  turn: AssistantTurn;
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "AssistantTurn".
+ */
+export interface AssistantTurn {
+  id: string;
+  t: number;
+  kind: "ask" | "reply" | "apply";
+  reply_to: string | null;
+  text: string;
+  edits: AssistantEdit[];
+  accepted: string[];
+}
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "AssistantEdit".
+ */
+export interface AssistantEdit {
+  path: string;
+  content: string;
 }
 /**
  * This interface was referenced by `CrucibleContracts`'s JSON-Schema

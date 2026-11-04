@@ -10,6 +10,7 @@ import {
   findingDetail,
   flaggedNodeIds,
   nodeStatus,
+  projectLabel,
   stageLabel,
   verdictBanner,
 } from "../defense.ts";
@@ -96,4 +97,10 @@ test("nodeStatus moves flagged → broke → verified", () => {
   const fixed = [run("b", "baseline", "broke"), run("v", "verify", "held")];
   assert.equal(nodeStatus(audit, fixed, "app.services"), "verified");
   assert.equal(nodeStatus(audit, fixed, "app.store"), "ok");
+});
+
+test("projectLabel shows a sample's name and hides an upload's private id", () => {
+  assert.equal(projectLabel("bank-transfer"), "bank-transfer");
+  assert.equal(projectLabel("a0c232d61a2642609b690de177ed44a1"), "Your project");
+  assert.equal(projectLabel(null), "Project");
 });

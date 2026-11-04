@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from crucible.contracts.coding import Analysis
 from crucible.contracts.defense import (
+    AssistantTurn,
     AuditPublic,
     AuditResult,
     ChaosMetric,
@@ -54,6 +55,7 @@ PAYLOAD_MODELS: dict[TimelineKind, type[BaseModel]] = {
     TimelineKind.SYSTEM: SystemNote,
     TimelineKind.MODEL_ACTIVITY: ModelActivity,
     TimelineKind.REPLAY: RaceReplay,
+    TimelineKind.ASSISTANT: AssistantTurn,
 }
 
 TAIL_SIZE = 500  # recent events kept in memory for the analyzer

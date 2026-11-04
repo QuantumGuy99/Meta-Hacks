@@ -16,7 +16,7 @@ Crucible has two modes that share one live AI interviewer:
 > - **Live Coding Interview:** warm-up, problem, an interviewer that follows edits and speech, Run/Submit on
 >   real tests, wrap-up, and a report with a replay. 12 original problems.
 > - **Project Defense:** audit → attack under load in a sandbox → grill → fix → verify with the same attack →
->   merge gate → report, on three sample apps. Uploading your own project is planned, not built.
+>   merge gate → report, on three sample apps or your own uploaded project, with a fix assistant.
 > - **Checks:** CI (backend, frontend, contracts, Docker), `make validate` for every problem and app, and the
 >   model evals in `backend/tests/evals/` (16 of 16 passed on Nov 2).
 >
@@ -66,8 +66,9 @@ keystroke, every test run, every sentence you say) and holds you to what a stron
    nudge, with "moment cards" at the turning points.
 
 ### 🛡️ Project Defense
-1. **Submit:** pick one of the three sample apps (`bank-transfer`, `ticket-drop`, `report-service`). Uploading
-   your own project is planned, not built yet.
+1. **Submit:** pick one of the three sample apps (`bank-transfer`, `ticket-drop`, `report-service`), or upload
+   your own FastAPI project as a zip (up to 2 MB, 60 files, 6,000 lines), with an optional `.txt` of notes that
+   tells the audit what the app is for. It runs only in the sandbox and stays private to you.
 2. **Audit:** Muse Wonder reads the whole project in one pass, maps its structure (shown as an interactive
    diagram) and finds the riskiest flaws: race conditions, blocking I/O in async code, O(n²) hot paths.
 3. **Chaos lab:** for each flaw, Muse Spark writes a targeted attack inside a fixed template, and a validator
@@ -76,7 +77,9 @@ keystroke, every test run, every sentence you say) and holds you to what a stron
    disappeared."*).
 4. **The grill:** a timed interview (voice or chat) about each failure. *"Why did that happen? What would
    you change?"* The explanation of the flaw stays hidden until you've answered.
-5. **Fix:** you fix the code yourself in the same live editor, with the same interviewer watching.
+5. **Fix:** you fix the code in the same live editor, the way people really build: by hand, or with the
+   **fix assistant** (Muse Spark) beside it, which proposes edits you apply or not. Everything it writes is
+   recorded, so the report shows how much of the fix was yours.
 6. **Verify:** Crucible re-runs the exact attack. **The gate opens only if the sandbox holds and your
    explanations hold up.**
 

@@ -15,5 +15,7 @@
   {"type": "defense.run_chaos", "finding_id": "f1"},
   {"type": "defense.verify", "finding_id": "f1", "files": {"app/main.py": "# edited file contents"}},
   {"type": "defense.circle", "finding_id": "f1", "source": "canvas", "image_b64": "iVBORw0KGgo=", "node_boxes": {"n1": [40, 60, 220, 120], "n2": [300, 60, 480, 120]}},
-  {"type": "session.end"}
+  {"type": "session.end"},
+  {"type": "assistant.ask", "text": "How do I make the transfer atomic?", "files": {"app/services.py": "x = 1\n"}},
+  {"type": "assistant.apply", "reply_id": "t1", "accepted": ["app/services.py"]}
 ]

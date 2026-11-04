@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ApiError, api, errorText } from "@/lib/api";
+import { projectLabel } from "@/lib/defense";
 import type {
   ChaosRun,
   IntegrityFlag,
@@ -120,7 +121,7 @@ export function LiveReport({ id }: { id: string }) {
             : null,
         ]);
         if (!live) return;
-        const title = problemTitle ?? session?.project_id ?? "Project defense";
+        const title = problemTitle ?? (session?.project_id ? projectLabel(session.project_id) : "Project defense");
         const language = report.coding ? (session?.config.language ?? "python") : "python";
         setView({ kind: "ready", report, timeline, title, file: mainFile(timeline, "solution.py"), language });
       } catch (err) {

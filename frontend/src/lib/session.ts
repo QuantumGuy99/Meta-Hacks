@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type {
+  AssistantTurn,
   AuditPublic,
   ChaosMetric,
   ChaosRun,
@@ -67,6 +68,8 @@ export type LiveState = {
   error: (ErrorMsg & { at: number }) | null;
   /** model.activity events for the Under the hood strip (PR #39), oldest first. */
   activity: ActivityEvent[];
+  /** The fix assistant's conversation (DEF-11): asks, replies and applies, as recorded. */
+  assistant: AssistantTurn[];
 };
 
 export const initialLive: LiveState = {
@@ -94,6 +97,7 @@ export const initialLive: LiveState = {
   reportReady: false,
   error: null,
   activity: [],
+  assistant: [],
 };
 
 type Action =
@@ -138,6 +142,9 @@ function addHistory(state: LiveState, events: TimelineEvent[]): LiveState {
         break;
       case "verdict":
         next = { ...next, verdict: p as Verdict };
+        break;
+      case "assistant":
+        next = { ...next, assistant: upsert(next.assistant, p as AssistantTurn, (x) => x.id) };
         break;
       case "grill": {
         // Recorded at every grading, so a turn still waiting on its follow-up isn't the result yet (the
@@ -243,6 +250,8 @@ export function reduceLive(state: LiveState, action: Action): LiveState {
       return { ...state, highlight: msg.highlight };
     case "defense.verdict":
       return { ...state, verdict: msg.verdict };
+    case "assistant.turn":
+      return { ...state, assistant: upsert(state.assistant, msg.turn, (x) => x.id) };
     case "report.ready":
       return { ...state, reportReady: true };
     case "error":
