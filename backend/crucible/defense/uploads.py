@@ -26,10 +26,15 @@ from crucible.defense.projects import (
     Sample,
     build_project,
 )
+from crucible.runner.base import RunnerError
+from crucible.runner.modal_runner import parse_requirements
 
 MAX_ZIP_BYTES = 2 * 1024 * 1024  # PLAN §11.1
 MAX_UNZIPPED_BYTES = 8 * 1024 * 1024  # a 2 MB zip can't expand into more than this (zip bombs)
 MAX_FILE_BYTES = 512 * 1024
+# All the source text the audit reads in one prompt: 6,000 lines at ~100 characters. Very long lines would
+# otherwise make a several-MB prompt (cost, and a model that refuses it).
+MAX_SOURCE_CHARS = 600_000
 MAX_NAME_CHARS = 40
 MAX_CONTEXT_CHARS = 8_000  # the author's notes: a page or two of "what this project is"
 # A root file with one of these names is the author's notes for the audit, not project source.
@@ -106,6 +111,12 @@ def make_upload(filename: str, data: bytes) -> Sample:
     command = entrypoint(files)
     notes = next((files[k] for k in files if k.lower() in CONTEXT_FILES), None)
     source = {k: v for k, v in files.items() if k not in META_FILES and k.lower() not in CONTEXT_FILES}
+    if sum(len(text) for text in source.values()) > MAX_SOURCE_CHARS:
+        raise ProjectInvalid(f"the project has more than {MAX_SOURCE_CHARS:,} characters of source")
+    try:  # the sandbox's own check (plain, pinned package names only), now rather than mid-session
+        parse_requirements(source.get("requirements.txt", ""))
+    except RunnerError as exc:
+        raise ProjectInvalid(str(exc)) from exc
     project = build_project(
         uuid.uuid4().hex, source, source="upload", entrypoint=command, port=DEFAULT_PORT
     ).model_copy(update={"name": display_name(filename)})

@@ -37,6 +37,15 @@ export type ChaosPoint = {
 const STAGES: readonly DefenseStage[] = ["audit", "chaos", "grill", "fix", "verify", "verdict"];
 const AFTER_VERDICT: readonly Phase[] = ["ended", "reporting", "reported"];
 
+// An uploaded project's id is 32 random hex characters (defense/uploads.py): private, not a name to show.
+const UPLOAD_ID = /^[0-9a-f]{32}$/;
+
+/** What to call a session's project on screen: a sample's name, or "Your project" for an upload. */
+export function projectLabel(projectId: string | null | undefined): string {
+  if (!projectId) return "Project";
+  return UPLOAD_ID.test(projectId) ? "Your project" : projectId;
+}
+
 export function defenseStage(phase: Phase): DefenseStage | null {
   return (STAGES as readonly string[]).includes(phase) ? (phase as DefenseStage) : null;
 }

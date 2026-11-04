@@ -15,6 +15,7 @@ import { useVoice } from "@/components/room/useVoice";
 import { VoiceControls, VoiceHint } from "@/components/room/VoiceControls";
 import { FixAssistant } from "./FixAssistant";
 import { api, errorText } from "@/lib/api";
+import { projectLabel } from "@/lib/defense";
 import { attachEditorCapture, type EditorCapture } from "@/lib/capture/editor";
 import { clock, levelLabel, severityLabel } from "@/lib/fixtures";
 import {
@@ -284,7 +285,7 @@ export function LiveDefense({ id }: { id: string }) {
           </span>
         )}
         <span className="room-badge" translate="no">
-          {projectId ?? "Project"} · {levelLabel(state.session?.config.feedback ?? "active")} feedback
+          {projectLabel(projectId)} · {levelLabel(state.session?.config.feedback ?? "active")} feedback
         </span>
         {remaining !== null && !finished && (
           <span className="rm-timer" aria-label={`${Math.floor(remaining / 60)} minutes left`}>
@@ -636,7 +637,7 @@ export function LiveDefense({ id }: { id: string }) {
                     </div>
                     <figure className="df-card" aria-label="Merge-gate card">
                       <span className="df-card-app" translate="no">
-                        {projectId}
+                        {projectLabel(projectId)}
                       </span>
                       <span>
                         Violations {metric?.violations ?? "?"} → {after?.violations ?? "?"}

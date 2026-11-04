@@ -99,6 +99,28 @@ def test_too_many_files_hits_the_project_limits() -> None:
         make_upload("big.zip", zipped(files))
 
 
+@pytest.mark.parametrize(
+    ("requirements", "message"),
+    [
+        ("fastapi\ngit+https://evil.example/pkg.git\n", "can't install"),
+        ("-e .\n", "can't install"),
+        ("--index-url https://evil.example/simple\nfastapi\n", "can't install"),
+        ("".join(f"pkg{i}\n" for i in range(21)), "limit"),
+    ],
+)
+def test_requirements_pip_would_fetch_from_anywhere_are_refused_at_upload(
+    requirements: str, message: str
+) -> None:
+    with pytest.raises(ProjectInvalid, match=message):
+        make_upload("x.zip", zipped({"main.py": "app = FastAPI()\n", "requirements.txt": requirements}))
+
+
+def test_a_project_of_huge_lines_is_refused() -> None:
+    files = {"main.py": "app = FastAPI()\n", **{f"big{i}.py": "x" * 400_000 for i in range(2)}}
+    with pytest.raises(ProjectInvalid, match="characters of source"):
+        make_upload("x.zip", zipped(files))
+
+
 # --- the entrypoint -----------------------------------------------------------------------------------------
 
 
