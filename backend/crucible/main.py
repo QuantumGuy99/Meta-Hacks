@@ -134,6 +134,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 store, engine.controllers, **{k: v for k, v in extras.items() if k in params}
             )
             app.state.store, app.state.hub = store, hub
+            mode = engine.controllers.get("defense")  # Mode.DEFENSE (a StrEnum key)
+            if mode is not None and hasattr(mode, "library"):
+                # Uploads go through the Defense mode's own library, kept in the store (defense/uploads.py).
+                mode.library.attach(store)
+                app.state.projects = mode.library
         try:
             yield
         finally:
@@ -199,6 +204,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.include_router(problems_router)
     app.include_router(defense.router)
     app.state.guide_quota = DailyQuota(s.GUIDE_MAX_PER_IP_PER_DAY)
+    app.state.upload_quota = DailyQuota(s.MAX_UPLOADS_PER_IP_PER_DAY)
     app.include_router(guide.router)
     if s.DEFENSE_DEV_API:
         app.include_router(defense.dev_router)

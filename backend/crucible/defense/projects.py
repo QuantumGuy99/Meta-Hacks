@@ -44,6 +44,7 @@ class Sample:
     # reference_attack.json holds one attack or a list (one per flaw, e.g. ticket-drop's race and its O(n²) loop)
     reference_attacks: list[ReferenceAttack] = field(default_factory=list)
     fixed_files: dict[str, str] | None = None  # the reference fix applied (fix.patch or fixed/)
+    context: str | None = None  # an upload's notes from its author, for the audit (defense/uploads.py)
 
     @property
     def reference_attack(self) -> ReferenceAttack | None:

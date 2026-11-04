@@ -54,6 +54,7 @@ from crucible.defense.model_client import WrapperModelClient
 from crucible.defense.pipeline import MAX_FIX_ROUNDS, DefensePipeline
 from crucible.defense.ports import ModelClient
 from crucible.defense.projects import Sample, load_samples
+from crucible.defense.uploads import ProjectLibrary
 from crucible.engine.context import RubricContext
 from crucible.engine.hub import SessionPlan, SessionRuntime, SessionSetupError
 from crucible.engine.ids import new_id
@@ -80,7 +81,8 @@ FIX_PROMPT = "Over to you: fix it in the editor, then press Verify. I'll run the
 
 
 class DefenseMode:
-    """The hub's ModeFactory for defense: plans sessions from the sample apps, builds one controller each."""
+    """The hub's ModeFactory for defense: plans sessions from the sample apps and uploaded projects, builds one
+    controller each."""
 
     def __init__(
         self,
@@ -93,6 +95,7 @@ class DefenseMode:
         """`runner` may be a factory, built on first use: missing Modal credentials then fail a defense
         session at creation (400) instead of failing app startup."""
         self.samples = samples
+        self.library = ProjectLibrary(samples)
         self._runner = runner
         self.llm = llm
         self.duration_override_s = duration_override_s
@@ -110,7 +113,7 @@ class DefenseMode:
             raise SessionSetupError(f"Project Defense can't run code right now: {exc}") from exc
         if not config.project_id:
             raise SessionSetupError("Pick a project to defend.")
-        if config.project_id not in self.samples:
+        if await self.library.load(config.project_id) is None:
             raise SessionSetupError(f"There's no project called {config.project_id}.")
         return SessionPlan(
             problem_slug=None,
@@ -197,10 +200,14 @@ class DefenseController:
         return TRANSITIONS
 
     async def on_start(self, rt: SessionRuntime) -> None:
+        await self.mode.library.load(
+            rt.session.project_id or ""
+        )  # an upload may need fetching from the store
         self._pipeline(rt)
         self._spawn(rt, self._opening(rt))
 
     async def on_resume(self, rt: SessionRuntime) -> None:
+        await self.mode.library.load(rt.session.project_id or "")
         p = self._pipeline(rt)
         await self._restore(rt, p)
         phase = rt.session.phase
@@ -482,7 +489,9 @@ class DefenseController:
 
     def _pipeline(self, rt: SessionRuntime) -> DefensePipeline:
         if self.pipeline is None:
-            sample = self.mode.samples[rt.session.project_id or ""]
+            sample = self.mode.library.get(rt.session.project_id or "")
+            if sample is None:
+                raise LookupError(f"project {rt.session.project_id!r} isn't loaded")
             # Bound to this session, so its model calls light up its "Under the hood" strip (#39).
             bind = getattr(self.mode.llm, "for_session", None)
             self.pipeline = DefensePipeline(
