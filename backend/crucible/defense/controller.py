@@ -35,7 +35,7 @@ from crucible.contracts.report import DefenseExtra
 from crucible.contracts.ws import (
     AssistantApply,
     AssistantAsk,
-    AssistantReplyMsg,
+    AssistantTurnMsg,
     ClientMessage,
     DefenseAudit,
     DefenseChaosDone,
@@ -284,7 +284,7 @@ class DefenseController:
         ask = AssistantTurn(
             id=new_id(), t=rt.now_ms(), kind="ask", reply_to=None, text=text.strip(), edits=[], accepted=[]
         )
-        await rt.record(TimelineKind.ASSISTANT, ask)
+        await self._assistant_turn(rt, ask)
         self._spawn(rt, self._assistant_reply(rt, ask, {**p.sample.files, **files}))
 
     async def _assistant_reply(self, rt: SessionRuntime, ask: AssistantTurn, files: dict[str, str]) -> None:
@@ -294,21 +294,15 @@ class DefenseController:
             runs = [*p.state.baseline.values(), *p.state.verify.values()]
             try:
                 draft = await ask_assistant(p.llm, ask.text, files, findings, runs)
+                text, edits = draft.text, draft.edits
             except ModelUnavailable as exc:
+                # Answered anyway, so the question is closed in the panel (live and after a reload).
                 await rt.note("warning", f"fix assistant unavailable: {exc}")
-                await self._error(rt, "assistant_unavailable", UNAVAILABLE, retryable=True)
-                return
+                text, edits = UNAVAILABLE, []
             reply = AssistantTurn(
-                id=new_id(),
-                t=rt.now_ms(),
-                kind="reply",
-                reply_to=ask.id,
-                text=draft.text,
-                edits=draft.edits,
-                accepted=[],
+                id=new_id(), t=rt.now_ms(), kind="reply", reply_to=ask.id, text=text, edits=edits, accepted=[]
             )
-            await rt.record(TimelineKind.ASSISTANT, reply)
-            await rt.broadcast(AssistantReplyMsg(type="assistant.reply", turn=reply))
+            await self._assistant_turn(rt, reply)
         finally:
             self._assisting = False
 
@@ -320,12 +314,17 @@ class DefenseController:
             return
         proposed = {e.path for e in reply.edits}
         taken = [path for path in dict.fromkeys(accepted) if path in proposed]
-        await rt.record(
-            TimelineKind.ASSISTANT,
+        await self._assistant_turn(
+            rt,
             AssistantTurn(
                 id=new_id(), t=rt.now_ms(), kind="apply", reply_to=reply_id, text="", edits=[], accepted=taken
             ),
         )
+
+    async def _assistant_turn(self, rt: SessionRuntime, turn: AssistantTurn) -> None:
+        """Timeline first, then every tab (the panel shows the conversation as recorded)."""
+        await rt.record(TimelineKind.ASSISTANT, turn)
+        await rt.broadcast(AssistantTurnMsg(type="assistant.turn", turn=turn))
 
     @staticmethod
     def _assistant_turns(rt: SessionRuntime, kind: str) -> list[AssistantTurn]:

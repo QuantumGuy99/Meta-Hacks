@@ -63,7 +63,7 @@ export type ServerMessage =
   | DefenseSamHighlight
   | DefenseReplay
   | DefenseVerdict
-  | AssistantReplyMsg
+  | AssistantTurnMsg
   | ModelActivityMsg
   | ReportReady
   | ErrorMsg;
@@ -767,10 +767,10 @@ export interface Verdict {
 }
 /**
  * This interface was referenced by `CrucibleContracts`'s JSON-Schema
- * via the `definition` "AssistantReplyMsg".
+ * via the `definition` "AssistantTurnMsg".
  */
-export interface AssistantReplyMsg {
-  type: "assistant.reply";
+export interface AssistantTurnMsg {
+  type: "assistant.turn";
   turn: AssistantTurn;
 }
 /**

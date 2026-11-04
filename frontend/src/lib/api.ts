@@ -32,6 +32,7 @@ export class ApiError extends Error {
 
 const TIMEOUT_MS = 20_000;
 const CREATE_TIMEOUT_MS = 45_000; // creating a session plans it (problem pick, project load)
+const UPLOAD_TIMEOUT_MS = 60_000; // a 2 MB zip on a slow connection
 
 async function send(path: string, init?: RequestInit, timeoutMs = TIMEOUT_MS): Promise<Response> {
   try {
@@ -69,6 +70,22 @@ export const api = {
     json<ProblemPublic>(`/api/problems/${encodeURIComponent(slug)}${language ? `?language=${language}` : ""}`),
   samples: () => json<Project[]>("/api/defense/samples"),
   projectFiles: (id: string) => json<ProjectSource>(`/api/defense/projects/${encodeURIComponent(id)}/files`),
+  /** Your own project as a zip (PLAN §11.1 limits); the raw file is the body. Defend it with the returned id. */
+  uploadProject: (file: File) =>
+    json<Project>(
+      `/api/defense/projects?name=${encodeURIComponent(file.name)}`,
+      { method: "POST", body: file, headers: { "Content-Type": "application/zip" } },
+      UPLOAD_TIMEOUT_MS,
+    ),
+  /** Notes about an uploaded project (a .txt) so the audit understands it faster. */
+  setProjectContext: async (id: string, text: string): Promise<void> => {
+    const res = await send(`/api/defense/projects/${encodeURIComponent(id)}/context`, {
+      method: "PUT",
+      body: text,
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+    if (!res.ok) await fail(res);
+  },
   createSession: (config: SessionConfig) =>
     json<Session>("/api/sessions", { method: "POST", body: JSON.stringify(config) }, CREATE_TIMEOUT_MS),
   session: (id: string) => json<Session>(`/api/sessions/${encodeURIComponent(id)}`),

@@ -3,7 +3,7 @@
 import pytest
 
 from crucible.contracts.defense import AssistantDraft, AssistantEdit
-from crucible.defense.assistant import MAX_EDITS, check_draft
+from crucible.defense.assistant import MAX_EDITS, UNAVAILABLE, check_draft
 from tests.defense.fixtures import GOOD_ANSWER, FakeLLM
 from tests.defense.test_controller_ws import Log, make_client, phase, start, through_grill, typed
 
@@ -68,15 +68,13 @@ def test_ask_reply_and_apply_are_on_the_timeline(client, bank, scripted):
     session_id, ctx, ws, log = to_fix(client, bank)
     try:
         ws.send_json({"type": "assistant.ask", "text": "How do I fix this?", "files": {}})
-        reply = log.until(typed("assistant.reply"))["turn"]
+        reply = log.until(typed("assistant.turn", **{"turn.kind": "reply"}))["turn"]
         assert reply["text"] == "Hold a lock." and [e["path"] for e in reply["edits"]] == ["app/main.py"]
         ws.send_json(
             {"type": "assistant.apply", "reply_id": reply["id"], "accepted": ["app/main.py", "app/x.py"]}
         )
-        ws.send_json(
-            {"type": "chat.send", "text": "thanks"}
-        )  # anything after, so the apply is surely recorded
-        log.until(typed("transcript.update"))
+        applied = log.until(typed("assistant.turn", **{"turn.kind": "apply"}))["turn"]
+        assert applied["accepted"] == ["app/main.py"]
     finally:
         ctx.__exit__(None, None, None)
     turns = [
@@ -106,8 +104,10 @@ def test_an_outage_says_so_and_the_session_goes_on(client, bank):
         ws.send_json(
             {"type": "assistant.ask", "text": "Help?", "files": {}}
         )  # nothing pushed: the model is down
-        error = log.until(typed("error"))
-        assert error["code"] == "assistant_unavailable" and error["retryable"] is True
+        reply = log.until(typed("assistant.turn", **{"turn.kind": "reply"}))["turn"]
+        assert (
+            reply["text"] == UNAVAILABLE and reply["edits"] == []
+        )  # the question is answered, not left open
         ws.send_json({"type": "assistant.ask", "text": "Help?", "files": {"nope.py": "x\n"}})
         assert log.until(typed("error"))["code"] == "bad_request"  # files the project doesn't have
     finally:

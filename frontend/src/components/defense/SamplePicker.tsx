@@ -6,7 +6,8 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { api, errorText } from "@/lib/api";
 import type { FeedbackLevel, Project } from "@/types/contracts";
 
-// /defense: pick a sample app (zip upload is P1), then POST /api/sessions and open the defense.
+// /defense: pick a sample app or upload your own project (a zip, plus optional notes for the audit), then
+// POST /api/sessions and open the defense.
 // Pre-selects the ?project= the landing page's start dialog sends.
 export function SamplePicker() {
   const router = useRouter();
@@ -18,6 +19,24 @@ export function SamplePicker() {
   const [voice, setVoice] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploaded, setUploaded] = useState<Project | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [notes, setNotes] = useState<File | null>(null);
+
+  const upload = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const project = await api.uploadProject(file);
+      setUploaded(project);
+      setProjectId(project.id);
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   // Next keeps this page's state while you're in the room and on the report (Activity), so the
   // report's New Interview would land on a stuck "Starting…". Effects clean up when the page hides.
@@ -43,6 +62,9 @@ export function SamplePicker() {
     setStarting(true);
     setError(null);
     try {
+      if (uploaded && projectId === uploaded.id && notes) {
+        await api.setProjectContext(uploaded.id, await notes.text());
+      }
       const session = await api.createSession({ mode: "defense", project_id: projectId, feedback, voice });
       router.push(`/defense/${session.id}`);
     } catch (err) {
@@ -85,6 +107,41 @@ export function SamplePicker() {
           </label>
         ))}
         {!samples && !loadError && <p className="live-empty">Loading sample apps…</p>}
+        {uploaded && (
+          <label className={projectId === uploaded.id ? "setup-card is-on" : "setup-card"}>
+            <input
+              type="radio"
+              name="project"
+              value={uploaded.id}
+              checked={projectId === uploaded.id}
+              onChange={() => setProjectId(uploaded.id)}
+            />
+            <strong translate="no">{uploaded.name}</strong>
+            <span>
+              Your project · {uploaded.loc} lines · {uploaded.files.length} files
+            </span>
+          </label>
+        )}
+      </fieldset>
+      <fieldset className="setup-upload">
+        <legend>Your own project</legend>
+        <p>
+          A zip of a Python FastAPI app (up to 2 MB, 60 files, 6,000 lines) with its <code>requirements.txt</code>. It
+          runs in a sandbox and stays private to you.
+        </p>
+        <label>
+          <span>{uploading ? "Uploading…" : uploaded ? "Replace the project (.zip)" : "Upload a project (.zip)"}</span>
+          <input
+            type="file"
+            accept=".zip,application/zip"
+            disabled={uploading}
+            onChange={(e) => void upload(e.target.files?.[0])}
+          />
+        </label>
+        <label>
+          <span>Notes for the audit (optional .txt): what the app does and what matters in it</span>
+          <input type="file" accept=".txt,text/plain" onChange={(e) => setNotes(e.target.files?.[0] ?? null)} />
+        </label>
       </fieldset>
       <fieldset className="dlg-seg">
         <legend>Feedback</legend>
@@ -109,7 +166,7 @@ export function SamplePicker() {
           {error}
         </p>
       )}
-      <button type="submit" className="ui-btn ui-btn-primary dlg-go" disabled={starting || !projectId}>
+      <button type="submit" className="ui-btn ui-btn-primary dlg-go" disabled={starting || uploading || !projectId}>
         {starting ? "Starting…" : "Start Project Defense"}
       </button>
       <Link href="/defense/demo" className="setup-alt">

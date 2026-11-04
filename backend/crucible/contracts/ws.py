@@ -210,8 +210,8 @@ class DefenseReplay(Strict):  # DEF-14: the race, step by step, after the grill
     replay: RaceReplay
 
 
-class AssistantReplyMsg(Strict):  # DEF-11: the assistant's answer to an assistant.ask
-    type: Literal["assistant.reply"]
+class AssistantTurnMsg(Strict):  # DEF-11: an ask, the assistant's reply, or an apply, as it's recorded
+    type: Literal["assistant.turn"]
     turn: AssistantTurn
 
 
@@ -251,7 +251,7 @@ ServerMessage = Annotated[
     | DefenseSamHighlight
     | DefenseReplay
     | DefenseVerdict
-    | AssistantReplyMsg
+    | AssistantTurnMsg
     | ModelActivityMsg
     | ReportReady
     | ErrorMsg,
