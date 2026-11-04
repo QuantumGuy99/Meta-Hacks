@@ -36,6 +36,10 @@ export function SetupForm() {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Next keeps this page's state while you're in the room and on the report (Activity), so the
+  // report's New Interview would land on a stuck "Starting…". Effects clean up when the page hides.
+  useEffect(() => () => setStarting(false), []);
+
   useEffect(() => {
     let live = true;
     api
