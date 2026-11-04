@@ -295,6 +295,16 @@ export function ReportView({
             ))}
           </ul>
         </section>
+
+        {/* The way out at the very bottom, after the last section (#87 item 2). */}
+        <nav className="rp-end" aria-label="What next">
+          <Link href="/" className="ui-btn">
+            Back to Home
+          </Link>
+          <Link href={report.mode === "defense" ? "/defense" : "/coding"} className="ui-btn ui-btn-primary">
+            {report.mode === "defense" ? "Start Another Defense" : "Start Another Interview"}
+          </Link>
+        </nav>
       </div>
     </div>
   );

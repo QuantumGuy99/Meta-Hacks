@@ -114,9 +114,12 @@
   color: #c9c9d0;
   line-height: 1.6;
 }
+/* Left-aligned with the rows above, behind an accent rule: pushed right, it left an empty block beside it. */
 .story-answer {
-  margin: clamp(64px, 7vw, 104px) 0 0 auto;
-  width: min(100%, 58%);
+  margin: clamp(64px, 7vw, 104px) 0 0;
+  max-width: min(100%, 56rem);
+  padding-left: clamp(16px, 2vw, 28px);
+  border-left: 2px solid var(--secondary-blue);
 }
 .story-answer-text {
   font-size: clamp(1.5rem, 1rem + 1.6vw, 2.5rem);
@@ -325,9 +328,7 @@
     padding: 28px 0;
   }
   .story-answer {
-    width: 100%;
     max-width: none;
-    margin-left: 0;
   }
 }
 @media (max-width: 480px) {
@@ -356,10 +357,13 @@
   grid-template-columns: repeat(12, 1fr);
   column-gap: 24px;
   row-gap: 24px;
-  align-items: end;
+  align-items: start; /* the title beside the copy's first line, not below an empty block */
 }
 .mode-head h2 {
   grid-column: 1 / 7;
+}
+.sec-mode .mode-head h2 {
+  align-self: start; /* over landing.css's older `.sec-defense h2`, so both modes match */
 }
 .mode-copy {
   grid-column: 7 / 13;
