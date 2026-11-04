@@ -3,6 +3,10 @@
 Reads one JSON object on stdin:
     {"code": str, "function": {"name": str, ...}, "cases": [{"id", "args", "expected", "comparator"}],
      "limits": {"per_test_s": float, "total_s": float, "stdout_bytes": int}, "hidden_case_ids": [str]}
+With `"program"` (Java, C++, C; see runner/base.py `Program`) it writes the files, compiles them and runs the
+program once for all cases, restarting it after a case that times out or crashes. Each case's result comes back
+on stdout after RESULT_MARK as `<ms> <json>` or `<ms> !<error>`.
+
 Prints one JSON object: {"passed", "total", "cases": [CaseResult], "stdout", "stderr", "timed_out",
 "compile_error"}. The runner adds run_id, t and kind to make a RunResult.
 
@@ -15,7 +19,11 @@ import copy
 import io
 import json
 import math
+import os
+import queue
+import re
 import signal
+import subprocess
 import sys
 import threading
 import time
@@ -23,6 +31,10 @@ import traceback
 
 REPR_LIMIT = 300
 FLOAT_TOL = 1e-6
+RESULT_MARK = "\x1ecrucible-result\x1e"  # same as coding/languages.py
+COMPILE_S = 10.0  # javac or g++ on a small sandbox
+START_S = 2.0  # added to a process's first case: the JVM's start-up
+COMPILE_ERROR_CHARS = 2000
 
 
 class CaseTimeout(Exception):
@@ -50,6 +62,8 @@ def run(req: dict) -> dict:
         "timed_out": False,
         "compile_error": None,
     }
+    if req.get("program"):
+        return run_program(req["program"], cases, hidden, limits, result)
 
     namespace = {"__name__": "solution"}
     try:
@@ -96,6 +110,199 @@ def run(req: dict) -> dict:
         result["cases"].append(_case(case, visible, passed, actual, error, ms))
         result["passed"] += passed
     return _finish(result, out, err, limits)
+
+
+# --- compiled languages ------------------------------------------------------------------------------------
+
+
+def run_program(program: dict, cases: list, hidden: set, limits: dict, result: dict) -> dict:
+    deadline = time.monotonic() + limits["total_s"]
+    for name, text in program["files"].items():
+        with open(name, "w", encoding="utf-8") as f:
+            f.write(text)
+    for command in program["compile"]:
+        error = _compile(command, min(COMPILE_S, max(deadline - time.monotonic(), 0.001)))
+        if error is not None:
+            result["compile_error"] = error
+            return result
+    out, err = io.StringIO(), io.StringIO()
+    i = 0
+    while i < len(cases):
+        i = _run_from(program, i, cases, hidden, limits, deadline, result, out, err)
+    return _finish(result, out, err, limits)
+
+
+_GCC_CONTEXT = re.compile(
+    r"^[^\s:]+: (In (member |static member )?function|At global scope|In instantiation of)"
+)
+
+
+# The host's JVM options never reach the compilers or the candidate's program: the JVM prints a "Picked up
+# JAVA_TOOL_OPTIONS: ..." banner first (it pushed javac's real error out of the message, and showed the
+# candidate the host's proxy settings), and their program has no use for the host's flags.
+_JVM_OPTION_VARS = ("JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS")
+
+
+def _program_env() -> dict[str, str]:
+    return {k: v for k, v in os.environ.items() if k not in _JVM_OPTION_VARS}
+
+
+def _compile(command: list, timeout_s: float):
+    """None when it built, otherwise the compiler's message (paths trimmed) for the candidate."""
+    try:
+        done = subprocess.run(
+            command,
+            capture_output=True,
+            timeout=timeout_s,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+            env=_program_env(),
+        )
+    except FileNotFoundError:
+        return f"{command[0]} isn't installed on this runner"
+    except subprocess.TimeoutExpired:
+        return f"compiling took longer than {timeout_s:g} s"
+    if done.returncode == 0:
+        return None
+    text = (done.stderr or done.stdout).replace(os.getcwd() + os.sep, "").replace("./", "")
+    # Their file is #included into our driver; the compiler's "included from main.cpp" line is noise, and so
+    # is gcc's "solution.cpp: In function ..." context line, so the message starts at their line, as clang's does.
+    text = "\n".join(
+        line
+        for line in text.splitlines()
+        if not line.startswith("In file included from") and not _GCC_CONTEXT.match(line)
+    ).strip()
+    return text[:COMPILE_ERROR_CHARS] or f"{command[0]} failed (exit {done.returncode})"
+
+
+def _run_from(program, first, cases, hidden, limits, deadline, result, out, err) -> int:
+    """Run cases[first:] in one process; return the index to restart from (len(cases) when done)."""
+    if time.monotonic() >= deadline:
+        _not_run(cases[first:], hidden, result)
+        return len(cases)
+    stdin = f"{len(cases) - first}\n" + "".join(program["inputs"][first:])
+    proc = subprocess.Popen(
+        program["run"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+        errors="replace",
+        env=_program_env(),
+    )
+    lines: queue.Queue = queue.Queue()
+    readers = [
+        threading.Thread(target=_pump, args=(proc.stdout, lines), daemon=True),
+        threading.Thread(target=_drain, args=(proc.stderr, err), daemon=True),
+        threading.Thread(target=_feed, args=(proc.stdin, stdin), daemon=True),
+    ]
+    for reader in readers:
+        reader.start()
+    try:
+        i, started = first, time.monotonic()
+        while i < len(cases):
+            budget = min(limits["per_test_s"] + (START_S if i == first else 0), deadline - time.monotonic())
+            line = _next_result(lines, out, max(budget, 0.001))
+            if line is None:  # no result in time
+                if time.monotonic() >= deadline:
+                    result["timed_out"] = True
+                    _record(cases[i], hidden, result, None, f"timed out after {limits['per_test_s']:g} s", 0)
+                    _not_run(cases[i + 1 :], hidden, result)
+                    return len(cases)
+                result["timed_out"] = True
+                _record(cases[i], hidden, result, None, f"timed out after {limits['per_test_s']:g} s", 0)
+                return i + 1
+            if line == "":  # the process ended before this case's result
+                with contextlib.suppress(subprocess.TimeoutExpired):
+                    proc.wait(timeout=1)
+                _record(
+                    cases[i],
+                    hidden,
+                    result,
+                    None,
+                    _crash(proc.returncode),
+                    round((time.monotonic() - started) * 1000),
+                )
+                return i + 1
+            ms, _, value = line.partition(" ")
+            if value.startswith("!"):
+                _record(cases[i], hidden, result, None, value[1:][:REPR_LIMIT], int(ms))
+            else:
+                actual = json.loads(value)
+                _record(cases[i], hidden, result, actual, None, int(ms))
+            i += 1
+            started = time.monotonic()
+        return i
+    finally:
+        proc.kill()
+        proc.wait()
+        for reader in readers[:2]:
+            reader.join(timeout=1)
+
+
+def _pump(stream, lines: queue.Queue) -> None:
+    for line in stream:
+        lines.put(line)
+    lines.put("")
+
+
+def _drain(stream, err: io.StringIO) -> None:
+    for line in stream:
+        err.write(line)
+
+
+def _feed(stream, text: str) -> None:
+    try:
+        stream.write(text)
+        stream.close()
+    except (BrokenPipeError, OSError):
+        pass  # the program exited before reading every case
+
+
+def _next_result(lines: queue.Queue, out: io.StringIO, timeout_s: float):
+    """The next `<ms> <json>` result, keeping other output as stdout; None on timeout, "" at end of output."""
+    until = time.monotonic() + timeout_s
+    while True:
+        try:
+            line = lines.get(timeout=max(until - time.monotonic(), 0))
+        except queue.Empty:
+            return None
+        if line == "":
+            return ""
+        before, mark, after = line.partition(RESULT_MARK)
+        if not mark:
+            out.write(line)
+            continue
+        if before:
+            out.write(before + "\n")
+        return after.rstrip("\n")
+
+
+def _crash(code) -> str:
+    if code is not None and code < 0:
+        try:
+            name = signal.Signals(-code).name
+        except ValueError:
+            name = f"signal {-code}"
+        return {"SIGSEGV": "Segmentation fault (an out-of-bounds or null access)", "SIGABRT": "Aborted"}.get(
+            name, f"crashed ({name})"
+        )
+    return f"the program exited (code {code}) before returning"
+
+
+def _record(case, hidden, result, actual, error, ms) -> None:
+    passed = error is None and compare(case.get("comparator", "exact"), actual, case["expected"])
+    result["cases"].append(_case(case, case["id"] not in hidden, passed, actual, error, ms))
+    result["passed"] += passed
+
+
+def _not_run(cases, hidden, result) -> None:
+    result["timed_out"] = True
+    for case in cases:
+        result["cases"].append(
+            _case(case, case["id"] not in hidden, False, None, "not run: total time limit reached", 0)
+        )
 
 
 # --- comparators (PLAN §7.3) ------------------------------------------------------------------------------

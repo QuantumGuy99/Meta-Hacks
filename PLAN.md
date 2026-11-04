@@ -84,7 +84,7 @@ coding agents daily. Both modes solve problems we have firsthand.
 
 | Area | P0 (demo-critical) | P1 (should) | P2 (stretch) |
 |---|---|---|---|
-| **Room** | Monaco editor (Python), edit capture, interviewer panel, text chat, timer, phase stepper | Voice in: speech to text (Muse Voice Transcribe); voice out: ElevenLabs, browser voice as fallback (§14.7); "interviewer's notes" panel | Multi-language (JS) |
+| **Room** | Monaco editor (Python; Java, C++ and C since Nov 3, §10.3), edit capture, interviewer panel, text chat, timer, phase stepper | Voice in: speech to text (Muse Voice Transcribe); voice out: ElevenLabs, browser voice as fallback (§14.7); "interviewer's notes" panel | More languages (JS, Kotlin) |
 | **Coding mode** | 12 validated problems, difficulty picker, run/submit tests, analyzer + policy (active and passive), hint ladder, paste/tab notes, report | 30 problems, plan-vs-code check, coded-before-plan check, wrap-up complexity question, problem illustrations | 40+ problems, SAM 3.1 paper sketch, proctor mode |
 | **Defense mode** | 3 sample apps, Wonder audit + topology diagram, chaos run (breaks before the fix, holds after), grill (text answers OK), fix in editor, verify, verdict | Voice grill, "circle the flaw" with SAM 3.1, Muse fix assistant (DEF-11, logged), attack refine loop, zip upload, 5 sample apps | GitHub URL import, suggested refactor patch / Muse Code handoff, Muse Image merge-gate card |
 | **Report** | Scores, summary, strengths/improvements, metrics, moments, replay (code playback + transcript + nudges) | Defense before/after charts in the report, share link | Muse Image report card |
@@ -92,7 +92,7 @@ coding agents daily. Both modes solve problems we have firsthand.
 
 ### Non-goals (do not build)
 - Accounts, payments, teams, history across sessions. Sessions are anonymous; the session URL is the key.
-- Languages other than Python (P2 at most).
+- Languages beyond Python, Java, C++ and C (the ICPC set, §10.3).
 - Arbitrary projects in Defense mode. Python 3.12 web apps (FastAPI/Flask) under the limits in §11.1 only.
 - Vitals or emotion detection. Medical-adjacent features are off-theme and risky.
 - Any problem text copied from LeetCode or other sites (rights risk → disqualification).
@@ -1299,7 +1299,7 @@ Owner: **SG**. Data: **ST**.
 
 ### 10.3 Tests (`tests.py`)
 - **Run** = visible tests; **Submit** = visible + hidden. Calls `Runner.run_tests` (§12) with code,
-  function signature, cases and limits (2 s per test, 10 s total), with a 20 s outer deadline.
+  function signature, cases and limits (2 s per test, 10 s total; 20 s with a compile), and an outer deadline 10 s past the total.
 - Hidden test inputs/outputs never leave the backend: the browser gets pass/fail + error class only.
 - Results → timeline `run` → `run.result` → analyzer trigger.
 - Built in COD-3 as `RunService`: one run at a time per session (a second press gets a retryable `busy`). If
@@ -1311,6 +1311,19 @@ Owner: **SG**. Data: **ST**.
 - The Modal runner's `run_tests` is RUN-2 (#67). COD-3 step 3: `CodingController.on_start` warms the
   session's sandbox in a background task (`RunService.open_session`; a failure is logged and ignored, Run
   opens it lazily), and `close_session` runs once when the session ends or the runtime closes.
+- **Languages (Nov 3):** `SessionConfig.language` is `python` (default), `java`, `cpp` or `c`, the languages
+  ICPC-style contests allow. Problems stay written once, in Python types; `coding/languages.py` translates
+  the `FunctionSig` (only `int`, `str`, `list[int]`, `list[str]`, `list[list[int]]`; a problem with other
+  types can only be solved in Python, and setup refuses it) into LeetCode-style starter code: camelCase
+  names, a `Solution` class in Java and C++, sizes beside arrays in C. `GET /api/problems/{slug}?language=`
+  serves that starter and renames the function in the statement. For Run/Submit it adds a generated
+  driver and sends a `Program` (files, `javac`/`g++`/`gcc` commands, each case's stdin as integers, strings as
+  character codes) in the `RunRequest`. The harness compiles (10 s, added to the run's total), runs the
+  program once for all cases, reads each result as JSON after a marker line (other output is the
+  candidate's stdout), and restarts it after a case that times out or crashes. Comparison is the same as
+  Python's. The Modal image installs `g++` and `default-jdk-headless`. The analyzer, interviewer and report
+  are told the language and see the code in its own fence; the leak guard also rejects Java/C-style lines.
+  The editor's timeline id stays `solution.py`; only the tab label changes.
 
 ### 10.4 Integrity (`integrity.py`)
 - Editor `paste` with ≥ 40 chars or ≥ 2 lines → `IntegrityFlag(kind="paste")`.
@@ -1752,7 +1765,7 @@ Layout (desktop ≥ 1280 px):
 - **Top bar:** phase stepper, timer (remaining), feedback-mode badge, mic state, **End**.
 - **Left (30%):** problem panel (markdown statement, examples, constraints, illustration) or, in defense, the
   finding card (title, explanation, chaos summary, file/lines).
-- **Center (45%):** Monaco (Python, `quickSuggestions: false`, `wordBasedSuggestions: "off"`, minimap off),
+- **Center (45%):** Monaco (the session's language, §10.3; `quickSuggestions: false`, `wordBasedSuggestions: "off"`, minimap off),
   file tabs (defense), **Run** / **Submit** (coding) or **Verify** (defense). Bottom drawer: TestPanel (cases,
   stdout/stderr).
 - **Right (25%):** InterviewerPanel: interviewer state indicator (idle / listening / thinking / speaking),

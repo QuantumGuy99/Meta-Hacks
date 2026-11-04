@@ -19,12 +19,20 @@ from collections.abc import AsyncIterator, Awaitable, Iterable
 from crucible.config import Settings, get_settings
 from crucible.contracts.defense import Project
 from crucible.contracts.events import RunResult
-from crucible.runner.base import ProjectHandle, RunnerError, RunRequest, stopped_run, uvicorn_args
+from crucible.runner.base import (
+    ProjectHandle,
+    RunnerError,
+    RunRequest,
+    harness_payload,
+    stopped_run,
+    uvicorn_args,
+)
 from crucible.runner.harness import HARNESS_DIR
 
 logger = logging.getLogger(__name__)
 
 PROJECT_PACKAGES = ["fastapi", "uvicorn[standard]", "httpx", "aiosqlite", "flask"]
+COMPILER_PACKAGES = ["g++", "default-jdk-headless"]  # Java, C++ and C coding sessions (gcc comes with g++)
 APP_DIR = "/work/app"
 HARNESS_PATH = "/harness/run_tests.py"
 SANDBOX_TIMEOUT_S = 60 * 5  # covers boot + baseline/verify attack (≤ 30 s) + slack
@@ -67,6 +75,7 @@ class ModalRunner:
         self._modal = modal
         self._base = (
             modal.Image.debian_slim(python_version="3.12")
+            .apt_install(*COMPILER_PACKAGES)
             .pip_install(*PROJECT_PACKAGES)
             .add_local_file(HARNESS_DIR / "run_tests.py", HARNESS_PATH, copy=True)
         )
@@ -99,7 +108,7 @@ class ModalRunner:
     async def run_tests(self, session_id: str, req: RunRequest) -> RunResult:
         """The harness in the session's sandbox, in a fresh temp dir per run. A sandbox that died (idle
         timeout, Modal restart) is replaced once."""
-        payload = _payload(req)
+        payload = harness_payload(req)
         try:
             return await self._run_harness(await self._test_sandbox(session_id), req, payload)
         except self._modal.exception.Error as exc:
@@ -290,18 +299,6 @@ def parse_requirements(text: str) -> tuple[str, ...]:
     if bad:
         raise RunnerError(f"requirements.txt has lines we can't install: {bad[:3]}")
     return reqs
-
-
-def _payload(req: RunRequest) -> bytes:
-    return json.dumps(
-        {
-            "code": req.code,
-            "function": req.function.model_dump(),
-            "cases": [c.model_dump(mode="json") for c in req.cases],
-            "limits": req.limits.model_dump(),
-            "hidden_case_ids": req.hidden_case_ids,
-        }
-    ).encode()
 
 
 async def _within[R](seconds: float, call: Awaitable[R], what: str) -> R:

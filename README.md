@@ -52,7 +52,7 @@ keystroke, every test run, every sentence you say) and holds you to what a stron
    (it only watches and reports), and voice on or off.
 2. **Clarify:** the interviewer introduces the problem. You ask clarifying questions and state your approach
    out loud, just like a real interview.
-3. **Code:** you write Python in a Monaco editor. Crucible streams every edit to the interviewer, which tracks
+3. **Code:** you write Python, Java, C++ or C in a Monaco editor. Crucible streams every edit to the interviewer, which tracks
    your progress against a per-problem rubric (steps, edge cases, target complexity). In active mode it steps
    in only at sensible moments:
    - *"You mentioned handling an empty list. I don't see that yet."* (your plan doesn't match your code)
@@ -170,6 +170,8 @@ All Meta Model API calls go through `https://api.meta.ai/v1` with the OpenAI-com
 - **Node 22 or later.** The Makefile uses `pnpm` if it's installed, and otherwise runs the pinned version
   through `npx` (Node 25+ no longer ships corepack).
 - **A [Meta Model API](https://dev.meta.ai/docs/quickstart) key**, in `.env` as `MODEL_API_KEY`.
+- **Optional: `javac` (JDK 17+), `g++` and `gcc`** to run Java, C++ and C sessions on the local runner. Modal's
+  image installs them; without them a local Run in those languages reports the missing compiler.
 - **A [Modal](https://modal.com) account**, connected with `uv --directory backend run modal token new`
   (it signs in through your browser and saves the token to `~/.modal.toml`).
 

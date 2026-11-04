@@ -24,6 +24,7 @@ export function CodeEditor({
   onRun,
   onEditor,
   path,
+  language = "python",
   height = "100%",
 }: {
   value: string;
@@ -35,6 +36,8 @@ export function CodeEditor({
   onEditor?: (editor: StandaloneEditor) => void;
   /** One model per path (defense file tabs): switching keeps each file's edits and isn't an edit itself. */
   path?: string;
+  /** Monaco's language id; the contract's `Language` values ("python", "java", "cpp", "c") are all ids. */
+  language?: string;
   height?: string | number;
 }) {
   const editorRef = useRef<StandaloneEditor | null>(null);
@@ -86,7 +89,7 @@ export function CodeEditor({
     <Editor
       height={height}
       path={path}
-      defaultLanguage="python"
+      language={language}
       value={value}
       theme="ares"
       beforeMount={beforeMount}

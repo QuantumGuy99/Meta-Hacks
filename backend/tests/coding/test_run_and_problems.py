@@ -106,6 +106,13 @@ def test_a_problem_never_carries_hidden_tests_rubric_or_reference(client: TestCl
     assert "best = max(best, cur)" not in str(body)
 
 
+def test_the_starter_code_comes_in_the_sessions_language(client: TestClient) -> None:
+    python = client.get("/api/problems/quiet-streak").json()["starter_code"]
+    java = client.get("/api/problems/quiet-streak", params={"language": "java"}).json()["starter_code"]
+    assert python.startswith("def ") and "class Solution {" in java
+    assert client.get("/api/problems/quiet-streak", params={"language": "cobol"}).status_code == 422
+
+
 def test_an_unknown_problem_is_a_404_envelope(client: TestClient) -> None:
     response = client.get("/api/problems/nope")
     assert response.status_code == 404 and response.json()["error"]["code"] == "problem_not_found"

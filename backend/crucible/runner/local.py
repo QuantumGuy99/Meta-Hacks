@@ -17,7 +17,14 @@ from pathlib import Path
 from crucible.config import Settings, get_settings
 from crucible.contracts.defense import Project
 from crucible.contracts.events import RunResult
-from crucible.runner.base import ProjectHandle, RunnerError, RunRequest, stopped_run, uvicorn_args
+from crucible.runner.base import (
+    ProjectHandle,
+    RunnerError,
+    RunRequest,
+    harness_payload,
+    stopped_run,
+    uvicorn_args,
+)
 from crucible.runner.harness import HARNESS_DIR
 
 logger = logging.getLogger(__name__)
@@ -53,15 +60,7 @@ class LocalRunner:
     async def run_tests(self, session_id: str, req: RunRequest) -> RunResult:
         """The harness in a fresh subprocess (its own temp dir, no project files), killed after
         total_s + a margin if the candidate's code wedges where the per-test timer can't reach."""
-        payload = json.dumps(
-            {
-                "code": req.code,
-                "function": req.function.model_dump(),
-                "cases": [c.model_dump(mode="json") for c in req.cases],
-                "limits": req.limits.model_dump(),
-                "hidden_case_ids": req.hidden_case_ids,
-            }
-        ).encode()
+        payload = harness_payload(req)
         workdir = await asyncio.to_thread(tempfile.mkdtemp, prefix="crucible-tests-")
         proc = await asyncio.create_subprocess_exec(
             sys.executable,

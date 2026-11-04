@@ -37,6 +37,7 @@ export function ReportView({
   report,
   replay,
   file,
+  language = "python",
   transcript,
   marks,
   activity = [],
@@ -48,6 +49,8 @@ export function ReportView({
   /** timeline events with the file's snapshots and edits (t in ms) */
   replay: TimelineEvent[];
   file: string;
+  /** the replayed code's Monaco language: the coding session's language */
+  language?: string;
   transcript: ReportLine[];
   marks: ReportMark[];
   /** model.activity from the timeline: the Under the hood strip under the replay, at the scrubber's time */
@@ -264,7 +267,7 @@ export function ReportView({
 
           <div className="rp-panes">
             <div className="rp-code" data-ui>
-              <CodeEditor value={code} readOnly height={300} />
+              <CodeEditor value={code} readOnly height={300} language={language} />
             </div>
             <ol className="rp-transcript" ref={transcriptRef} aria-label="Transcript">
               {transcript.map((line, i) => (

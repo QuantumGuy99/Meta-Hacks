@@ -12,12 +12,14 @@ import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Literal
 
+from crucible.coding import languages
 from crucible.contracts.coding import ProblemSpec
+from crucible.contracts.common import Language
 from crucible.contracts.events import CodeSnapshot, RunResult, TimelineKind
 from crucible.contracts.ws import RunResultMsg
 from crucible.engine.ids import new_id
 from crucible.engine.timeline import redact_run
-from crucible.runner.base import RunnerError, RunRequest
+from crucible.runner.base import RunLimits, RunnerError, RunRequest
 
 if TYPE_CHECKING:
     from crucible.engine.hub import SessionRuntime
@@ -25,7 +27,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-RUN_DEADLINE_S = 20  # PLAN §21 test run 10 s, plus the runner's own kill margin and process start-up
+RUN_MARGIN_S = (
+    10  # on top of the run's total_s (PLAN §21: 10 s): the runner's kill margin and process start-up
+)
+COMPILE_S = 10  # Java, C++ and C: javac or g++ before the first case
 
 
 class RunService:
@@ -71,9 +76,9 @@ class RunService:
                 )
                 rt.code.apply_snapshot(snapshot)
                 await rt.record(TimelineKind.SNAPSHOT, snapshot, t=snapshot.t)
-            req = request(spec, kind, code, t=rt.now_ms())
+            req = request(spec, kind, code, t=rt.now_ms(), language=rt.session.config.language)
             try:
-                async with asyncio.timeout(RUN_DEADLINE_S):
+                async with asyncio.timeout(req.limits.total_s + RUN_MARGIN_S):
                     result = await self.runner.run_tests(rt.session.id, req)
             except (RunnerError, TimeoutError) as exc:
                 message = str(exc) or "the test run didn't finish in time"
@@ -89,16 +94,29 @@ class RunService:
             return result
 
 
-def request(spec: ProblemSpec, kind: Literal["run", "submit"], code: str, *, t: int) -> RunRequest:
+def request(
+    spec: ProblemSpec,
+    kind: Literal["run", "submit"],
+    code: str,
+    *,
+    t: int,
+    language: Language = Language.PYTHON,
+) -> RunRequest:
     hidden = spec.tests_hidden if kind == "submit" else []
+    cases = [*spec.tests_visible, *hidden]
+    compiled = language != Language.PYTHON
     return RunRequest(
         run_id=new_id(),
         t=t,
         kind=kind,
         code=code,
         function=spec.function,
-        cases=[*spec.tests_visible, *hidden],
+        cases=cases,
         hidden_case_ids=[c.id for c in hidden],
+        limits=RunLimits(total_s=RunLimits().total_s + COMPILE_S) if compiled else RunLimits(),
+        program=languages.program(spec.function, language, code, [c.args for c in cases])
+        if compiled
+        else None,
     )
 
 

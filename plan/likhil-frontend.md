@@ -105,7 +105,7 @@ These are where UI choices touch the spec. Breaking one breaks a design rule or 
 - **Voice** (PLAN §14.7): the mic streams to the audio socket and the turns come back as captions and chat
   messages; Hold to Ask sends `ask` frames. The interviewer's lines are read aloud by `createVoice` (ElevenLabs
   through the backend, the browser voice as fallback), with the mic sending silence meanwhile (#80, #81).
-- **Monaco:** Python, `quickSuggestions: false`, `wordBasedSuggestions: "off"`, minimap off (PLAN §14.2).
+- **Monaco:** the session's language (`config.language`: python, java, cpp, c; PLAN §10.3), `quickSuggestions: false`, `wordBasedSuggestions: "off"`, minimap off (PLAN §14.2).
 - **`/coding` setup** pre-fills from the `?topic=&feedback=` your landing start dialog sends, and adds
   difficulty and voice (speech to text, on by default; `speak_replies` left on) → `POST /api/sessions`.
 - **No MOCK or fixtures in the demo video,** ever.

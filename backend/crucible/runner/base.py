@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shlex
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -49,6 +50,16 @@ class RunLimits(Strict):
     stdout_bytes: int = 4096
 
 
+class Program(Strict):
+    """A compiled-language run (Java, C++, C; built by `coding/languages.py`): the harness writes `files`, runs
+    each `compile` command, then runs `run` with the case count and `inputs` on stdin."""
+
+    files: dict[str, str]
+    compile: list[list[str]]
+    run: list[str]
+    inputs: list[str]  # one per case, in order
+
+
 class RunRequest(Strict):
     """Backend-internal (never on the WebSocket), so it lives here, not in contracts/ (PLAN §12)."""
 
@@ -62,6 +73,21 @@ class RunRequest(Strict):
         default_factory=list
     )  # marks CaseResult.visible; redaction is the caller's job (§10.3)
     limits: RunLimits = RunLimits()
+    program: Program | None = None  # None: Python, run in-process by the harness
+
+
+def harness_payload(req: RunRequest) -> bytes:
+    """What `harness/run_tests.py` reads on stdin."""
+    return json.dumps(
+        {
+            "code": req.code,
+            "function": req.function.model_dump(),
+            "cases": [c.model_dump(mode="json") for c in req.cases],
+            "limits": req.limits.model_dump(),
+            "hidden_case_ids": req.hidden_case_ids,
+            "program": req.program.model_dump() if req.program else None,
+        }
+    ).encode()
 
 
 class Runner(Protocol):

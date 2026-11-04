@@ -75,6 +75,7 @@ export type FeedbackLevel = "active" | "passive";
  * via the `definition` "Difficulty".
  */
 export type Difficulty = "easy" | "medium" | "hard";
+export type Language = "python" | "java" | "cpp" | "c";
 /**
  * This interface was referenced by `CrucibleContracts`'s JSON-Schema
  * via the `definition` "InterventionTrigger".
@@ -134,6 +135,11 @@ export type TimelineKind =
  * via the `definition` "FeedbackLevel".
  */
 export type FeedbackLevel1 = "active" | "passive";
+/**
+ * This interface was referenced by `CrucibleContracts`'s JSON-Schema
+ * via the `definition` "Language".
+ */
+export type Language1 = "python" | "java" | "cpp" | "c";
 
 export interface CrucibleContracts {
   ClientMessage: ClientMessage;
@@ -337,6 +343,7 @@ export interface SessionConfig {
   problem_slug?: string | null;
   difficulty?: Difficulty | null;
   topic?: string | null;
+  language?: Language;
   project_id?: string | null;
   time_limit_s?: number | null;
 }

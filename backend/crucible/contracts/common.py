@@ -24,6 +24,13 @@ class Difficulty(StrEnum):
     HARD = "hard"
 
 
+class Language(StrEnum):  # coding: the languages ICPC-style contests allow (PLAN §10.3)
+    PYTHON = "python"
+    JAVA = "java"
+    CPP = "cpp"
+    C = "c"
+
+
 class FeedbackLevel(StrEnum):
     ACTIVE = "active"
     PASSIVE = "passive"
@@ -54,11 +61,12 @@ class SessionConfig(Strict):
     mode: Mode
     feedback: FeedbackLevel = FeedbackLevel.ACTIVE
     voice: bool = True  # mic + Muse Voice Transcribe
-    speak_replies: bool = True  # browser TTS for interviewer messages
+    speak_replies: bool = True  # read interviewer messages aloud (server voice, browser fallback; §14.7)
     proctor: bool = False  # P2: SAM 3.1 webcam checks (opt-in)
     problem_slug: str | None = None  # coding: explicit problem
     difficulty: Difficulty | None = None  # coding: random problem at this difficulty
     topic: str | None = None
+    language: Language = Language.PYTHON  # coding: what the candidate writes and the runner compiles
     project_id: str | None = None  # defense
     time_limit_s: int | None = None  # default from problem/difficulty
 

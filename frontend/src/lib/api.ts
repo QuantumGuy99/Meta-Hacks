@@ -1,6 +1,7 @@
 import type {
   ApiError as ApiErrorEnvelope,
   Health,
+  Language,
   ProblemPublic,
   ProblemSummary,
   Project,
@@ -63,7 +64,9 @@ export type ReportResult = { status: "ready"; report: Report } | { status: "gene
 export const api = {
   health: () => json<Health>("/api/health"),
   problems: () => json<ProblemSummary[]>("/api/problems"),
-  problem: (slug: string) => json<ProblemPublic>(`/api/problems/${encodeURIComponent(slug)}`),
+  /** The problem, its starter code in `language` (the session's; Python if not given). */
+  problem: (slug: string, language?: Language) =>
+    json<ProblemPublic>(`/api/problems/${encodeURIComponent(slug)}${language ? `?language=${language}` : ""}`),
   samples: () => json<Project[]>("/api/defense/samples"),
   projectFiles: (id: string) => json<ProjectSource>(`/api/defense/projects/${encodeURIComponent(id)}/files`),
   createSession: (config: SessionConfig) =>
