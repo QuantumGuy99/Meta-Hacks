@@ -230,6 +230,24 @@ def test_unfixed_code_breaks_again_then_the_fix_passes(client, bank):
         assert log.until(typed("defense.verdict"))["verdict"]["passed"]
 
 
+def test_profanity_in_the_grill_is_warned_about_not_graded(client, bank):
+    from crucible.engine.conduct import WARNING
+
+    session_id = start(client, bank)
+    with client.websocket_connect(f"/ws/sessions/{session_id}") as ws:
+        log = Log(ws)
+        ws.send_json({"type": "hello", "client_now_ms": 0})
+        through_grill(log)
+        ws.send_json({"type": "chat.send", "text": "this attack is shit"})
+        warned = log.until(typed("interviewer.message"))
+        assert warned["intervention"]["text"] == WARNING
+        ws.send_json({"type": "chat.send", "text": GOOD_ANSWER})
+        graded = log.until(typed("defense.grill.eval"))
+        assert graded["turn"]["root_cause_hit"]  # the real answer is the one graded
+    evals = [e for e in client.get(f"/api/sessions/{session_id}/timeline").json() if e["kind"] == "grill"]
+    assert len(evals) == 1
+
+
 def test_a_double_clicked_verify_runs_one_attack(client, bank):
     session_id = start(client, bank)
     with client.websocket_connect(f"/ws/sessions/{session_id}") as ws:

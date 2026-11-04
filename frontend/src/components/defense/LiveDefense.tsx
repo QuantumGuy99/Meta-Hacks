@@ -17,7 +17,6 @@ import { api, errorText } from "@/lib/api";
 import { attachEditorCapture, type EditorCapture } from "@/lib/capture/editor";
 import { clock, levelLabel, severityLabel } from "@/lib/fixtures";
 import {
-  CHAT_MAX,
   CODE_MAX,
   socketErrorText,
   feedMessages,
@@ -82,7 +81,6 @@ export function LiveDefense({ id }: { id: string }) {
   const [selected, setSelected] = useState<string | null>(null);
   // The finding whose file is open under the topology (the audit's file preview, PLAN §14.4).
   const [previewId, setPreviewId] = useState<string | null>(null);
-  const [answer, setAnswer] = useState("");
   // Date.now() of the last answer sent, to tell "grading" from "a follow-up question came back"
   const [answeredAt, setAnsweredAt] = useState<number | null>(null);
   const [files, setFiles] = useState<Record<string, string> | null>(null);
@@ -243,12 +241,11 @@ export function LiveDefense({ id }: { id: string }) {
     send({ type: "defense.verify", finding_id: targetId, files: sent });
   };
 
-  const sendAnswer = () => {
-    const text = answer.trim();
-    if (!text) return;
+  // The grill is a live conversation: answers come by voice or through the interviewer panel's chat, like any
+  // other message, so there's no separate answer box. A message sent during the grill is the answer.
+  const sendChat = (text: string) => {
     send({ type: "chat.send", text });
-    setAnswer("");
-    setAnsweredAt(Date.now());
+    if (phase === "grill") setAnsweredAt(Date.now());
   };
   // The grade (defense.grill.eval) only comes once the grill for a finding is final, after a follow-up if one
   // is asked (#29). Until then a newer question means a follow-up: the answer box comes back, not "grading".
@@ -520,26 +517,15 @@ export function LiveDefense({ id }: { id: string }) {
                   <h2>{question?.text ?? "The question arrives once the attack finishes."}</h2>
                 </div>
                 {!grilled && (
-                  <>
-                    <label className="df-answer">
-                      <span>Your answer</span>
-                      <textarea
-                        name="answer"
-                        rows={5}
-                        maxLength={CHAT_MAX}
-                        value={answer}
-                        onChange={(e) => setAnswer(e.target.value)}
-                        placeholder="Explain what broke and why…"
-                        disabled={!question || phase !== "grill"}
-                      />
-                    </label>
-                    <div className="df-row">
-                      <button type="button" className="ui-btn ui-btn-primary" onClick={sendAnswer} disabled={!answer.trim() || phase !== "grill"}>
-                        Submit Answer
-                      </button>
-                      {grading && <span className="df-muted">Grading your answer…</span>}
-                    </div>
-                  </>
+                  <p className="df-muted" aria-live="polite">
+                    {grading
+                      ? "Grading your answer…"
+                      : question
+                        ? state.session?.config.voice
+                          ? "Answer out loud, or type in the chat on the right."
+                          : "Answer in the chat on the right."
+                        : null}
+                  </p>
                 )}
                 {grilled && (
                   <>
@@ -676,7 +662,7 @@ export function LiveDefense({ id }: { id: string }) {
           state={voice.speaking ? "speaking" : state.interviewer}
           streamingId={state.streamingId}
           onStreamDone={streamDone}
-          onAsk={(text) => send({ type: "chat.send", text })}
+          onAsk={sendChat}
           caption={caption}
           extra={
             <>
