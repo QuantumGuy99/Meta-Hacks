@@ -837,7 +837,8 @@ ServerMessage = Annotated[Union[SessionState, InterviewerMessage, TranscriptUpda
 | GET | `/api/problems/{slug}/illustration` | → image | P1 |
 | GET | `/api/defense/samples` | → `Project[]` | sample apps |
 | GET | `/api/defense/projects/{id}/files` | → `ProjectSource` (path → content; never `flaws.json`, `fixed/` or `fix.patch`) | the fix-stage editor and audit file preview; samples only until uploads (P1) |
-| POST | `/api/defense/projects` | multipart zip → `Project` | P1, limits §11.1 |
+| POST | `/api/defense/projects?name=` | raw zip body (`application/zip`) → `Project` | limits §11.1; private (unlisted, a 32-hex id); 20 per IP a day |
+| PUT | `/api/defense/projects/{id}/context` | raw text (≤ 8,000 chars) → 204 | an upload's notes for the audit (also a `context.txt` in the zip) |
 | POST | `/api/sessions` | `SessionConfig` → `Session` | picks a random problem if only difficulty is given |
 | GET | `/api/sessions/{id}` | → `Session` | |
 | POST | `/api/sessions/{id}/end` | → `Session` | starts report generation |
