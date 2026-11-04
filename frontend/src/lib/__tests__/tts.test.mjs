@@ -5,6 +5,9 @@ import { test } from "node:test";
 
 import {
   createTts,
+  createVoice,
+  FIRST_AUDIO_MS,
+  SERVER_FAILURES_MAX,
   isNaturalVoice,
   loadVoiceChoice,
   MAX_SENTENCE_CHARS,
@@ -569,4 +572,138 @@ test("resumes a paused engine before speaking", () => {
   synth.paused = true;
   tts.speak("Hello.");
   assert.equal(synth.paused, false);
+});
+
+// --- the server voice (createVoice) ---------------------------------------------------------------------------
+
+class FakeAudio {
+  listeners = {};
+  src = "";
+  paused = false;
+  constructor(url, refuse) {
+    this.src = this.url = url; // src is cleared when a line stops; url keeps what was asked for
+    this.refuse = refuse;
+  }
+  addEventListener(type, listener) {
+    (this.listeners[type] ??= []).push(listener);
+  }
+  play() {
+    return this.refuse ? Promise.reject({ name: "NotAllowedError" }) : Promise.resolve();
+  }
+  pause() {
+    this.paused = true;
+  }
+  removeAttribute(name) {
+    this[name] = "";
+  }
+  load() {}
+  emit(type) {
+    for (const listener of this.listeners[type] ?? []) listener();
+  }
+}
+
+function setupVoice({ refuse = false, url = true } = {}) {
+  const synth = new FakeSynth();
+  synth.voices = VOICES;
+  const audios = [];
+  const events = [];
+  const voice = createVoice(
+    {
+      onStart: () => events.push("start"),
+      onEnd: () => events.push("end"),
+      onBlocked: (b) => events.push(b ? "blocked" : "unblocked"),
+      speechUrl: url ? (id) => `/api/sessions/s1/speech/${id}` : undefined,
+    },
+    { synth, makeUtterance },
+    (src) => {
+      const a = new FakeAudio(src, refuse);
+      audios.push(a);
+      return a;
+    },
+  );
+  return { synth, voice, audios, events };
+}
+
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+test("a line with its id plays from the server voice, and the run spans start to end", () => {
+  const { synth, voice, audios, events } = setupVoice();
+  voice.speak("What does swings count?", "i1");
+  assert.deepEqual(audios.map((a) => a.src), ["/api/sessions/s1/speech/i1"]);
+  audios[0].emit("playing");
+  assert.equal(voice.speaking, true);
+  audios[0].emit("ended");
+  assert.deepEqual(events, ["unblocked", "start", "end"]);
+  assert.deepEqual(synth.texts(), []); // the browser voice said nothing
+  assert.equal(voice.server, true);
+});
+
+test("lines play one after another, in order", () => {
+  const { voice, audios } = setupVoice();
+  voice.speak("First line.", "i1");
+  voice.speak("Second line.", "i2");
+  assert.equal(audios.length, 1); // the second waits for the first
+  audios[0].emit("playing");
+  audios[0].emit("ended");
+  assert.deepEqual(audios.map((a) => a.url.split("/").pop()), ["i1", "i2"]);
+});
+
+test("no sound from the server in time: the browser voice says the line", (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const { synth, voice, audios } = setupVoice();
+  voice.speak("Take another look at line 17.", "i1");
+  t.mock.timers.tick(FIRST_AUDIO_MS);
+  assert.equal(audios[0].paused, true);
+  assert.deepEqual(synth.texts(), ["Take another look at line 17."]);
+});
+
+test("a server error before any sound falls back; after enough failures the server isn't asked", () => {
+  const { synth, voice, audios } = setupVoice();
+  for (let i = 0; i < SERVER_FAILURES_MAX; i += 1) {
+    voice.speak(`Line ${i}.`, `i${i}`);
+    audios[i].emit("error");
+    synth.finishAll();
+  }
+  voice.speak("Later line.", "i9");
+  assert.equal(audios.length, SERVER_FAILURES_MAX);
+  assert.equal(voice.server, false);
+  assert.deepEqual(synth.texts().slice(-1), ["Later line."]);
+});
+
+test("without a speech URL or an id, the browser voice reads it", () => {
+  const { synth, voice, audios } = setupVoice({ url: false });
+  voice.speak("Hello there.", "i1");
+  assert.equal(audios.length, 0);
+  assert.deepEqual(synth.texts(), ["Hello there."]);
+});
+
+test("a refused play waits for a click, then plays the same line", async () => {
+  const { voice, audios, events } = setupVoice({ refuse: true });
+  voice.speak("Hi, I'm Ares.", "i1");
+  await flush();
+  assert.equal(voice.blocked, true);
+  assert.deepEqual(events, ["blocked"]);
+  audios.forEach((a) => (a.refuse = false));
+  voice.unlock();
+  assert.equal(audios.length, 2);
+  assert.equal(audios[1].url, "/api/sessions/s1/speech/i1");
+});
+
+test("cancel stops the server voice and drops the queue", () => {
+  const { voice, audios, events } = setupVoice();
+  voice.speak("First line.", "i1");
+  voice.speak("Second line.", "i2");
+  audios[0].emit("playing");
+  voice.cancel();
+  assert.equal(audios[0].paused, true);
+  audios[0].emit("ended"); // late event from the stopped line: ignored
+  assert.equal(audios.length, 1);
+  assert.deepEqual(events, ["unblocked", "start", "end"]);
+});
+
+test("muted, nothing plays", () => {
+  const { voice, audios } = setupVoice();
+  voice.setMuted(true);
+  voice.speak("Hello.", "i1");
+  assert.equal(audios.length, 0);
 });

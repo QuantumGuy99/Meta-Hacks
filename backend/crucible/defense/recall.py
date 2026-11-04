@@ -76,7 +76,7 @@ async def audit_recall(
 
 
 def load_eval(path: Path) -> tuple[str, list[ExpectedFinding]]:
-    raw = json.loads(path.read_text())
+    raw = json.loads(path.read_text(encoding="utf-8"))
     return raw["app"], [ExpectedFinding(**e) for e in raw["expected_findings"]]
 
 

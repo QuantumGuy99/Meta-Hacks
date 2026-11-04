@@ -1,0 +1,28 @@
+[
+  {"seq": 1, "t": 0, "kind": "phase", "payload": {"from_phase": "setup", "to_phase": "intro", "reason": "session started"}},
+  {"seq": 2, "t": 131000, "kind": "editor", "payload": {
+    "t": 131000, "file": "solution.py", "version": 2, "kind": "change",
+    "changes": [{"range_offset": 72, "range_length": 8, "text": "best = cur = 0"}], "pasted_chars": null
+  }},
+  {"seq": 3, "t": 135000, "kind": "snapshot", "payload": {
+    "t": 135000, "file": "solution.py", "version": 2,
+    "code": "def longest_quiet_streak(readings: list[int], threshold: int) -> int:\n    best = cur = 0\n"
+  }},
+  {"seq": 4, "t": 95000, "kind": "transcript", "payload": {
+    "turn_id": "tt-03", "speaker": "candidate", "text": "If the list is empty I'll return zero.",
+    "start_ms": 92000, "end_ms": 95000, "final": true, "source": "voice"
+  }},
+  {"seq": 5, "t": 388000, "kind": "run", "payload": {
+    "run_id": "r1", "t": 388000, "kind": "run", "passed": 1, "total": 1,
+    "cases": [{"id": "v1", "visible": true, "passed": true, "input_repr": "[30, 52, 41, 38, 60, 35], 50", "expected_repr": "2", "actual_repr": "2", "error": null, "runtime_ms": 1}],
+    "stdout": "", "stderr": "", "timed_out": false, "compile_error": null
+  }},
+  {"seq": 6, "t": 412000, "kind": "intervention", "payload": {
+    "id": "iv1", "t": 412000, "trigger": "missed_step", "level": "nudge",
+    "text": "Look at what happens on your last reading.", "step_id": "s2", "speak": true, "suppressed": false
+  }},
+  {"seq": 7, "t": 520000, "kind": "integrity", "payload": {
+    "id": "ig1", "t": 520000, "kind": "tab_hidden", "detail": "switched away for 14 s at 08:40", "chars": null, "duration_ms": 14000
+  }},
+  {"seq": 8, "t": 530000, "kind": "system", "payload": {"level": "warning", "message": "analyzer timed out; skipped this tick"}}
+]

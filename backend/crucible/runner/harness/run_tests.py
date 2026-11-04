@@ -17,6 +17,7 @@ import json
 import math
 import signal
 import sys
+import threading
 import time
 import traceback
 
@@ -156,6 +157,11 @@ def _close(a, b) -> bool:
 
 @contextlib.contextmanager
 def _alarm(seconds: float):
+    if not hasattr(signal, "SIGALRM"):  # Windows
+        with _thread_alarm(seconds):
+            yield
+        return
+
     def _fire(signum, frame):
         raise CaseTimeout()
 
@@ -166,6 +172,30 @@ def _alarm(seconds: float):
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
         signal.signal(signal.SIGALRM, previous)
+
+
+@contextlib.contextmanager
+def _thread_alarm(seconds: float):
+    """Windows has no SIGALRM, so a timer thread raises SIGINT in this process instead. Like SIGALRM it
+    stops a Python loop and wakes time.sleep, but not a blocked lock or other C code: the runner's
+    process kill still covers those."""
+    live = True
+
+    def _fire(signum, frame):
+        if live:  # dropped if it lands after the case has ended
+            raise CaseTimeout()
+
+    previous = signal.signal(signal.SIGINT, _fire)
+    timer = threading.Timer(seconds, signal.raise_signal, (signal.SIGINT,))
+    timer.daemon = True
+    timer.start()
+    try:
+        yield
+    finally:
+        live = False
+        timer.cancel()
+        timer.join()  # a timer that's already firing finishes first
+        signal.signal(signal.SIGINT, previous)  # runs a pending SIGINT through _fire, which drops it
 
 
 def _case(case: dict, visible: bool, passed: bool, actual, error, ms: int) -> dict:

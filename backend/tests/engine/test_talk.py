@@ -121,9 +121,61 @@ def test_a_reply_waits_if_they_start_talking_again() -> None:
     assert decide(state, facts(last_partial_ms=NOW - 200)) is None  # a new turn under way
 
 
-def test_talk_counts_from_when_the_problem_was_presented() -> None:
-    state = seen(CLEAN, CLEAN, state=PolicyState(attached_ms=NOW - 5_000))
+# --- REPLY in the candidate's turn: after an answer, or after the problem asks for their approach -------------
+
+
+def answered(asked_ms: int, answered_ms: int, **fields: Any) -> PolicyState:
+    """The candidate asked a question at `asked_ms`; the answer reached them at `answered_ms`."""
+    state = seen(CLEAN, CLEAN, state=PolicyState(attached_ms=NOW - 60_000, **fields))
+    state.ask()
+    assert what(decide(state, facts(asked_ms))) == (Trigger.ASKED, Level.QUESTION, None)
+    state.observe_answered(answered_ms)
+    return state
+
+
+def test_what_they_say_back_after_an_answer_gets_a_reply_at_once() -> None:
+    state = answered(NOW - 4_000, NOW - 3_000)  # well inside TALK_GAP_MS and REPLY_AFTER_MS
     state.observe_statement(PLAN, NOW - 1_000)
+    decision = decide(state, facts())
+    assert what(decision) == (Trigger.REPLY, Level.INFO, None)
+    assert decision is not None and decision.said == PLAN
+
+
+def test_one_reply_per_turn() -> None:
+    state = answered(NOW - 4_000, NOW - 3_000)
+    state.observe_statement(PLAN, NOW - 1_000)
+    assert decide(state, facts()) is not None
+    state.observe_statement("And then I'll return the count at the very end.", NOW + 1_000)
+    assert decide(state, facts(NOW + 1_500)) is None
+
+
+def test_something_said_while_the_answer_was_written_waits_for_the_talk_clocks() -> None:
+    state = answered(NOW - 4_000, NOW - 1_000)
+    state.observe_statement(PLAN, NOW - 2_000)  # before the answer reached them: not a reply to it
+    assert decide(state, facts()) is None
+
+
+def test_a_reply_in_turn_keeps_clear_of_the_interviewers_own_lines() -> None:
+    state = answered(NOW - 4_000, NOW - 3_000, last_own_line_ms=NOW - TALK_GAP_MS + 1)  # a nudge just before
+    state.observe_statement(PLAN, NOW - 1_000)
+    assert decide(state, facts()) is None
+
+
+def test_no_reply_in_turn_in_passive_mode() -> None:
+    state = answered(NOW - 4_000, NOW - 3_000)
+    state.observe_statement(PLAN, NOW - 1_000)
+    assert decide(state, facts(passive=True)) is None
+
+
+def test_a_plan_right_after_the_problem_is_presented_gets_a_reply() -> None:
+    state = seen(CLEAN, CLEAN, state=PolicyState(attached_ms=NOW - 5_000))  # "tell me your approach"
+    state.observe_statement(PLAN, NOW - 1_000)
+    assert what(decide(state, facts())) == (Trigger.REPLY, Level.INFO, None)
+
+
+def test_something_said_before_the_problem_was_presented_gets_no_early_reply() -> None:
+    state = seen(CLEAN, CLEAN, state=PolicyState(attached_ms=NOW - 5_000))
+    state.observe_statement(PLAN, NOW - 6_000)
     assert decide(state, facts()) is None
 
 
@@ -296,6 +348,17 @@ async def test_a_typed_statement_gets_a_reply_and_a_typed_question_an_answer() -
     await live.tick()
     assert lines(rt) == [("reply", REPLY)]
     assert model.roles() == ["conversation"]  # typed chat never goes to the classifier
+
+
+@pytest.mark.asyncio
+async def test_what_they_type_back_after_an_answer_gets_a_reply() -> None:
+    rt, live, _, clock = engine()
+    await say(rt, "Can the readings list be empty?", source="text")
+    await live.tick()
+    clock.now += 3  # they read the answer and state their plan: the interviewer spoke only 3 s ago
+    await say(rt, PLAN, source="text")
+    await live.tick()
+    assert [trigger for trigger, _ in lines(rt)] == ["asked", "reply"]
 
 
 @pytest.mark.asyncio

@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Monaco served by the app itself (scripts/copy-monaco.mjs, run by dev and build)
+/public/monaco/

@@ -65,11 +65,13 @@ HINT_LEVELS = (
     InterventionLevel.CONCEPT,
 )
 # Interventions that aren't help: phase lines, the warm-up and grill questions run the interview; replies, probes
-# and check-ins are the interviewer's side of the conversation (§9.5); paste and time notes are reminders. They
-# don't count as interventions shown, nor against independence.
+# and check-ins are the interviewer's side of the conversation (§9.5); answers are the candidate asking, which
+# clarifying a problem should be; paste and time notes are reminders. They don't count as interventions shown,
+# nor against independence. Answers still become moments and reach the report model (`_help_and_answers`).
 NOT_HELP = frozenset(
     {
         InterventionTrigger.PHASE,
+        InterventionTrigger.ASKED,
         InterventionTrigger.WARMUP,
         InterventionTrigger.REPLY,
         InterventionTrigger.PROBE,
@@ -96,6 +98,7 @@ DIMENSIONS: dict[Mode, tuple[str, ...]] = {
 }
 # Independence in the template report: each shown hint costs more the more it gave away (§9.8).
 HINT_COST = {"nudge": 1.0, "question": 1.5, "hint": 2.5, "concept": 4.0}
+NO_WORK = "No work to judge: nothing was written, run or answered."
 MAX_TURNS = 80
 MAX_TURN_CHARS = 300
 MAX_CODE_CHARS = 12_000
@@ -215,11 +218,20 @@ def ended_at_ms(events: Sequence[TimelineEvent], *, default: int) -> int:
 
 
 def help_shown(events: Sequence[TimelineEvent]) -> list[Intervention]:
-    """Interventions the candidate saw that helped them (not phase lines, grill questions or notes)."""
+    """Interventions the candidate saw that helped them (not answers, phase lines, grill questions or notes)."""
     return [
         i
         for i in payloads(events, TimelineKind.INTERVENTION, Intervention)
         if not i.suppressed and i.trigger not in NOT_HELP
+    ]
+
+
+def _help_and_answers(events: Sequence[TimelineEvent]) -> list[Intervention]:
+    """Help shown, plus the answers to the candidate's own questions: both are moments worth reporting."""
+    return [
+        i
+        for i in payloads(events, TimelineKind.INTERVENTION, Intervention)
+        if not i.suppressed and (i.trigger == InterventionTrigger.ASKED or i.trigger not in NOT_HELP)
     ]
 
 
@@ -276,7 +288,7 @@ def _coding_picks(events: Sequence[TimelineEvent]) -> list[Pick]:
 
 def _help_picks(events: Sequence[TimelineEvent], steps: Mapping[str, str]) -> list[Pick]:
     picks: list[Pick] = []
-    for i in help_shown(events):
+    for i in _help_and_answers(events):
         if i.trigger == InterventionTrigger.ASKED:
             facts = f'The candidate asked a question; the interviewer replied: "{i.text}"'
             picks.append(Pick(i.t, "milestone", "Asked the interviewer", facts, 5))
@@ -465,7 +477,7 @@ def _conversation_section(events: Sequence[TimelineEvent]) -> str:
     transcript = "\n".join(f"- [{clock(t.start_ms)}] {t.speaker}: {_cut(t.text)}" for t in turns)
     shown = "\n".join(
         f"- [{clock(i.t)}] {i.level} ({i.trigger}{', ' + i.step_id if i.step_id else ''}): {i.text}"
-        for i in help_shown(events)
+        for i in _help_and_answers(events)
     )
     return f"# Transcript\n{transcript or '(nothing said)'}\n\n# Interventions shown\n{shown or '(none)'}"
 
@@ -517,12 +529,27 @@ def measured_scores(metrics: Metrics, extra: CodingExtra | DefenseExtra) -> dict
         if broken:
             evidence = f"{len(v.findings_fixed)} of {broken} broken findings held after the fix."
             scores["correctness"] = _score("correctness", 10 * len(v.findings_fixed) / broken, evidence)
-        else:
+        elif any(r.kind == "baseline" for r in extra.chaos_runs):
             scores["correctness"] = _score("correctness", 10, "Nothing broke under load.")
+        elif any(f.chaos is not None for f in extra.findings):
+            # No attack ran: nothing held, it just wasn't tested. Not a 10.
+            scores["correctness"] = _score("correctness", 0, "The session ended before the attack ran.")
+        else:
+            scores["correctness"] = _score("correctness", 10, "Nothing in the audit needed a load test.")
         if extra.grill:
             evidence = f"Average grill score {v.avg_grill_score:.1f}/10 over {len(extra.grill)} findings."
             scores["system_understanding"] = _score("system_understanding", v.avg_grill_score, evidence)
+    if not did_work(metrics, extra):
+        # "Used no hints" means nothing without work: a session ended at once scored 50 on independence alone.
+        scores["independence"] = _score("independence", 0, NO_WORK)
     return scores
+
+
+def did_work(metrics: Metrics, extra: CodingExtra | DefenseExtra) -> bool:
+    """Coding: typed, pasted, ran or submitted. Defense: answered a grill question or verified a fix."""
+    if isinstance(extra, DefenseExtra):
+        return bool(extra.grill) or any(r.kind == "verify" for r in extra.chaos_runs)
+    return bool(metrics.runs or metrics.submits or metrics.chars_typed or metrics.chars_pasted)
 
 
 def template_draft(
@@ -548,7 +575,9 @@ def template_draft(
         )
     cost = sum(HINT_COST[level] * n for level, n in metrics.hints_by_level.items())
     used = ", ".join(f"{n} {level}" for level, n in metrics.hints_by_level.items() if n) or "no hints"
-    dimensions = [*scores.values(), _score("independence", 10 - cost, f"Used {used}.")]
+    if "independence" not in scores:  # measured_scores sets it to 0 when there was no work
+        scores["independence"] = _score("independence", 10 - cost, f"Used {used}.")
+    dimensions = list(scores.values())
     return ReportDraft(
         overall=0,  # merge() computes it
         dimensions=dimensions,

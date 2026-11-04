@@ -147,6 +147,13 @@ class PolicyState:
     # The engine attached then, right after the problem was presented: talk counts from it, like a line.
     attached_ms: int | None = None
     statement: tuple[str, int] | None = None  # something the candidate said that isn't a question, and when
+    # The interviewer handed the turn to the candidate then: its answer to their question reached them. What
+    # they say back gets a reply without waiting out the talk clocks (§9.5). Before any line, presenting the
+    # problem (`attached_ms`) is the handover: it asks for their approach.
+    turn_ms: int | None = None
+    last_own_line_ms: int | None = (
+        None  # the last line that wasn't an answer: a reply in turn keeps clear of it
+    )
     replies: int = 0
     last_reply_ms: int | None = None
     probes: int = 0
@@ -186,6 +193,10 @@ class PolicyState:
     def request_hint(self, step_id: str | None) -> None:
         self.hint_requests.append(step_id)
 
+    def observe_answered(self, now_ms: int) -> None:
+        """The answer to the candidate's question was delivered: it's their turn to talk."""
+        self.turn_ms = now_ms
+
 
 def decide(state: PolicyState, facts: Facts) -> Decision | None:
     """At most one message for now (§9.5): rules in table order, the first match wins.
@@ -198,7 +209,9 @@ def decide(state: PolicyState, facts: Facts) -> Decision | None:
         return _commit(state, facts, answer)
     _watch_issues(state, facts)
     if not _every(state.last_message_ms, facts.now_ms, TALK_GAP_MS):
-        return _hold_or_deliver(state, facts, None)
+        # Only a reply to what the candidate said in their turn: the gap keeps the interviewer from talking over
+        # its own lines, not from answering back.
+        return _hold_or_deliver(state, facts, None if facts.passive else _reply(state, facts))
     candidate = _first_unsolicited(state, facts) if _may_interrupt(state, facts.now_ms) else None
     if candidate is None and not facts.passive:
         candidate = _reply(state, facts) or _probe(state, facts)
@@ -307,7 +320,9 @@ def _commit(state: PolicyState, facts: Facts, candidate: _Candidate) -> Decision
     _mark(state, candidate)
     _remember_once(state, trigger, now)
     if trigger != InterventionTrigger.TIME_WARNING:
-        state.last_message_ms = now
+        state.last_message_ms, state.turn_ms = now, None  # an answer hands the turn over once it's delivered
+        if trigger != InterventionTrigger.ASKED:
+            state.last_own_line_ms = now
         if trigger not in TALK:  # answers restart the help cooldown too, so no nudge lands right after one
             state.last_help_ms = now
     if trigger not in PASSIVE_DELIVERED and trigger not in TALK:
@@ -524,14 +539,15 @@ def _idle(state: PolicyState, facts: Facts) -> _Candidate | None:
 # --- talk: REPLY, PROBE (active mode only; their own clocks, not the help cap) --------------------------------
 
 
-def reply_possible(state: PolicyState, facts: Facts) -> bool:
-    """Whether a REPLY could go out now if the candidate said something: lets the engine start writing one while
-    the classifier is still deciding question vs thinking aloud. No side effects."""
+def reply_possible(state: PolicyState, facts: Facts, said_ms: int | None = None) -> bool:
+    """Whether a REPLY could go out now to something the candidate said at `said_ms` (default: now): lets the
+    engine start writing one while the classifier is still deciding question vs thinking aloud. No side effects."""
     if facts.passive or facts.phase not in _PLAN_PHASES or state.replies >= REPLY_MAX:
         return False
-    return _every(state.last_reply_ms, facts.now_ms, REPLY_EVERY_MS) and _quiet_for(
-        state, facts.now_ms, REPLY_AFTER_MS
-    )
+    if not _every(state.last_reply_ms, facts.now_ms, REPLY_EVERY_MS):
+        return False
+    said = facts.now_ms if said_ms is None else said_ms
+    return _quiet_for(state, facts.now_ms, REPLY_AFTER_MS) or _in_turn(state, facts.now_ms, said)
 
 
 def _reply(state: PolicyState, facts: Facts) -> _Candidate | None:
@@ -542,7 +558,7 @@ def _reply(state: PolicyState, facts: Facts) -> _Candidate | None:
     if facts.now_ms - said_ms > REPLY_STALE_MS:
         state.statement = None
         return None
-    if not reply_possible(state, facts):
+    if not reply_possible(state, facts, said_ms):
         return None
     decision = Decision(InterventionTrigger.REPLY, InterventionLevel.INFO, None, None, said=said)
     return _Candidate(decision, f"said at {said_ms}")
@@ -605,6 +621,13 @@ def _quiet_for(state: PolicyState, now_ms: int, gap_ms: int) -> bool:
     moment: before the engine knows it, there's no talk."""
     since = state.last_message_ms if state.last_message_ms is not None else state.attached_ms
     return since is not None and now_ms - since >= gap_ms
+
+
+def _in_turn(state: PolicyState, now_ms: int, said_ms: int) -> bool:
+    """The candidate said this after the interviewer handed them the turn (an answer, or presenting the problem),
+    and the interviewer's last line of its own was at least TALK_GAP_MS ago."""
+    turn = state.turn_ms if state.last_message_ms is not None else state.attached_ms
+    return turn is not None and said_ms >= turn and _every(state.last_own_line_ms, now_ms, TALK_GAP_MS)
 
 
 def _done(analysis: Analysis | None) -> set[str]:

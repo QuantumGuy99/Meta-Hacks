@@ -1,0 +1,188 @@
+/* Ask Ares: the app guide (#25, PR #51). Fixed at the bottom left; toasts are bottom centre. */
+.ask {
+  position: fixed;
+  left: max(16px, env(safe-area-inset-left, 0px));
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--ink);
+}
+.ask-toggle {
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid var(--cobalt);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+.ask-toggle:hover,
+.ask-toggle[aria-expanded="true"] {
+  background: var(--cobalt);
+}
+.ask-toggle:focus-visible,
+.ask button:focus-visible,
+.ask input:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.ask-panel {
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(70svh, 520px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--ui-line);
+  border-radius: 8px;
+  background: var(--ui-bg);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.45);
+  overflow: hidden;
+}
+.ask-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.ask-head strong {
+  font-size: 15px;
+}
+.ask-head span {
+  grid-column: 1;
+  color: var(--muted-ink);
+  font-size: 12px;
+}
+.ask-close {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-ink);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.ask-close:hover {
+  color: var(--ink);
+}
+.ask-list {
+  flex: 1;
+  /* shrinks on a short screen instead of pushing the header out of the panel */
+  min-height: 0;
+  margin: 0;
+  padding: 12px 14px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.ask-turn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 92%;
+}
+.ask-turn p,
+.ask-empty p {
+  margin: 0;
+}
+.ask-turn.is-you {
+  align-self: flex-end;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgb(47 107 255 / 0.18);
+}
+.ask-turn.is-busy {
+  color: var(--muted-ink);
+}
+.ask-empty {
+  display: grid;
+  gap: 10px;
+  color: var(--muted-ink);
+}
+.ask-starters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ask-starters button,
+.ask-action {
+  padding: 6px 10px;
+  border: 1px solid var(--ui-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.ask-starters button:hover,
+.ask-action:hover {
+  border-color: var(--cobalt);
+}
+.ask-action {
+  border-color: var(--cobalt);
+  font-weight: 600;
+}
+.ask-error {
+  margin: 0;
+  padding: 8px 14px;
+  color: #ffb4b4;
+  font-size: 13px;
+}
+.ask-form {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--ui-line);
+}
+.ask-form input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--ui-line);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+}
+.ask-form button {
+  padding: 0 14px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--cobalt);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ask-form button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ask-toggle {
+    transition: none;
+  }
+}

@@ -32,6 +32,8 @@ SPARK_CONTRIBUTOR = "muse-spark-1.3-contributor"
 WONDER = "muse-wonder-1.0"
 # The hackathon guide says to use this id, not "muse-spark-open" (PLAN §15.1).
 SPARK_OPEN = "meta-models/muse-spark-open-1026"
+# Voice output only (PLAN §14.7): Meta has no text-to-speech model. ElevenLabs' low-latency model.
+TTS_MODEL = "eleven_flash_v2_5"
 
 # USE_CONTRIBUTOR_MODELS=1: cheaper, but content may be used for training. Dev with synthetic data only.
 CONTRIBUTOR_MODELS: dict[str, str] = {SPARK: SPARK_CONTRIBUTOR}
@@ -97,7 +99,9 @@ ROLES: dict[ModelRole, RoleSpec] = {
     # The second grader (DEF-13): a different Meta model, so two must agree. Spark Open (open-weight) takes
     # over once Baseten is configured; until then Wonder at low effort, in parallel with grill_eval.
     "grill_check": RoleSpec(_wonder("low"), timeout_s=15, fallbacks=(_SPARK_OPEN,)),
-    "audit": RoleSpec(_wonder("xhigh"), timeout_s=120, fallbacks=(_spark("high"),)),
+    # high, not xhigh: xhigh took 104-167 s on bank-transfer (Oct 28) and timed out at 120 s in a live run
+    # (Nov 3); high found every seeded flaw in 9 of 9 runs across the three samples (PLAN §15.1).
+    "audit": RoleSpec(_wonder("high"), timeout_s=120, fallbacks=(_spark("high"),)),
     "report": RoleSpec(_wonder("high"), timeout_s=45, fallbacks=(_spark("high"),)),
     "attacker": RoleSpec(_spark("low"), timeout_s=30, fallbacks=(_spark("medium"),)),
     "drafter": RoleSpec(_wonder("high"), timeout_s=120, fallbacks=(_spark("medium"), _SPARK_OPEN)),

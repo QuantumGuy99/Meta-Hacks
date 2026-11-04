@@ -108,7 +108,7 @@ async def test_falls_back_when_the_retry_also_fails() -> None:
     wrapper, sleeps, records = make_llm({"meta": meta})
 
     assert await wrapper.complete_json("audit", MESSAGES, Verdict) == OK
-    assert sent(meta) == [(WONDER, "xhigh"), (WONDER, "xhigh"), (SPARK, "high")]
+    assert sent(meta) == [(WONDER, "high"), (WONDER, "high"), (SPARK, "high")]
     assert len(sleeps) == 1
     assert [r.error for r in records] == ["HTTP 500", "HTTP 503", None]
 
@@ -119,7 +119,7 @@ async def test_timeout_falls_back_without_retrying() -> None:
     wrapper, sleeps, records = make_llm({"meta": meta})
 
     assert await wrapper.complete_json("audit", MESSAGES, Verdict, timeout_s=0.01) == OK
-    assert sent(meta) == [(WONDER, "xhigh"), (SPARK, "high")]
+    assert sent(meta) == [(WONDER, "high"), (SPARK, "high")]
     assert sleeps == []
     assert records[0].error == "timeout after 0.01s"
 
