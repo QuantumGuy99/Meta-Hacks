@@ -676,6 +676,11 @@ export function createVoice(
     },
     speak(text, id) {
       if (disposed || muted || !speakable(text)) return;
+      // While the browser wants a click, only the newest line waits for it: a backlog of old ones would be stale.
+      if (held) {
+        held = { text, id };
+        return;
+      }
       lines.push({ text, id });
       next();
     },

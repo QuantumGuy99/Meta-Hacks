@@ -85,6 +85,7 @@ class InterventionTrigger(StrEnum):
     PHASE = "phase"
     PRAISE = "praise"
     GRILL = "grill"
+    CONDUCT = "conduct"  # abusive language ended the interview (engine/conduct.py)
     # The interviewer's side of the conversation, not help (§9.5): the warm-up before the problem, a short reply
     # to what the candidate said, and a question that checks they understand what they wrote.
     WARMUP = "warmup"
@@ -122,7 +123,7 @@ class TurnLabel(Strict):  # LLM output of the voice classifier (COD-6, §9.7)
 class IntegrityFlag(Strict):
     id: str
     t: int
-    kind: Literal["paste", "bulk_insert", "tab_hidden", "phone_in_frame", "extra_person"]
+    kind: Literal["paste", "bulk_insert", "tab_hidden", "phone_in_frame", "extra_person", "conduct"]
     detail: str  # neutral wording: "pasted 32 lines at 06:14"
     chars: int | None
     duration_ms: int | None

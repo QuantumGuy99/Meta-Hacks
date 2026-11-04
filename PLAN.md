@@ -936,6 +936,15 @@ Owner: **SG**. Used by coding mode (whole session) and defense mode (grill + fix
   bridge and connected sockets. Created on the first WS connect; destroyed 10 min after the last disconnect.
 - Routes client messages to handlers; every handler appends to the Timeline first, then reacts.
 - `broadcast(ServerMessage)` to all sockets for the session (a second tab = observer).
+- **Conduct (both modes, Nov 4):** every final candidate turn, typed or spoken, is checked in `record()` by
+  `engine/conduct.py`: a fixed list, no model. It covers profanity and slurs, with the usual disguises
+  (`f*ck`, `sh1t`; whole words, so "Scunthorpe" or "class" never count), insults or hostility aimed at the
+  interviewer, and words speech-to-text bleeped. One offence ends it, as in a real interview (#93 first warned
+  twice). A match isn't passed on to the mode or the engine: a `system` note, an `integrity` flag of kind
+  `conduct`, one harsh `conduct` line ("…I'm ending this interview now, and it's a fail."), an `error`
+  (`terminated_conduct`), and the session ends with the reason `terminated: abusive language`, which the
+  report shows as a banner. The report is a fail whatever the draft says (`failed_for_conduct`: overall 0,
+  its own summary, the Defense verdict not passed).
 - Phase transitions go through `runtime.set_phase(to, reason)`, which validates against the mode's allowed
   transitions (§10.1, §11.2), appends a `phase` event and broadcasts `session.state`. Any live phase may go
   to `ended` or `failed`; only `ReportBuilder` moves on from `ended`.
@@ -1094,6 +1103,10 @@ request, a run or an analysis.
 | `PLAN_MISMATCH` (P1) | `plan_matches_code == false` in 2 consecutive analyses, with a stated plan (the latest, or the one the policy remembers) | QUESTION | per plan |
 | `SILENT` (P1, voice on) | in `coding`, ≥ 75 s without a final candidate turn (voice or chat) | NUDGE, a check-in the model words from the screen (`reply(kind="checkin")`), canned "Talk me through what you're doing." | every 3 min max |
 | `IDLE` | in `coding` (or defense `fix`), no edit and no speech ≥ 60 s | QUESTION, a model-worded check-in, canned "Where are you at?" | every 2 min max |
+
+Check-ins back off so they don't sound scripted: each one of a kind waits twice as long as the last (2, 4 min
+for `IDLE`), at most `CHECKIN_MAX` = 3 of each per session, and the model is told not to repeat its earlier
+lines.
 | `REPLY` (talk, active) | in `clarify`/`coding`, the candidate said or typed something that isn't a question (≥ 6 words; a voice turn the classifier labels thinking aloud), the interviewer has been quiet ≥ 20 s (counting from the problem's presentation), within 8 s of it being said. **In their turn** (Nov 2) it needn't wait for the 15 s and 20 s clocks: what they say right after an answer to their question has reached them, or right after the problem is presented ("tell me your approach"), is the other half of a conversation, so it gets a reply at once (`PolicyState.turn_ms`, set when `LiveEngine` delivers the answer). It stays ≥ 15 s from the interviewer's own last unprompted line, one reply per turn. It goes out as soon as it's written: the final transcript already ended their turn, so it skips the quiet window unless they talk or type again | INFO: the model (`reply(kind="reply")`) asks one follow-up that makes them justify it, or acknowledges briefly; never confirms or hints | 1 per 40 s, 12 per session |
 | `PROBE` (talk, active) | in `coding`, a step became `done` that wasn't probed yet, no serious issue open, quiet ≥ 45 s. Code decides when; the model (`reply(kind="probe")`, never shown the rubric) asks why their code works, what a line does for an input, or what a part costs | QUESTION | 4 per session; steps done together get one probe |
 | `PRAISE` | a step marked tricky in the rubric becomes `done` | INFO | max 1 per 10 min |
@@ -1465,10 +1478,15 @@ template.
 and detail and ask for a revised attack (max 2 refinements). A plain call per refinement is enough.
 
 ### 11.5 Grill (`grill.py`)
-- For each `broke` finding: the question = `grill.question` rewritten with the real chaos summary (Spark,
-  timeout 6 s; fallback: the raw question + summary).
-- Answer window 90 s (voice turns or chat). Then `GrillEval` (Spark, structured). If `needs_follow_up` and no
-  follow-up has been asked yet: ask `grill.follow_up` (60 s more). Code enforces at most one follow-up.
+- For each `broke` finding: the question = `grill.question` rewritten in everyday words with the real chaos
+  summary (`grill.plain_question`, role `interviewer`, 8 s; fallback: the raw question + summary). The model
+  sees only what the candidate sees, plus the lines already said so it doesn't repeat them.
+- Answer window 90 s (voice turns or chat). One answer per question: a message while grading, or speech begun
+  before the question went out, is ignored; spoken parts are joined after a 2.5 s pause. A message that may be
+  a question back ("what's p95?", "say that again") goes to `grill.clarify` first, which answers it and keeps
+  the question open, or hands it on to be graded. Then `GrillEval` (Spark, structured). If `needs_follow_up`
+  and no follow-up has been asked yet: ask `grill.follow_up`, reworded to react to what they said (60 s more).
+  Code enforces at most one follow-up. The grader's reaction goes out with the next line, never on its own.
 - **Scoring is code, not the model** (the LLM only says which expected points were hit):
   ```python
   n = len(spec.expected_points)

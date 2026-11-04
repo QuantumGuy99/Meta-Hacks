@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import re
 from collections.abc import Callable, Mapping
 
 from pydantic import BaseModel
@@ -49,7 +50,7 @@ from crucible.defense import verdict as verdict_mod
 from crucible.defense.attack_writer import extract_functions
 from crucible.defense.audit import AuditFailed
 from crucible.defense.chaos import run_attack
-from crucible.defense.grill import SAFE_FEEDBACK, plain_question
+from crucible.defense.grill import SAFE_FEEDBACK, clarify, plain_question
 from crucible.defense.model_client import WrapperModelClient
 from crucible.defense.pipeline import MAX_FIX_ROUNDS, DefensePipeline
 from crucible.defense.ports import ModelClient
@@ -58,6 +59,7 @@ from crucible.engine.context import RubricContext
 from crucible.engine.hub import SessionPlan, SessionRuntime, SessionSetupError
 from crucible.engine.ids import new_id
 from crucible.engine.interviewer import looks_like_code
+from crucible.engine.policy import is_question
 from crucible.engine.timeline import public_audit
 from crucible.runner import Runner, RunnerError, make_runner
 
@@ -76,6 +78,9 @@ TRANSITIONS: dict[Phase, set[Phase]] = {
 # A spoken answer can arrive as several final turns (a pause mid-sentence): grade them together once they stop,
 # so one answer is graded once and gets one reply (#88 bug 1). Typed answers are graded at once.
 ANSWER_GAP_S = 2.5
+# A message that may be a question back ("what's p95?", "say that again", "explain?") is first offered to the
+# interviewer, who answers it and keeps the question open, or hands it on to be graded (grill.clarify).
+_ASKS_BACK = re.compile(r"\b(explain|repeat|again|mean|meaning|confus\w*|hint|help|clarify|lost)\b", re.I)
 FIX_PROMPT = "Over to you: fix it in the editor, then press Verify. I'll run the exact same attack again."
 
 
@@ -186,6 +191,7 @@ class DefenseController:
         self._heard: list[str] = []  # the final turns of a spoken answer, until they pause
         self._gap: asyncio.Task[None] | None = None
         self._lead: str | None = None  # the grader's reaction, said with the next line instead of on its own
+        self._asked_text = ""  # the question on screen, for answering a question back about it
         # DEF-14: replays computed in the background, sent once their finding's grill is final.
         self._replays: dict[str, RaceReplay | None] = {}
         self._graded: set[str] = set()
@@ -308,18 +314,34 @@ class DefenseController:
 
     async def _grade(self, rt: SessionRuntime, fid: str, answer: str) -> None:
         p = self._pipeline(rt)
+        if is_question(answer) or _ASKS_BACK.search(answer):
+            summary = p.state.baseline[fid].summary
+            said = self._said(rt)
+            reply = await clarify(p.finding(fid), summary, self._asked_text, answer, p.llm, said_before=said)
+            if reply is not None and self._current == fid:
+                await self._ask(rt, reply)  # the same question stays open, with their question answered
+                return
         async with self._lock:
             if self._current != fid:  # a second message raced the first; that answer was already graded
                 return
             turn = await p.answer_grill(fid, answer)
         finding = p.finding(fid)
-        self._lead = turn.eval.feedback or None
         if p.needs_follow_up(fid):
             # The eval carries the full finding (explanation, expected points), so it goes out only once
             # the grill for this finding is final; revealing it before the follow-up hands over the answer.
-            text = await plain_question(finding, None, finding.grill.follow_up, p.llm, p.sink, answer=answer)
+            text = await plain_question(
+                finding,
+                None,
+                finding.grill.follow_up,
+                p.llm,
+                p.sink,
+                answer=answer,
+                reaction=turn.eval.feedback or None,  # the follow-up opens with a reaction to what they said
+                said_before=self._said(rt),
+            )
             await self._ask(rt, text)
             return
+        self._lead = turn.eval.feedback or None
         await rt.broadcast(DefenseGrillEval(type="defense.grill.eval", turn=turn, finding=finding))
         self._graded.add(fid)
         await self._reveal_replay(rt, fid)
@@ -389,19 +411,29 @@ class DefenseController:
         self._current = self._queue.pop(0)
         finding = p.finding(self._current)
         previous = p.state.grill.get(self._current)
+        said = self._said(rt)
         if previous:
-            text = await plain_question(finding, None, finding.grill.follow_up, p.llm, p.sink)
+            text = await plain_question(
+                finding, None, finding.grill.follow_up, p.llm, p.sink, said_before=said
+            )
         else:
             summary = p.state.baseline[finding.id].summary
-            text = await plain_question(finding, summary, finding.grill.question, p.llm, p.sink)
+            question = finding.grill.question
+            text = await plain_question(finding, summary, question, p.llm, p.sink, said_before=said)
         await self._ask(rt, text)
 
     async def _ask(self, rt: SessionRuntime, question: str) -> None:
         """A grill question, with the reaction to their last answer in front: one line, not two (#88)."""
         await self._say(rt, self._with_lead(question), InterventionLevel.QUESTION)
+        self._asked_text = question
         self._heard = []
         self._asked_ms = rt.now_ms()
         self._open = True
+
+    @staticmethod
+    def _said(rt: SessionRuntime) -> list[str]:
+        """The interviewer's latest lines, so the next one doesn't repeat their phrasing."""
+        return [str(e.payload.get("text", "")) for e in rt.timeline.tail([TimelineKind.INTERVENTION])][-6:]
 
     def _with_lead(self, text: str) -> str:
         lead, self._lead = self._lead, None
@@ -517,12 +549,13 @@ class DefenseController:
 
     async def _cancel_tasks(self) -> None:
         current = asyncio.current_task()  # the stage that ended the session finishes on its own
-        tasks = [t for t in self._tasks if t is not current]
-        for task in tasks:
-            task.cancel()
-        for task in tasks:
-            with contextlib.suppress(asyncio.CancelledError):
-                await task
+        # Until none are left: a stage being cancelled can start another (a grade, an answer gap).
+        while tasks := [t for t in self._tasks if t is not current and not t.done()]:
+            for task in tasks:
+                task.cancel()
+            for task in tasks:
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
 
     def _spawn(self, rt: SessionRuntime, coro) -> asyncio.Task[None]:
         task = asyncio.create_task(self._guard(rt, coro), name=f"defense-{rt.session.id}")

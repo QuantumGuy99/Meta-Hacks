@@ -25,7 +25,7 @@
   border-top: 1px solid var(--ui-line);
   color: var(--muted-ink);
 }
-/* The session was ended for profanity (engine/conduct.py): said first, above the scores */
+/* The session was ended for abusive language (engine/conduct.py): said first, above the scores */
 .rp-terminated {
   margin: 0;
   padding: 14px 16px;

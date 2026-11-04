@@ -45,6 +45,7 @@ from crucible.contracts.report import (
     ReportDraft,
 )
 from crucible.engine.analyzer import Analyzer
+from crucible.engine.conduct import failed_for_conduct
 from crucible.engine.prompts import PROMPTS
 
 if TYPE_CHECKING:
@@ -77,6 +78,7 @@ NOT_HELP = frozenset(
         InterventionTrigger.PROBE,
         InterventionTrigger.SILENT,
         InterventionTrigger.IDLE,
+        InterventionTrigger.CONDUCT,
         InterventionTrigger.GRILL,
         InterventionTrigger.PASTE,
         InterventionTrigger.TIME_WARNING,
@@ -144,7 +146,10 @@ async def build_report(rt: SessionRuntime, model: StructuredModel | None) -> Rep
     mode = rt.session.config.mode
     if draft is None:
         draft = template_draft(metrics, picks, extra, events)
-    return merge(rt.session.id, mode, draft, metrics, picks, extra, model_name, rt.wall_now())
+    report = merge(rt.session.id, mode, draft, metrics, picks, extra, model_name, rt.wall_now())
+    if any(f.kind == "conduct" for f in payloads(events, TimelineKind.INTEGRITY, IntegrityFlag)):
+        return failed_for_conduct(report)  # code decides: abusive language fails, whatever the draft says
+    return report
 
 
 async def final_analysis(rt: SessionRuntime, model: StructuredModel) -> None:
@@ -308,7 +313,12 @@ def _help_picks(events: Sequence[TimelineEvent], steps: Mapping[str, str]) -> li
 
 
 def _integrity_picks(events: Sequence[TimelineEvent]) -> list[Pick]:
-    titles = {"paste": "Pasted code", "bulk_insert": "Large insert", "tab_hidden": "Left the tab"}
+    titles = {
+        "paste": "Pasted code",
+        "bulk_insert": "Large insert",
+        "tab_hidden": "Left the tab",
+        "conduct": "Ended for abusive language",
+    }
     return [
         Pick(f.t, "integrity", titles.get(f.kind, "Integrity note"), f.detail, 2)
         for f in payloads(events, TimelineKind.INTEGRITY, IntegrityFlag)

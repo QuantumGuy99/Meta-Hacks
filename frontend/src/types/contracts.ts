@@ -95,6 +95,7 @@ export type InterventionTrigger =
   | "phase"
   | "praise"
   | "grill"
+  | "conduct"
   | "warmup"
   | "reply"
   | "probe";
@@ -473,7 +474,7 @@ export interface IntegrityMsg {
 export interface IntegrityFlag {
   id: string;
   t: number;
-  kind: "paste" | "bulk_insert" | "tab_hidden" | "phone_in_frame" | "extra_person";
+  kind: "paste" | "bulk_insert" | "tab_hidden" | "phone_in_frame" | "extra_person" | "conduct";
   detail: string;
   chars: number | null;
   duration_ms: number | null;

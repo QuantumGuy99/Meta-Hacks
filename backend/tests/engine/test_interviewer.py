@@ -122,7 +122,16 @@ def test_other_rules_fall_back_to_their_canned_line() -> None:
         "bug_suspected"
     ].format(line=7)
     time_left = fallback(InterventionTrigger.TIME_WARNING, InterventionLevel.INFO, None)
-    assert time_left == CANNED["time_warning"].format(minutes=6)
+    assert time_left == "Time check: about 6 minutes left."
+
+
+def test_the_last_minute_is_singular() -> None:
+    text = fallback_text(
+        CONTEXT,
+        Decision(InterventionTrigger.TIME_WARNING, InterventionLevel.INFO, None, None),
+        remaining_s=40,
+    )
+    assert text == "Time check: about 1 minute left."
 
 
 @pytest.mark.asyncio

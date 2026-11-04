@@ -44,7 +44,7 @@ from crucible.contracts.ws import (
 from crucible.engine.activity import to_activity
 from crucible.engine.analyzer import StructuredModel
 from crucible.engine.codestate import CodeState
-from crucible.engine.conduct import answer_profanity, is_profane
+from crucible.engine.conduct import crossed_line, end_for_conduct
 from crucible.engine.context import RubricContext
 from crucible.engine.ids import new_id
 from crucible.engine.live import LiveEngine
@@ -183,6 +183,7 @@ class SessionRuntime:
         self._phase_lock = asyncio.Lock()
         self._flusher: asyncio.Task[None] | None = None
         self._report_task: asyncio.Task[None] | None = None
+        self._conduct_ended = False
         if session.started_at is not None:
             self._anchor_to(session.started_at)
 
@@ -333,24 +334,27 @@ class SessionRuntime:
         event = self.timeline.append(kind, payload, t)
         if show is not None:
             await self.broadcast(show)
-        if kind == TimelineKind.TRANSCRIPT and self._is_profane_turn(event):
-            # Answered with a warning (the third ends the session), and nothing else: profanity is never graded
-            # as a grill answer or replied to as a question (engine/conduct.py).
-            await answer_profanity(self)
-            return event
+        if kind == TimelineKind.TRANSCRIPT and self._candidate_final(event):
+            if self._conduct_ended:
+                return event  # the interview ended for abusive language: nothing more is graded or answered
+            if crossed_line(str(event.payload.get("text", ""))):
+                # Nothing else reacts to it (no grade, no reply): the interview ends here, as it would with a
+                # person (engine/conduct.py).
+                self._conduct_ended = True
+                await end_for_conduct(self)
+                return event
         if self._engine is not None:
             self._engine.on_event(event)
         await self.controller.on_timeline(self, event)
         return event
 
-    def _is_profane_turn(self, event: TimelineEvent) -> bool:
+    def _candidate_final(self, event: TimelineEvent) -> bool:
         p = event.payload
         return (
-            self.live
+            (self.live or self._conduct_ended)
             and self.session.phase != Phase.SETUP
             and p.get("speaker") == "candidate"
             and bool(p.get("final"))
-            and is_profane(str(p.get("text", "")))
         )
 
     async def show_activity(self, activity: ModelActivity) -> None:

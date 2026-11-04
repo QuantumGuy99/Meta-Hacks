@@ -59,6 +59,10 @@ const PHASE_INDEX: Partial<Record<Phase, number>> = {
 // Edit kinds that change the code; focus and visibility events don't (#47).
 const CODE_EVENTS = new Set(["change", "paste", "undo", "redo"]);
 const RUN_TIMEOUT_MS = 90_000;
+const REPORT_WAIT_MS = 20_000; // the longest the room waits for the interviewer's last line before the report
+// After the last line is shown, a beat longer than the voice's 1.5 s first-audio wait (lib/tts.ts), so a line
+// whose audio hasn't started yet isn't cut off.
+const AFTER_LAST_LINE_MS = 2_000;
 // A bad_phase error this soon after Skip Intro is a server without #57 refusing it: the warm-up just carries on.
 const SKIP_REFUSAL_MS = 5_000;
 
@@ -168,12 +172,15 @@ export function LiveRoom({ id }: { id: string }) {
     toast.error(socketErrorText(state.error), { id: `err-${state.error.at}` });
   }, [state.error]);
 
-  // When the interview ends (time, wrap-up or End), the report is next.
+  // When the interview ends (time, wrap-up, End, or abusive language), the report is next, once the interviewer's
+  // last line has been shown and spoken: leaving at once cut the closing line off mid-sentence. Never more than
+  // REPORT_WAIT_MS, so a voice that never ends can't keep them here.
+  const lastLineDone = !voice.speaking && state.streamingId === null && state.pending.length === 0;
   useEffect(() => {
     if (!ended) return;
-    const t = window.setTimeout(() => router.push(`/report/${id}`), 1500);
+    const t = window.setTimeout(() => router.push(`/report/${id}`), lastLineDone ? AFTER_LAST_LINE_MS : REPORT_WAIT_MS);
     return () => window.clearTimeout(t);
-  }, [ended, id, router]);
+  }, [ended, lastLineDone, id, router]);
 
   // A run is in flight until its result or an error arrives. If neither comes (a dropped connection), the
   // buttons come back after RUN_TIMEOUT_MS instead of staying disabled for good.
