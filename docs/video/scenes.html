@@ -197,34 +197,34 @@ const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 
 function hook(t) {
   const l1 = "AI writes code faster than you can understand it.";
-  const typed = Math.floor(clamp((t - 0.8) / 3.0) * l1.length);
-  const up = ramp(t, 4.6, 5.3);
+  const typed = Math.floor(clamp((t - 0.8) / 2.4) * l1.length);
+  const up = ramp(t, 3.4, 4.0);
   const l1el = $("h-l1");
-  l1el.innerHTML = esc(l1.slice(0, typed)) + (t < 4.6 && Math.floor(t * 2.5) % 2 === 0 ? '<span class="cursor">_</span>' : '<span class="cursor" style="opacity:0">_</span>');
+  l1el.innerHTML = esc(l1.slice(0, typed)) + (t < 3.4 && Math.floor(t * 2.5) % 2 === 0 ? '<span class="cursor">_</span>' : '<span class="cursor" style="opacity:0">_</span>');
   l1el.style.top = (450 - up * 370) + "px";
   l1el.style.fontSize = (76 - up * 26) + "px";
   l1el.style.opacity = 1 - ramp(t, 14.0, 14.8);
 
-  const ed = ramp(t, 5.0, 5.6) * (1 - ramp(t, 14.0, 14.8));
+  const ed = ramp(t, 3.9, 4.4) * (1 - ramp(t, 14.0, 14.8));
   show($("h-editor"), ed, 30);
   show($("h-tag"), ed * 0.9);
   const total = CODE.join("\n").length;
-  const chars = Math.floor(clamp((t - 5.6) / 3.8) * total);
+  const chars = Math.floor(clamp((t - 4.4) / 2.4) * total);
   let used = 0, html = "";
   CODE.forEach((line, i) => {
     if (used > chars) return;
     const vis = line.slice(0, Math.max(0, chars - used));
     used += line.length + 1;
-    const hot = t > 10.2 && HOT.has(i) ? " hot" : "";
+    const hot = t > 7.4 && HOT.has(i) ? " hot" : "";
     html += `<span class="ln${hot}"><span class="n">${i + 1}</span>${esc(vis)}</span>`;
   });
   $("h-code").innerHTML = html;
-  const done = t >= 9.4;
+  const done = t >= 6.8;
   $("h-status").textContent = done ? "AI agent · done. Tests: happy path passes ✓" : "AI agent · writing services.py";
   $("h-dot").style.background = done ? "var(--green)" : (Math.floor(t * 4) % 2 ? "var(--cobalt)" : "#1b3a8a");
-  $("h-time").textContent = Math.min(t - 5.6, 3.8).toFixed(1).replace("-", "") + " s";
-  if (t < 5.6) $("h-time").textContent = "0.0 s";
-  show($("h-q"), ramp(t, 10.4, 11.0) * (1 - ramp(t, 14.0, 14.8)), 20);
+  $("h-time").textContent = Math.min(t - 4.4, 2.4).toFixed(1).replace("-", "") + " s";
+  if (t < 4.4) $("h-time").textContent = "0.0 s";
+  show($("h-q"), ramp(t, 7.5, 8.1) * (1 - ramp(t, 14.0, 14.8)), 20);
 
   show($("h-brand"), ramp(t, 15.0, 15.7), 30);
   show($("h-sub"), ramp(t, 15.8, 16.5), 20);
