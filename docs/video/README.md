@@ -132,22 +132,27 @@ About 2.5 words per second. **Leave the voiceover silent where the clip's own so
 (the interviewer's questions, your answers): `build.py` keeps each recording's sound and mixes the
 voiceover on top.
 
-| Time | Voiceover |
-|---|---|
-| 0:00 | AI writes code faster than we can understand it. An agent builds this transfer API in seconds, and it passes the happy path. But could you explain why it loses money under load? |
-| 0:15 | Ares, built on Meta's Muse models, proves you understand your code. |
-| 0:20 | We're students. We prep for interviews and ship with AI agents every day. Ares is an AI interviewer that grades how you engineer, not just your answer. |
-| 0:30 | In Project Defense, you bring code, even code your AI wrote. Muse Wonder reads the whole project in one pass and finds the riskiest flaw. |
-| 0:48 | Muse Spark writes a targeted attack, and Ares fires two hundred concurrent transfers at the real app in a sandbox. *[the real number from your take]* just disappeared. |
-| 1:00 | *(silent: the interviewer's question and your spoken answer)* Muse Voice Transcribe hears the answer, and two Meta models grade it. A point counts only if both agree. |
-| 1:14 | I fix it myself. Ares re-runs the exact same attack. It holds. Merge gate: pass. |
-| 1:30 | The report shows the before and after, my grill scores, and how much of the fix was mine. |
-| 1:40 | The Live Coding Interview works the same way. I state my approach out loud, and Muse Spark follows every edit. |
-| 1:58 | *(silent: the spoken nudge)* It noticed the missing empty-input case, without handing me the answer. |
-| 2:08 | A paste gets a neutral note. Submit runs the hidden tests in the sandbox. |
-| 2:20 | Muse Wonder writes the report: scores for how I solved it, and a replay of my code, synced with everything I said. |
-| 2:32 | Under the hood, it's one closed loop with a Meta model at every step. The model suggests, code decides: scores and verdicts are computed in Python, and a leak guard checks every line, so the interviewer never hands over the answer. |
-| 2:52 | Ares. Prove you understand your code. |
+Record **one file per line**, named by its start time (`0048.m4a` = the line at 0:48), so it can be placed
+exactly. "Max" is the time before the next line starts; stay under it.
+
+| File | Starts | Max | On screen | Say |
+|---|---|---|---|---|
+| `0000` | 0:00 | 15 s | Text types out, the AI agent writes the code | AI writes code faster than we can understand it. An agent builds this transfer API in seconds, and it passes the happy path. But could you explain why it loses money under load? |
+| `0015` | 0:15 | 5 s | "Ares_ proves you understand your code" | Ares, built on Meta's Muse models, proves you understand your code. |
+| `0020` | 0:20 | 10 s | The landing page | We're students who prep for interviews and ship with AI agents every day. Ares grades how you engineer, not just your answer. |
+| `0030` | 0:30 | 18 s | Audit, the diagram, the red node | In Project Defense, you bring code, even code your AI wrote. Muse Wonder reads the whole project in one pass, maps it, and flags the riskiest flaw: a race condition in money transfers. |
+| `0048` | 0:48 | 12 s | The attack streams, the dollar loss | Muse Spark writes a targeted attack, and Ares fires two hundred concurrent transfers at the real app in a sandbox. *[the real number from your take]* dollars just disappeared. |
+| — | 1:00–1:09 | — | The grill | *(silent: the interviewer's question and your spoken answer play)* |
+| `0109` | 1:09 | 5 s | Grill grading | Muse Voice Transcribe hears me, and two Meta models grade it. |
+| `0114` | 1:14 | 16 s | Fix, verify, merge gate | A point counts only if both agree. Then I fix it myself. Ares re-runs the exact same attack. It holds. Merge gate: pass. |
+| `0130` | 1:30 | 10 s | Defense report | The report shows the before and after, my grill scores, and how much of the fix was mine. |
+| `0140` | 1:40 | 8 s | Coding setup, the problem appears | The Live Coding Interview works the same way. I explain my approach out loud, and Muse Spark follows every edit. |
+| — | 1:48–2:03 | — | Approach out loud, coding, the nudge | *(silent: your spoken approach, then the interviewer's nudge)* |
+| `0203` | 2:03 | 5 s | The fix for the empty case | It caught the missing empty case, without giving me the answer. |
+| `0208` | 2:08 | 12 s | Paste note, Run, Submit | A paste gets a neutral note, not an accusation. Submit runs the hidden tests in the sandbox. All pass. |
+| `0220` | 2:20 | 12 s | Coding report, replay | Muse Wonder writes the report: scores for how I solved it, and a replay of my code, synced with everything I said. |
+| `0232` | 2:32 | 20 s | The closed loop, the three rules | Under the hood, it's one closed loop with a Meta model at every step. The model suggests, code decides: scores and verdicts are computed in Python, and a leak guard checks every line, so the interviewer never hands over the answer. |
+| `0252` | 2:52 | 6 s | End card | Ares. Prove you understand your code. |
 
 Tone: direct, confident, a little dramatic about the failure, never mocking the candidate.
 
@@ -195,7 +200,7 @@ Put these in `docs/video/` and rebuild (about a minute each time):
 | File | What it does |
 |---|---|
 | `clips/defense.mp4`, `clips/defense_report.mp4`, `clips/coding.mp4`, `clips/coding_report.mp4` | Replace the placeholders (mp4/mov/webm/mkv). Scaled to 1920×1080 @ 30 fps; only the first N seconds are used (N = slot length); a shorter clip holds its last frame. Each keeps its own sound |
-| `vo.wav` (or `.m4a`/`.mp3`) | Your voiceover, mixed over the whole video from 0:00 |
+| `vo.wav` (or `.m4a`/`.mp3`) | Your voiceover as one track, mixed over the whole video from 0:00 (or send the per-line files from §4 and they get placed for you) |
 | `captions.srt` | Burned-in captions (recommended for the live final round) |
 
 To put the live URL on the end card (needs Node + Playwright and the frontend running on :3000):
