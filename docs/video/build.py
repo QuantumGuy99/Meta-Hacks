@@ -62,7 +62,7 @@ VO_LINES = [
     ("0205", 125.2, 135.0, True, "A paste gets a neutral note, not an accusation. Submit runs the hidden tests in the sandbox. All pass."),
     ("0215", 135.3, 150.0, True, "Muse Wonder writes the report: scores for how I solved it, and a replay of my code, synced with everything I said."),
     ("0230", 150.2, 164.5, False, "Under the hood, it's one closed loop with a Meta model at every step. The model suggests, code decides: scores and verdicts are computed in Python, and a leak guard checks every line, so the interviewer never hands over the answer."),
-    ("0244", 164.8, 173.8, True, "AI wrote the code. Meta's models break it and grade you. Next: hiring teams and universities grading real understanding, not memorized answers."),
+    ("0244", 164.8, 173.8, True, "What surprised us: Muse Spark is fast enough to watch every keystroke, and sharp enough to write the attack that breaks your app."),
     ("0254", 174.4, 179.0, False, "Ares. Prove you understand your code."),
 ]
 

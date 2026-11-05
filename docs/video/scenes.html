@@ -78,20 +78,19 @@
   .rule b { display: block; font-family: var(--display); font-size: 32px; margin-bottom: 6px; }
 
 
-  /* impact */
-  #i-kicker { left: 120px; top: 150px; font-family: var(--mono); font-size: 22px; letter-spacing: 0.14em; color: var(--cobalt); }
-  .iline { left: 120px; font-size: 76px; }
-  #i-l0 { top: 200px; } #i-l1 { top: 295px; } #i-l2 { top: 390px; color: var(--cobalt); }
-  #i-next { left: 120px; top: 560px; font-family: var(--mono); font-size: 22px; letter-spacing: 0.14em; color: var(--muted); }
-  #i-cards { left: 120px; right: 120px; top: 610px; display: flex; gap: 24px; }
-  .icard { flex: 1; background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--cobalt); border-radius: 14px; padding: 26px 28px; }
-  .icard b { display: block; font-family: var(--display); font-size: 34px; margin-bottom: 10px; }
-  .icard span { font-size: 26px; color: var(--muted); line-height: 1.35; }
-
+  /* impact: what surprised us */
+  #i-kicker { left: 120px; top: 120px; font-family: var(--mono); font-size: 22px; letter-spacing: 0.14em; color: var(--cobalt); }
+  #i-title { left: 120px; top: 160px; font-size: 84px; }
+  #i-grid { left: 120px; right: 120px; top: 330px; display: grid; grid-template-columns: 1fr 1fr; gap: 26px; }
+  .icard { background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--cobalt); border-radius: 14px; padding: 28px 32px; height: 250px; }
+  .icard em { display: block; font-style: normal; font-family: var(--mono); font-size: 22px; color: var(--cobalt); margin-bottom: 12px; }
+  .icard b { display: block; font-family: var(--display); font-size: 44px; margin-bottom: 12px; }
+  .icard span { font-size: 27px; color: var(--muted); line-height: 1.35; }
   /* end */
   #e-brand { top: 250px; font-size: 200px; }
   #e-line { top: 520px; font-size: 64px; }
-  #e-links { top: 700px; font-family: var(--mono); font-size: 32px; line-height: 1.7; }
+  #e-next { top: 640px; font-size: 28px; color: var(--muted); }
+  #e-links { top: 720px; font-family: var(--mono); font-size: 32px; line-height: 1.7; }
   #e-team { top: 900px; font-size: 26px; color: var(--muted); }
   #e-built { top: 950px; font-size: 22px; color: #6b6b74; }
 
@@ -162,21 +161,20 @@
 
 
 <section class="scene" id="impact">
-  <div class="abs" id="i-kicker">WHY IT MATTERS</div>
-  <div class="abs display iline" id="i-l0">AI wrote the code.</div>
-  <div class="abs display iline" id="i-l1">Meta's models break it and grade you.</div>
-  <div class="abs display iline" id="i-l2">You prove you understand it.</div>
-  <div class="abs" id="i-next">WHERE IT GOES NEXT</div>
-  <div class="abs" id="i-cards">
-    <div class="icard" id="i-c0"><b>Hiring teams</b><span>Screen for understanding, not memorized answers</span></div>
-    <div class="icard" id="i-c1"><b>Universities &amp; bootcamps</b><span>Grade how students engineer, not just the output</span></div>
-    <div class="icard" id="i-c2"><b>Teams shipping AI code</b><span>Every AI-written change has a human who can defend it</span></div>
+  <div class="abs" id="i-kicker">USE OF META'S MODELS</div>
+  <div class="abs display" id="i-title">What surprised us</div>
+  <div class="abs" id="i-grid">
+    <div class="icard" id="i-c0"><em>Muse Spark 1.3</em><b>Watches every keystroke</b><span>Reads your code on each typing pause, in about 4 seconds, fast enough to be a live interviewer</span></div>
+    <div class="icard" id="i-c1"><em>Muse Spark 1.3</em><b>Writes the exploit</b><span>A targeted attack that really breaks your app, run in a sandbox</span></div>
+    <div class="icard" id="i-c2"><em>Muse Wonder 1.0</em><b>Reads the whole project</b><span>One pass, 1M-token context, no chunking, then maps it into a diagram</span></div>
+    <div class="icard" id="i-c3"><em>Spark + Wonder</em><b>Two models must agree</b><span>Both grade every answer; a point counts only when both mark it</span></div>
   </div>
 </section>
 
 <section class="scene" id="end">
   <div class="abs center display" id="e-brand">Ares<span class="cursor">_</span></div>
   <div class="abs center display" id="e-line">Prove you understand your code.</div>
+  <div class="abs center" id="e-next">Today: students prepping for interviews · Next: hiring teams, universities, and teams shipping AI code</div>
   <div class="abs center" id="e-links"></div>
   <div class="abs center" id="e-team">Srinithin Ganesh · Shreyas Sahoo · Likhil Gudipati · Sharvil Talware</div>
   <div class="abs center" id="e-built">Built during the Meta Global AI Developer Hackathon · Indie Developer track</div>
@@ -373,17 +371,13 @@ function tech(t) {
 function impact(t) {
   const T = (x) => x - 164.5;  // this section starts at 2:44.5
   const L = "0244";
-  const w0 = T(W(L, "ai", 1, "s", 164.8));
+  const w0 = T(W(L, "what", 1, "s", 164.8));
   show($("i-kicker"), ramp(t, w0 - 0.3, w0));
-  show($("i-l0"), ramp(t, w0, w0 + 0.4), 16);
-  const w1 = T(W(L, "meta's", 1, "s", 166.0));
-  show($("i-l1"), ramp(t, w1, w1 + 0.4), 16);
-  const w2 = T(W(L, "grade", 1, "e", 167.6));
-  show($("i-l2"), ramp(t, w2, w2 + 0.5), 16);
-  const nx = T(W(L, "next", 1, "s", 168.2));
-  show($("i-next"), ramp(t, nx, nx + 0.4));
-  [["i-c0", W(L, "hiring", 1, "s", 168.6)], ["i-c1", W(L, "universities", 1, "s", 169.5)], ["i-c2", W(L, "understanding", 1, "s", 171.0)]]
-    .forEach(([id, at]) => show($(id), ramp(t, T(at), T(at) + 0.45), 20));
+  show($("i-title"), ramp(t, w0, w0 + 0.4), 16);
+  const c0 = T(W(L, "keystroke", 1, "s", 167.2)), c1 = T(W(L, "attack", 1, "s", 169.6));
+  const c2 = T(W(L, "breaks", 1, "e", 170.6)) + 0.4, c3 = c2 + 1.2;
+  [["i-c0", c0 - 0.4], ["i-c1", c1 - 0.4], ["i-c2", c2], ["i-c3", c3]]
+    .forEach(([id, at]) => show($(id), ramp(t, at, at + 0.45), 20));
   $("impact").style.opacity = 1 - ramp(t, 9.1, 9.5);
 }
 
@@ -393,6 +387,7 @@ function end(t, params) {
   const brand = W("0254", "ares", 1, "s", 174.4) - 174 - 0.1, line = W("0254", "prove", 1, "s", 175.2) - 174;
   show($("e-brand"), ramp(t, brand, brand + 0.5), 24);
   show($("e-line"), ramp(t, line, line + 0.5), 16);
+  show($("e-next"), ramp(t, line + 0.9, line + 1.4));
   show($("e-links"), ramp(t, line + 1.2, line + 1.7));
   show($("e-team"), ramp(t, line + 1.6, line + 2.1));
   show($("e-built"), ramp(t, line + 1.8, line + 2.3));
