@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/next";
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Inter, Space_Grotesk } from "next/font/google";
 import Script from "next/script";
@@ -69,6 +70,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Suspense fallback={null}>
           <AskAres />
         </Suspense>
+        {/* Vercel Web Analytics: page views only, no cookies; a no-op outside Vercel deployments. */}
+        <Analytics />
       </body>
     </html>
   );
