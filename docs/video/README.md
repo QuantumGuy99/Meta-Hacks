@@ -202,7 +202,7 @@ Put these in `docs/video/` and rebuild (about a minute each time):
 | `clips/defense.mp4`, `clips/defense_report.mp4`, `clips/coding.mp4`, `clips/coding_report.mp4` | Replace the placeholders (mp4/mov/webm/mkv). Scaled to 1920×1080 @ 30 fps; only the first N seconds are used (N = slot length); a shorter clip holds its last frame. Each keeps its own sound |
 | `vo_lines/<MMSS>.m4a` (or `.wav`/`.mp3`) | One file per voiceover line (§4), all 14 committed. Nothing is cut out of a recording: each gets one fixed gain (to −16 LUFS) and is shifted so its first word lands on its start time. Lines that run past their limit are flagged |
 | `vo_lines/timing.json` | When each word is spoken (committed). Drives the captions and the hook/technical/end-card animations. After re-recording a line, make its text in `build.py` `VO_LINES` match what you said, then run `uv run --with pocketsphinx python docs/video/align_vo.py` and `node docs/video/render.js` |
-| `music.mp3` | Background music (*The Mountain*, sci-fi; not committed, ask Ganesh for the file). Levelled to −26 LUFS in the gaps, 8 dB lower under any voice (yours or the clips'), with 0.3 s / 0.8 s ramps, faded in and out |
+| `music.mp3` | Background music (*The Mountain*, sci-fi; not committed; get the file from whoever has it on the team). Levelled to −26 LUFS in the gaps, 8 dB lower under any voice (yours or the clips'), with 0.3 s / 0.8 s ramps, faded in and out |
 | `vo.wav` (or `.m4a`/`.mp3`) | Alternative: one voiceover track mixed from 0:00 |
 | `captions.srt` | Burned-in captions (recommended for the live final round) |
 
