@@ -2,8 +2,9 @@
 
 Usage (from the repo root):  python3 docs/video/build.py        Needs: Python 3 and ffmpeg.
 
-Recordings go in docs/video/clips/ (mp4, mov, webm or mkv), named after the slot:
-  defense, defense_report, coding, coding_report
+Recordings go in docs/video/clips/ (mp4, mov, webm or mkv), named after the slot: defense, coding.
+A long take can be cut down with clips/<slot>.cuts: one span to keep per line, `1:05 1:20`, or `1:20 1:50 4x`
+to speed a span up (muted and labelled "4x speed").
 Each is scaled to 1920x1080 at 30 fps. Only its first N seconds are used (N = the slot length); a shorter
 clip holds its last frame. A missing clip shows a placeholder slate with the slot's clock.
 Each clip keeps its own sound (the interviewer's voice, your spoken answers).
@@ -34,32 +35,33 @@ VO_DIR = DIR / "vo_lines"
 
 # (slot, seconds, rendered source or None for a recording slot)
 TIMELINE = [
-    ("hook", 20, "01_hook.mp4"),
-    ("whofor", 10, "02_whofor.mp4"),
+    ("problem", 10, "00_problem.mp4"),
+    ("hook", 13.5, "01_hook.mp4"),
+    ("whofor", 6.5, "02_whofor.mp4"),
     ("defense", 60, None),
-    ("defense_report", 10, None),
-    ("coding", 40, None),
-    ("coding_report", 12, None),
+    ("coding", 60, None),
     ("tech", 20, "08_tech.mp4"),
     ("end", 6, "09_end.mp4"),
 ]
 
 # (file, first word lands at s, must end by s, caption it?, what was said). Keep in sync with README §4.
+# Files are named by their start time in the video.
 VO_LINES = [
-    ("0000", 0.8, 15, False, "AI writes code faster than we can understand it. An agent builds this transfer API in seconds, and it passes the happy path. But could you explain why it loses money under load?"),
-    ("0015", 15.2, 20, False, "Ares, built on Meta's Muse models, proves you understand your code."),
-    ("0020", 20.2, 30, True, "We're students who prep for interviews and ship with AI agents every day. Ares grades how you engineer, not just your answer."),
-    ("0030", 30.2, 48, True, "In Project Defense, you bring code, even code your AI wrote. Muse Wonder reads the whole project in one pass, maps it, and flags the riskiest flaw: a race condition in money transfers."),
-    ("0048", 48.2, 60, True, "Muse Spark writes a targeted attack, and Ares fires two hundred concurrent transfers at the real app in a sandbox."),
-    ("0109", 69.2, 74, True, "Muse Voice Transcribe hears me, and two Meta models grade it."),
-    ("0114", 74.2, 90, True, "A point counts only if both agree. Then I fix it myself. Ares re-runs the exact same attack. It holds. Merge gate: pass."),
-    ("0130", 90.2, 100, True, "The report shows the before and after, my grill scores, and how much of the fix was mine."),
-    ("0140", 100.2, 108, True, "The Live Coding Interview works the same way. I explain my approach out loud, and Muse Spark follows every edit."),
-    ("0203", 123.2, 128, True, "It caught the missing empty case, without giving me the answer."),
-    ("0208", 128.2, 140, True, "A paste gets a neutral note, not an accusation. Submit runs the hidden tests in the sandbox. All pass."),
-    ("0220", 140.2, 152, True, "Muse Wonder writes the report: scores for how I solved it, and a replay of my code, synced with everything I said."),
-    ("0232", 152.2, 172, False, "Under the hood, it's one closed loop with a Meta model at every step. The model suggests, code decides: scores and verdicts are computed in Python, and a leak guard checks every line, so the interviewer never hands over the answer."),
-    ("0252", 172.4, 178, False, "Ares. Prove you understand your code."),
+    ("0000", 0.4, 10.0, True, "Coding practice sites only check if your answer passes. But real interviewers grade how you think: your approach, your edge cases, how you explain it."),
+    ("0010", 10.3, 19.8, False, "AI writes code faster than we can understand it. An agent builds this transfer API in seconds, and it passes the happy path. But could you explain why it loses money under load?"),
+    ("0019", 19.9, 23.4, False, "Ares, built on Meta's Muse models, proves you understand your code."),
+    ("0023", 23.6, 30.0, True, "We're students who prep for interviews and ship with AI agents every day. Ares grades how you engineer, not just your answer."),
+    ("0030", 30.3, 42.0, True, "In Project Defense, you bring code, even code your AI wrote. Muse Wonder reads the whole project in one pass, maps it, and flags the riskiest flaw: a race condition in money transfers."),
+    ("0042", 42.3, 52.0, True, "Muse Spark writes a targeted attack, and Ares fires two hundred concurrent transfers at the real app in a sandbox."),
+    ("0102", 62.2, 66.3, True, "Muse Voice Transcribe hears me, and two Meta models grade it."),
+    ("0106", 66.4, 78.0, True, "A point counts only if both agree. Then I fix it myself. Ares re-runs the exact same attack. It holds. Merge gate: pass."),
+    ("0118", 78.3, 90.0, True, "The report shows the before and after, my grill scores, and how much of the fix was mine."),
+    ("0130", 90.3, 98.0, True, "The Live Coding Interview works the same way. I explain my approach out loud, and Muse Spark follows every edit."),
+    ("0200", 120.2, 125.0, True, "It caught the missing empty case, without giving me the answer."),
+    ("0205", 125.2, 135.0, True, "A paste gets a neutral note, not an accusation. Submit runs the hidden tests in the sandbox. All pass."),
+    ("0215", 135.3, 150.0, True, "Muse Wonder writes the report: scores for how I solved it, and a replay of my code, synced with everything I said."),
+    ("0230", 150.2, 170.0, False, "Under the hood, it's one closed loop with a Meta model at every step. The model suggests, code decides: scores and verdicts are computed in Python, and a leak guard checks every line, so the interviewer never hands over the answer."),
+    ("0250", 170.4, 176.0, False, "Ares. Prove you understand your code."),
 ]
 
 NORM = "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black,fps=30,format=yuv420p,setsar=1"
@@ -221,6 +223,41 @@ def build_music(src: Path, work: Path, total: int, speech: list[tuple[float, flo
     return out
 
 
+def parse_t(x: str) -> float:
+    m, _, sec = x.rpartition(":")
+    return (int(m) * 60 if m else 0) + float(sec)
+
+
+def apply_cuts(clip: Path, cuts: Path, work: Path) -> Path:
+    """Keeps only the listed spans of a long take. Each line: `start end` or `start end 4x` (m:ss or seconds).
+    A sped-up span is muted and labelled with its speed, so the cut is never hidden."""
+    pieces = []
+    for n, line in enumerate(l.split("#")[0].strip() for l in cuts.read_text().splitlines()):
+        if not line:
+            continue
+        fields = line.replace("-", " ").split()
+        a, b = parse_t(fields[0]), parse_t(fields[1])
+        speed = float(fields[2].rstrip("x")) if len(fields) > 2 else 1.0
+        piece = work / f"{clip.stem}_cut{n:02d}.mp4"
+        vf = NORM
+        if speed != 1.0:
+            vf += (f",setpts=PTS/{speed},drawtext=fontfile={FONT}:fontsize=34:fontcolor=white:box=1:boxcolor=0x000000AA:"
+                   f"boxborderw=14:x=w-tw-40:y=40:text='{speed:g}x speed'")
+        if speed == 1.0 and has_audio(clip):
+            audio = ["-map", "0:a:0", "-af", "aresample=48000"]
+            inputs: list[str] = []
+        else:
+            audio, inputs = ["-map", "1:a", "-shortest"], SILENCE
+        ffmpeg("-ss", f"{a:.3f}", "-to", f"{b:.3f}", "-i", str(clip), *inputs, "-map", "0:v:0", *audio,
+               "-vf", vf, *ENC, str(piece))
+        pieces.append(piece)
+    listing = work / f"{clip.stem}_cuts.txt"
+    listing.write_text("".join(f"file '{p.name}'\n" for p in pieces))
+    out = work / f"{clip.stem}_edited.mp4"
+    ffmpeg("-f", "concat", "-safe", "0", "-i", str(listing), *ENC, str(out))
+    return out
+
+
 def clock(start: int) -> str:
     # drawtext expression: the video's overall timecode, for timing the voiceover against the slate.
     return f"video %{{eif\\:floor((t+{start})/60)\\:d}}\\:%{{eif\\:mod(floor(t+{start})\\,60)\\:d\\:2}}"
@@ -241,6 +278,8 @@ def main() -> None:
                    "-t", str(secs), *ENC, str(part))
             note = "rendered"
         elif clip := find(slot, CLIPS, VIDEO_EXT):
+            if (CLIPS / f"{slot}.cuts").exists():
+                clip = apply_cuts(clip, CLIPS / f"{slot}.cuts", work)
             if has_audio(clip):
                 inputs, audio = [], ["-map", "0:a:0", "-af", "aresample=48000,apad"]
             else:
@@ -248,7 +287,7 @@ def main() -> None:
             ffmpeg("-i", str(clip), *inputs, "-map", "0:v:0", *audio,
                    "-vf", f"{NORM},tpad=stop_mode=clone:stop_duration={secs}", "-t", str(secs), *ENC, str(part))
             clip_speech += voiced(part, offset=start)
-            note = f"clip {clip.name}"
+            note = f"clip {clip.name}" + (f"  ({duration(clip):.0f}s after cuts)" if "_edited" in clip.name else "")
         else:
             slate = BUILD / f"slate_{slot}.jpg"
             dt = (f"drawtext=fontfile={FONT}:fontsize=40:fontcolor=0xffb340:x=w-tw-200:y=150:"
@@ -256,7 +295,7 @@ def main() -> None:
             ffmpeg("-loop", "1", "-framerate", "30", "-i", str(slate), *SILENCE, "-map", "0:v", "-map", "1:a",
                    "-vf", f"{NORM},{dt}", "-t", str(secs), *ENC, str(part))
             note = "PLACEHOLDER slate"
-        print(f"{start // 60}:{start % 60:02d}  {slot:<15} {secs:>3}s  {note}")
+        print(f"{int(start) // 60}:{start % 60:04.1f}  {slot:<15} {secs:>4}s  {note}")
         parts.append(part)
         start += secs
 
@@ -293,7 +332,7 @@ def main() -> None:
     if report:
         print("\nvoiceover lines:\n" + "\n".join(report))
     shutil.rmtree(work)
-    print(f"\n{final.relative_to(DIR.parent.parent)}  ({start // 60}:{start % 60:02d})"
+    print(f"\n{final.relative_to(DIR.parent.parent)}  ({int(start) // 60}:{int(start) % 60:02d})"
           f"  voiceover: {'yes' if vo else 'none'}  music: {music_src.name if music_src else 'none'}"
           f"  captions: {'yes' if srt else 'no'}")
 

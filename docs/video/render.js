@@ -17,14 +17,14 @@ const LIVE = arg("--live", "");
 const APP = arg("--app", "http://localhost:3000");
 const ONLY = arg("--only", "");
 
+// from/seconds in video time: each scene draws itself from absolute video seconds.
 const SEGMENTS = [
-  { name: "01_hook", scene: "hook", seconds: 20 },
-  { name: "08_tech", scene: "tech", seconds: 20 },
-  { name: "09_end", scene: "end", seconds: 6 },
+  { name: "00_problem", scene: "problem", from: 0, seconds: 10 },
+  { name: "01_hook", scene: "hook", from: 10, seconds: 13.5 },
+  { name: "08_tech", scene: "tech", from: 0, seconds: 20 },
+  { name: "09_end", scene: "end", from: 0, seconds: 6 },
   { name: "slate_defense", scene: "slate:defense", seconds: 1 },
-  { name: "slate_defense_report", scene: "slate:defense_report", seconds: 1 },
   { name: "slate_coding", scene: "slate:coding", seconds: 1 },
-  { name: "slate_coding_report", scene: "slate:coding_report", seconds: 1 },
 ];
 
 function encodeFrames(frameDir, out, fps) {
@@ -37,9 +37,13 @@ async function renderScenes(browser) {
   // Word timings in video seconds, so the animations follow the voiceover (see align_vo.py).
   const timingFile = path.join(DIR, "vo_lines", "timing.json");
   const vo = {};
+  // Each line's start time comes from VO_LINES in build.py, so moving a line there moves its animation too.
+  const starts = {};
+  for (const m of fs.readFileSync(path.join(DIR, "build.py"), "utf8").matchAll(/\("(\d{4})", ([\d.]+),/g)) starts[m[1]] = +m[2];
   if (fs.existsSync(timingFile)) {
     for (const [name, t] of Object.entries(JSON.parse(fs.readFileSync(timingFile, "utf8")))) {
-      vo[name] = t.words.map(([w, a, b]) => [w, t.at + a - t.onset, t.at + b - t.onset]);
+      const at = starts[name] ?? t.at;
+      vo[name] = t.words.map(([w, a, b]) => [w, at + a - t.onset, at + b - t.onset]);
     }
   }
   await page.addInitScript((v) => { window.VO = v; }, vo);
@@ -52,9 +56,9 @@ async function renderScenes(browser) {
     const frames = path.join(OUT, "frames_" + seg.name);
     fs.rmSync(frames, { recursive: true, force: true });
     fs.mkdirSync(frames, { recursive: true });
-    const n = seg.scene.startsWith("slate:") ? 1 : seg.seconds * FPS;
+    const n = seg.scene.startsWith("slate:") ? 1 : Math.round(seg.seconds * FPS);
     for (let i = 0; i < n; i++) {
-      await page.evaluate(([s, t]) => window.seek(s, t), [seg.scene, i / FPS]);
+      await page.evaluate(([s, t]) => window.seek(s, t), [seg.scene, (seg.from || 0) + i / FPS]);
       await page.screenshot({ path: path.join(frames, String(i).padStart(5, "0") + ".jpg"), type: "jpeg", quality: 95 });
     }
     if (seg.scene.startsWith("slate:")) {

@@ -41,6 +41,23 @@
   .chip b { color: var(--cobalt); font-weight: 500; }
   #h-chiplabel { top: 700px; font-size: 24px; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; }
 
+
+  /* problem */
+  #p-kicker { left: 120px; top: 96px; font-family: var(--mono); font-size: 22px; letter-spacing: 0.14em; color: var(--red); }
+  #p-h1 { left: 120px; top: 140px; font-size: 68px; }
+  #p-h2 { left: 120px; top: 225px; font-size: 68px; color: var(--cobalt); }
+  .pcard { position: absolute; top: 380px; height: 440px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .pcard .bar { height: 56px; border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 24px; font-family: var(--mono); font-size: 20px; color: var(--muted); }
+  #p-site { left: 120px; width: 780px; }
+  #p-site pre { padding: 22px 26px; font-family: var(--mono); font-size: 22px; line-height: 34px; color: #8a8a94; }
+  #p-ok { position: absolute; left: 24px; right: 24px; bottom: 24px; height: 96px; border-radius: 12px; background: rgba(47, 210, 122, 0.12); border: 1px solid var(--green); display: flex; align-items: center; gap: 22px; padding: 0 26px; }
+  #p-ok b { font-family: var(--display); font-size: 40px; color: var(--green); }
+  #p-ok span { font-family: var(--mono); font-size: 22px; color: var(--muted); }
+  #p-int { left: 1020px; width: 780px; }
+  #p-int .ttl { padding: 26px 28px 8px; font-family: var(--display); font-size: 34px; font-weight: 700; }
+  .prow { margin: 18px 28px 0; padding: 20px 22px; border: 1px solid var(--line); border-radius: 12px; display: flex; justify-content: space-between; align-items: center; font-size: 28px; font-weight: 600; }
+  .prow em { font-style: normal; font-family: var(--mono); font-size: 19px; color: var(--amber); border: 1px solid var(--amber); border-radius: 999px; padding: 6px 14px; white-space: nowrap; }
+
   /* tech */
   #t-title { left: 120px; top: 80px; font-size: 54px; }
   #t-kicker { left: 120px; top: 52px; font-family: var(--mono); font-size: 20px; letter-spacing: 0.14em; color: var(--cobalt); }
@@ -79,6 +96,28 @@
 </style>
 </head>
 <body>
+
+
+<section class="scene" id="problem">
+  <div class="abs" id="p-kicker">THE PROBLEM</div>
+  <div class="abs display" id="p-h1">Practice sites grade the answer.</div>
+  <div class="abs display" id="p-h2">Interviewers grade how you think.</div>
+  <div class="pcard" id="p-site">
+    <div class="bar">practice site · solution.py</div>
+    <pre>def longest_streak(nums):
+    best = cur = 0
+    for x in nums:
+        ...
+    return best</pre>
+    <div id="p-ok"><b>✓ Accepted</b><span>12 / 12 tests passed</span></div>
+  </div>
+  <div class="pcard" id="p-int">
+    <div class="ttl">What the interviewer grades</div>
+    <div class="prow" id="p-r0">Stated an approach first?<em>not checked</em></div>
+    <div class="prow" id="p-r1">Handled the edge cases?<em>not checked</em></div>
+    <div class="prow" id="p-r2">Can explain how it works?<em>not checked</em></div>
+  </div>
+</section>
 
 <section class="scene" id="hook">
   <div class="abs center display" id="h-l1"></div>
@@ -153,37 +192,23 @@ const HOT = new Set([4, 10, 13, 15]);
 
 const SLOTS = {
   defense: {
-    title: "Project Defense", when: "0:30 – 1:30 · 60 s", file: "clips/defense.mp4",
+    title: "Project Defense", when: "0:30 – 1:30 · 60 s (cut from the full take)", file: "clips/defense.mp4",
     beats: [
-      ["0:30–0:38", "Pick bank-transfer → Start. Muse Wonder audits (label any speed-up)"],
-      ["0:38–0:48", "Topology diagram builds, the flawed node turns red"],
-      ["0:48–1:00", "Muse Spark writes the attack → 200 concurrent transfers stream live → the real $ lost"],
-      ["1:00–1:14", "The grill by voice: question, your spoken answer, the follow-up"],
-      ["1:14–1:30", "Fix in the editor → Verify re-runs the same attack → line holds → MERGE GATE: PASS"],
-    ],
-  },
-  defense_report: {
-    title: "Defense report", when: "1:30 – 1:40 · 10 s", file: "clips/defense_report.mp4",
-    beats: [
-      ["1:30–1:35", "Before / after load numbers and the grill scores"],
-      ["1:35–1:40", "How much of the fix was yours (fix-assistant share)"],
+      ["0:30–0:42", "Pick bank-transfer → Start → the audit (sped up) → diagram, flawed node turns red"],
+      ["0:42–0:52", "The attack runs: 200 transfers stream live → the dollar loss, big"],
+      ["0:52–1:02", "The grill: the interviewer's question and your spoken answer (real speed)"],
+      ["1:02–1:18", "Grading → your fix in the editor (sped up) → Verify → the line holds → MERGE GATE: PASS"],
+      ["1:18–1:30", "The report: before/after numbers, grill scores, how much of the fix was yours"],
     ],
   },
   coding: {
-    title: "Live Coding Interview", when: "1:40 – 2:20 · 40 s", file: "clips/coding.mp4",
+    title: "Live Coding Interview", when: "1:30 – 2:30 · 60 s (cut from the full take)", file: "clips/coding.mp4",
     beats: [
-      ["1:40–1:48", "Setup (active feedback, voice on) → the interviewer presents the problem"],
-      ["1:48–1:58", "State your approach out loud, start coding"],
-      ["1:58–2:08", "Skip the empty-input case → the interviewer nudges by voice"],
-      ["2:08–2:14", "Paste a block → the neutral paste note appears"],
-      ["2:14–2:20", "Run, then Submit → hidden tests pass"],
-    ],
-  },
-  coding_report: {
-    title: "Coding report + replay", when: "2:20 – 2:32 · 12 s", file: "clips/coding_report.mp4",
-    beats: [
-      ["2:20–2:25", "Scores: problem solving, correctness, communication, independence"],
-      ["2:25–2:32", "Scrub the replay: code writes itself, synced with transcript and nudges"],
+      ["1:30–1:38", "Setup → the interviewer presents the problem"],
+      ["1:38–1:52", "You state your approach out loud and start coding (real speed)"],
+      ["1:52–2:00", "You skip the empty case → the interviewer's spoken nudge (real speed)"],
+      ["2:00–2:15", "Fix it (sped up) → paste a block, the neutral note → Run → Submit, hidden tests pass"],
+      ["2:15–2:30", "The report: scores, then scrub the replay"],
     ],
   },
 };
@@ -200,14 +225,30 @@ window.VO = window.VO || {};
 function W(line, word, nth, edge, dflt) {
   let k = 0;
   for (const [w, a, b] of (window.VO[line] || [])) {
-    if (w.toLowerCase().replace(/[^a-z']/g, "") === word && ++k === nth) return edge === "e" ? b : a;
+    if (w.toLowerCase().replace(/[^a-z']/g, "") === word.replace(/[^a-z']/g, "") && ++k === nth) return edge === "e" ? b : a;
   }
   return dflt;
 }
 
+function problem(t) {
+  const L = "0000";
+  const start = W(L, "coding", 1, "s", 0.4);
+  show($("p-kicker"), ramp(t, start - 0.3, start + 0.1));
+  show($("p-h1"), ramp(t, start, start + 0.5), 16);
+  show($("p-site"), ramp(t, start + 0.3, start + 0.8), 24);
+  const ok = W(L, "passes.", 1, "s", 2.9);
+  show($("p-ok"), ramp(t, ok, ok + 0.35), 10);
+  const but = W(L, "but", 1, "s", 3.5);
+  show($("p-h2"), ramp(t, but, but + 0.5), 16);
+  show($("p-int"), ramp(t, but + 0.2, but + 0.7), 24);
+  [["p-r0", W(L, "approach,", 1, "s", 6.3)], ["p-r1", W(L, "edge", 1, "s", 7.2)], ["p-r2", W(L, "explain", 1, "s", 8.3)]]
+    .forEach(([id, at]) => show($(id), ramp(t, at - 0.1, at + 0.3), 12));
+  $("problem").style.opacity = 1 - ramp(t, 9.6, 10);
+}
+
 function hook(t) {
   const l1 = "AI writes code faster than we can understand it.";
-  const spoken = (window.VO["0000"] || []).slice(0, 9);
+  const spoken = (window.VO["0010"] || []).slice(0, 9);
   let typed;
   if (spoken.length === 9) {  // reveal each word while it is being said
     const toks = l1.split(" ");
@@ -218,20 +259,21 @@ function hook(t) {
       if (f > 0) typed = l1.split(" ").slice(0, i).join(" ").length + (i ? 1 : 0) + Math.ceil(f * tok.length);
     });
   } else {
-    typed = Math.floor(clamp((t - 0.8) / 2.4) * l1.length);
+    typed = Math.floor(clamp((t - 10.3) / 2.4) * l1.length);
   }
-  const typeEnd = W("0000", "it", 1, "e", 3.2);
-  const edIn = W("0000", "an", 1, "s", 4.2) - 0.3;
-  const code0 = W("0000", "agent", 1, "s", 4.4), code1 = W("0000", "passes", 1, "s", 6.8);
-  const q = W("0000", "but", 1, "s", 7.5);
+  const typeEnd = W("0010", "it", 1, "e", 12.7);
+  const edIn = W("0010", "an", 1, "s", 13.7) - 0.3;
+  const code0 = W("0010", "agent", 1, "s", 13.9), code1 = W("0010", "passes", 1, "s", 16.3);
+  const q = W("0010", "but", 1, "s", 17.0);
   const up = ramp(t, typeEnd + 0.15, typeEnd + 0.65);
   const l1el = $("h-l1");
   l1el.innerHTML = esc(l1.slice(0, typed)) + (t < typeEnd + 0.15 && Math.floor(t * 2.5) % 2 === 0 ? '<span class="cursor">_</span>' : '<span class="cursor" style="opacity:0">_</span>');
   l1el.style.top = (450 - up * 370) + "px";
   l1el.style.fontSize = (76 - up * 26) + "px";
-  l1el.style.opacity = 1 - ramp(t, 14.0, 14.8);
+  const out0 = W("0019", "ares", 1, "s", 19.9) - 0.55;
+  l1el.style.opacity = 1 - ramp(t, out0, out0 + 0.5);
 
-  const ed = ramp(t, edIn, edIn + 0.5) * (1 - ramp(t, 14.0, 14.8));
+  const ed = ramp(t, edIn, edIn + 0.5) * (1 - ramp(t, out0, out0 + 0.5));
   show($("h-editor"), ed, 30);
   show($("h-tag"), ed * 0.9);
   const total = CODE.join("\n").length;
@@ -249,15 +291,15 @@ function hook(t) {
   $("h-status").textContent = done ? "AI agent · done. Tests: happy path passes ✓" : "AI agent · writing services.py";
   $("h-dot").style.background = done ? "var(--green)" : (Math.floor(t * 4) % 2 ? "var(--cobalt)" : "#1b3a8a");
   $("h-time").textContent = clamp(t - code0, 0, code1 - code0).toFixed(1) + " s";
-  show($("h-q"), ramp(t, q, q + 0.5) * (1 - ramp(t, 14.0, 14.8)), 20);
+  show($("h-q"), ramp(t, q, q + 0.5) * (1 - ramp(t, out0, out0 + 0.5)), 20);
 
-  const brand = W("0015", "ares", 1, "s", 15.2) - 0.15;
+  const brand = W("0019", "ares", 1, "s", 19.9) - 0.15;
   show($("h-brand"), ramp(t, brand, brand + 0.5), 30);
-  const label = W("0015", "built", 1, "s", 15.7);
+  const label = W("0019", "built", 1, "s", 20.4);
   show($("h-chiplabel"), ramp(t, label, label + 0.4));
-  const chips = W("0015", "muse", 1, "s", 16.0);
+  const chips = W("0019", "muse", 1, "s", 20.7);
   show($("h-chips"), ramp(t, chips, chips + 0.5), 16);
-  const sub = W("0015", "proves", 1, "s", 16.5);
+  const sub = W("0019", "proves", 1, "s", 21.2);
   show($("h-sub"), ramp(t, sub, sub + 0.5), 20);
 }
 
@@ -283,11 +325,11 @@ function buildTech() {
   $("t-nodes").innerHTML = h;
 }
 function tech(t) {
-  const T = (x) => x - 152;  // the technical section starts at 2:32
-  const head = T(W("0232", "under", 1, "s", 152.4));
+  const T = (x) => x - 150;  // the technical section starts at 2:30
+  const head = T(W("0230", "under", 1, "s", 150.4));
   show($("t-kicker"), ramp(t, head, head + 0.5));
   show($("t-title"), ramp(t, head + 0.1, head + 0.7), 16);
-  const n0 = T(W("0232", "one", 1, "s", 153.0)), n5 = T(W("0232", "step", 1, "e", 157.0)) - 0.4;
+  const n0 = T(W("0230", "one", 1, "s", 151.0)), n5 = T(W("0230", "step", 1, "e", 155.0)) - 0.4;
   const step = (n5 - n0) / 5;
   NODES.forEach((_, i) => {
     const a = n0 + i * step;
@@ -298,7 +340,7 @@ function tech(t) {
   });
   const coding = n5 + 0.6;
   show($("t-coding"), ramp(t, coding, coding + 0.5), 12);
-  [["r0", W("0232", "model", 2, "s", 158.5)], ["r1", W("0232", "leak", 1, "s", 162.0)], ["r2", W("0232", "never", 1, "s", 164.0)]]
+  [["r0", W("0230", "model", 2, "s", 156.5)], ["r1", W("0230", "leak", 1, "s", 160.0)], ["r2", W("0230", "never", 1, "s", 162.0)]]
     .forEach(([id, at]) => show($(id), ramp(t, T(at), T(at) + 0.5), 20));
   $("tech").style.opacity = 1 - ramp(t, 19.4, 20);
 }
@@ -306,7 +348,7 @@ function tech(t) {
 function end(t, params) {
   const links = [params.get("live"), "github.com/QuantumGuy99/Meta-Hacks"].filter(Boolean);
   $("e-links").innerHTML = links.map((l, i) => `<div class="${i ? "muted" : "blue"}">${esc(l)}</div>`).join("");
-  const brand = W("0252", "ares", 1, "s", 172.4) - 172 - 0.1, line = W("0252", "prove", 1, "s", 173.2) - 172;
+  const brand = W("0250", "ares", 1, "s", 170.4) - 170 - 0.1, line = W("0250", "prove", 1, "s", 171.2) - 170;
   show($("e-brand"), ramp(t, brand, brand + 0.5), 24);
   show($("e-line"), ramp(t, line, line + 0.5), 16);
   show($("e-links"), ramp(t, line + 1.2, line + 1.7));
@@ -327,7 +369,7 @@ window.seek = (scene, t) => {
   document.querySelectorAll(".scene").forEach((s) => s.classList.remove("on"));
   if (scene.startsWith("slate:")) { $("slate").classList.add("on"); slate(scene.slice(6)); return; }
   $(scene).classList.add("on");
-  ({ hook, tech, end })[scene](t, params);
+  ({ problem, hook, tech, end })[scene](t, params);
 };
 buildTech();
 window.ready = document.fonts.ready.then(() => true);
