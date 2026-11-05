@@ -41,8 +41,8 @@ on the working product, make the sponsor's API visible, explain the hard part, a
 
 | Time | Segment | Source |
 |---|---|---|
-| 0:00–0:10 | **Problem 1:** practice sites grade the answer, interviewers grade how you think | rendered ✅ (needs the new line `0000`) |
-| 0:10–0:20 | **Problem 2:** AI writes code faster than we can understand it | rendered ✅ |
+| 0:00–0:10 | **Problem 1:** coding tests grade memorized answers in a silent text box; real interviews test how you think out loud, defend trade-offs and debug under pressure | rendered ✅ (needs the new line `0000`) |
+| 0:10–0:20 | **Problem 2 ("vibe coding"):** AI writes code faster than we can understand it, and nothing checks that you do | rendered ✅ |
 | 0:20–0:30 | **The answer:** Ares, built on Meta's models; who it's for (landing page) | rendered ✅ |
 | 0:30–1:30 | **Project Defense demo, including its report** | 🎥 `clips/defense.mp4` (cut to 60 s, §5) |
 | 1:30–2:30 | **Live Coding Interview demo, including its report** | 🎥 `clips/coding.mp4` (cut to 60 s, §5) |
@@ -59,7 +59,7 @@ Each line is its own file in `vo_lines/`, named by its start time. **14 are reco
 
 | File | Starts | Status | Say |
 |---|---|---|---|
-| **`0000`** | 0:00 | 🎙️ **record this** | Coding practice sites only check if your answer passes. But real interviewers grade how you think: your approach, your edge cases, how you explain it. |
+| **`0000`** | 0:00 | 🎙️ **record this** | Coding tests check memorized answers in a silent text box. Real interviews test how you think out loud, defend your trade-offs, and debug under pressure. |
 | `0010` | 0:10 | ✅ recorded | AI writes code faster than we can understand it. An agent builds this transfer API in seconds, and it passes the happy path. But could you explain why it loses money under load? |
 | `0019` | 0:19 | ✅ | Ares, built on Meta's Muse models, proves you understand your code. |
 | `0023` | 0:23 | ✅ | We're students who prep for interviews and ship with AI agents every day. Ares grades how you engineer, not just your answer. |

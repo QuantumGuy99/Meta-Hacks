@@ -48,7 +48,7 @@ TIMELINE = [
 # (file, first word lands at s, must end by s, caption it?, what was said). Keep in sync with README §4.
 # Files are named by their start time in the video.
 VO_LINES = [
-    ("0000", 0.4, 9.4, True, "Coding practice sites only check if your answer passes. But real interviewers grade how you think: your approach, your edge cases, how you explain it."),
+    ("0000", 0.4, 9.4, True, "Coding tests check memorized answers in a silent text box. Real interviews test how you think out loud, defend your trade-offs, and debug under pressure."),
     ("0010", 10.1, 19.6, False, "AI writes code faster than we can understand it. An agent builds this transfer API in seconds, and it passes the happy path. But could you explain why it loses money under load?"),
     ("0019", 20.3, 23.7, False, "Ares, built on Meta's Muse models, proves you understand your code."),
     ("0023", 24.3, 30.7, True, "We're students who prep for interviews and ship with AI agents every day. Ares grades how you engineer, not just your answer."),
