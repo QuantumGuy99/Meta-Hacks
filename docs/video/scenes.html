@@ -161,8 +161,8 @@
 
 
 <section class="scene" id="impact">
-  <div class="abs" id="i-kicker">USE OF META'S MODELS</div>
-  <div class="abs display" id="i-title">What surprised us</div>
+  <div class="abs" id="i-kicker">META'S MODELS IN ARES</div>
+  <div class="abs display" id="i-title">More than a chatbot</div>
   <div class="abs" id="i-grid">
     <div class="icard" id="i-c0"><em>Muse Spark 1.3</em><b>Watches every keystroke</b><span>Reads your code on each typing pause, in about 4 seconds, fast enough to be a live interviewer</span></div>
     <div class="icard" id="i-c1"><em>Muse Spark 1.3</em><b>Writes the exploit</b><span>A targeted attack that really breaks your app, run in a sandbox</span></div>
@@ -371,10 +371,10 @@ function tech(t) {
 function impact(t) {
   const T = (x) => x - 164.5;  // this section starts at 2:44.5
   const L = "0244";
-  const w0 = T(W(L, "what", 1, "s", 164.8));
+  const w0 = T(W(L, "turns", 1, "s", 164.8));
   show($("i-kicker"), ramp(t, w0 - 0.3, w0));
   show($("i-title"), ramp(t, w0, w0 + 0.4), 16);
-  const c0 = T(W(L, "keystroke", 1, "s", 167.2)), c1 = T(W(L, "attack", 1, "s", 169.6));
+  const c0 = T(W(L, "keystroke", 1, "s", 167.2)), c1 = T(W(L, "exploit", 1, "s", 169.6));
   const c2 = T(W(L, "breaks", 1, "e", 170.6)) + 0.4, c3 = c2 + 1.2;
   [["i-c0", c0 - 0.4], ["i-c1", c1 - 0.4], ["i-c2", c2], ["i-c3", c3]]
     .forEach(([id, at]) => show($(id), ramp(t, at, at + 0.45), 20));
