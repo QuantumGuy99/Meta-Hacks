@@ -110,10 +110,10 @@
 
 <section class="scene" id="problem">
   <div class="abs" id="p-kicker">THE PROBLEM</div>
-  <div class="abs display" id="p-h1">Practice sites grade the answer.</div>
-  <div class="abs display" id="p-h2">Interviewers grade how you think.</div>
+  <div class="abs display" id="p-h1">Coding tests grade memorized answers.</div>
+  <div class="abs display" id="p-h2">Real interviews test how you think.</div>
   <div class="pcard" id="p-site">
-    <div class="bar">practice site · solution.py</div>
+    <div class="bar">coding test · a silent text box</div>
     <pre>def longest_streak(nums):
     best = cur = 0
     for x in nums:
@@ -123,9 +123,9 @@
   </div>
   <div class="pcard" id="p-int">
     <div class="ttl">What the interviewer grades</div>
-    <div class="prow" id="p-r0">Stated an approach first?<em>not checked</em></div>
-    <div class="prow" id="p-r1">Handled the edge cases?<em>not checked</em></div>
-    <div class="prow" id="p-r2">Can explain how it works?<em>not checked</em></div>
+    <div class="prow" id="p-r0">Explains their thinking out loud?<em>not tested</em></div>
+    <div class="prow" id="p-r1">Defends their trade-offs?<em>not tested</em></div>
+    <div class="prow" id="p-r2">Debugs under pressure?<em>not tested</em></div>
   </div>
 </section>
 
@@ -151,9 +151,9 @@
   <div class="abs" id="t-kicker">UNDER THE HOOD</div>
   <div class="abs display" id="t-title">One closed loop. A Meta model at every step.</div>
   <div id="t-nodes"></div>
-  <div class="abs" id="t-coding">In the <b>Live Coding Interview</b>, Muse Spark analyzes every typing pause, Muse Voice Transcribe hears you think aloud, and Muse Wonder writes the report.</div>
+  <div class="abs" id="t-coding"><b>Next.js + FastAPI</b> over WebSockets with two-way voice · untrusted code runs only in <b>Modal sandboxes</b> · every edit, run, attack and spoken word is a typed event on one <b>timeline</b> that powers the replay.</div>
   <div class="abs" id="t-rules">
-    <div class="rule" id="r0"><b>The model suggests, code decides.</b>Scores, verdicts and phase changes are computed in Python, never by the LLM.</div>
+    <div class="rule" id="r0"><b>The model suggests, code decides.</b>Models return schema-checked structured output; scores and the merge verdict are computed in Python.</div>
     <div class="rule" id="r1"><b>Never hands over the answer.</b>A leak guard checks every line the interviewer says. Hidden tests stay on the server.</div>
     <div class="rule" id="r2"><b>Built to hold up.</b>Every model call has a timeout and a fallback. Untrusted code runs only in the sandbox.</div>
   </div>
@@ -161,10 +161,10 @@
 
 
 <section class="scene" id="impact">
-  <div class="abs" id="i-kicker">USE OF META'S MODELS</div>
-  <div class="abs display" id="i-title">What surprised us</div>
+  <div class="abs" id="i-kicker">META'S MODELS IN ARES</div>
+  <div class="abs display" id="i-title">More than a chatbot</div>
   <div class="abs" id="i-grid">
-    <div class="icard" id="i-c0"><em>Muse Spark 1.3</em><b>Watches every keystroke</b><span>Reads your code on each typing pause, in about 4 seconds, fast enough to be a live interviewer</span></div>
+    <div class="icard" id="i-c0"><em>Muse Spark 1.3</em><b>Follows every keystroke</b><span>Reads your code on each typing pause, in about 4 seconds, fast enough to be a live interviewer</span></div>
     <div class="icard" id="i-c1"><em>Muse Spark 1.3</em><b>Writes the exploit</b><span>A targeted attack that really breaks your app, run in a sandbox</span></div>
     <div class="icard" id="i-c2"><em>Muse Wonder 1.0</em><b>Reads the whole project</b><span>One pass, 1M-token context, no chunking, then maps it into a diagram</span></div>
     <div class="icard" id="i-c3"><em>Spark + Wonder</em><b>Two models must agree</b><span>Both grade every answer; a point counts only when both mark it</span></div>
@@ -259,12 +259,12 @@ function problem(t) {
   show($("p-kicker"), ramp(t, start - 0.3, start + 0.1));
   show($("p-h1"), ramp(t, start, start + 0.5), 16);
   show($("p-site"), ramp(t, start + 0.3, start + 0.8), 24);
-  const ok = W(L, "passes.", 1, "s", 2.9);
+  const ok = W(L, "box", 1, "s", 2.9);
   show($("p-ok"), ramp(t, ok, ok + 0.35), 10);
-  const but = W(L, "but", 1, "s", 3.5);
+  const but = W(L, "real", 1, "s", 3.5);
   show($("p-h2"), ramp(t, but, but + 0.5), 16);
   show($("p-int"), ramp(t, but + 0.2, but + 0.7), 24);
-  [["p-r0", W(L, "approach,", 1, "s", 6.3)], ["p-r1", W(L, "edge", 1, "s", 7.2)], ["p-r2", W(L, "explain", 1, "s", 8.3)]]
+  [["p-r0", W(L, "loud", 1, "s", 5.6)], ["p-r1", W(L, "defend", 1, "s", 6.4)], ["p-r2", W(L, "debug", 1, "s", 7.6)]]
     .forEach(([id, at]) => show($(id), ramp(t, at - 0.1, at + 0.3), 12));
   $("problem").style.opacity = 1 - ramp(t, 9.6, 10);
 }
@@ -371,10 +371,10 @@ function tech(t) {
 function impact(t) {
   const T = (x) => x - 164.5;  // this section starts at 2:44.5
   const L = "0244";
-  const w0 = T(W(L, "what", 1, "s", 164.8));
+  const w0 = T(W(L, "turns", 1, "s", 164.8));
   show($("i-kicker"), ramp(t, w0 - 0.3, w0));
   show($("i-title"), ramp(t, w0, w0 + 0.4), 16);
-  const c0 = T(W(L, "keystroke", 1, "s", 167.2)), c1 = T(W(L, "attack", 1, "s", 169.6));
+  const c0 = T(W(L, "keystroke", 1, "s", 167.2)), c1 = T(W(L, "exploit", 1, "s", 169.6));
   const c2 = T(W(L, "breaks", 1, "e", 170.6)) + 0.4, c3 = c2 + 1.2;
   [["i-c0", c0 - 0.4], ["i-c1", c1 - 0.4], ["i-c2", c2], ["i-c3", c3]]
     .forEach(([id, at]) => show($(id), ramp(t, at, at + 0.45), 20));

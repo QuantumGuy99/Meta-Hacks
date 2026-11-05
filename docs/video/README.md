@@ -26,7 +26,7 @@ The official rubric, and where the video earns each point:
 | Criterion (weight) | The judges ask | Where we answer it |
 |---|---|---|
 | **Impact (30%)** | Real-world potential? Who benefits, how much does it matter? Could people actually use it? Does it fit a problem statement? | 0:00–0:20 the two problems in plain words · 0:23 who we are (students: built for our own world) · the end card: who benefits today and next (hiring teams, universities, teams shipping AI code) and the live URL (people can use it today) |
-| **Use of Meta AI Tooling (25%)** | Creative use? Beyond a basic integration? Capabilities that surprised even Meta? | Every demo beat names the Meta model at work · 2:30 the closed loop (Wonder reads, Spark attacks, Voice listens, two models must agree to award a point) · **2:44 "What surprised us"**: Spark fast enough to watch every keystroke (~4 s per typing pause), Spark writing the exploit that breaks the app, Wonder reading a whole project in one 1M-token pass, two Meta models that must agree before a point counts |
+| **Use of Meta AI Tooling (25%)** | Creative use? Beyond a basic integration? Capabilities that surprised even Meta? | Every demo beat names the Meta model at work · 2:30 the closed loop (Wonder reads, Spark attacks, Voice listens, two models must agree to award a point) · **2:44 "More than a chatbot"**: Spark fast enough to watch every keystroke (~4 s per typing pause), Spark writing the exploit that breaks the app, Wonder reading a whole project in one 1M-token pass, two Meta models that must agree before a point counts |
 | **Technical Depth & Execution (20%)** | Sound, refined engineering? Real craft? | The real sandbox and real numbers in the Defense demo · 2:30 "the model suggests, code decides", the leak guard, timeouts and fallbacks · the replay in the coding report |
 | **Demo (25%)** | Working and impressive? Holds up live? Genuinely cool to watch? | 0:30–2:30 two real, unmocked runs, every speed-up labelled · the dollar loss and MERGE GATE: PASS full screen · voice in both directions |
 
@@ -41,13 +41,13 @@ on the working product, make the sponsor's API visible, explain the hard part, a
 
 | Time | Segment | Source |
 |---|---|---|
-| 0:00–0:10 | **Problem 1:** practice sites grade the answer, interviewers grade how you think | rendered ✅ (needs the new line `0000`) |
-| 0:10–0:20 | **Problem 2:** AI writes code faster than we can understand it | rendered ✅ |
+| 0:00–0:10 | **Problem 1:** coding tests grade memorized answers in a silent text box; real interviews test how you think out loud, defend trade-offs and debug under pressure | rendered ✅ (needs the new line `0000`) |
+| 0:10–0:20 | **Problem 2 ("vibe coding"):** AI writes code faster than we can understand it, and nothing checks that you do | rendered ✅ |
 | 0:20–0:30 | **The answer:** Ares, built on Meta's models; who it's for (landing page) | rendered ✅ |
 | 0:30–1:30 | **Project Defense demo, including its report** | 🎥 `clips/defense.mp4` (cut to 60 s, §5) |
 | 1:30–2:30 | **Live Coding Interview demo, including its report** | 🎥 `clips/coding.mp4` (cut to 60 s, §5) |
 | 2:30–2:44 | **Technical + Meta tooling:** the closed loop, the guards | rendered ✅ |
-| 2:44–2:54 | **What surprised us about Meta's models:** four cards (Spark watches every keystroke in ~4 s; Spark writes the exploit; Wonder reads the whole project in one 1M-token pass; two models must agree) | rendered ✅ (needs the new line `0244`) |
+| 2:44–2:54 | **"More than a chatbot", Meta's models in Ares:** four cards (Spark follows every keystroke in ~4 s; Spark writes the exploit; Wonder reads the whole project in one 1M-token pass; two models must agree) | rendered ✅ (needs the new line `0244`) |
 | 2:54–2:59 | **End card**, with who benefits today and next | rendered ✅ |
 
 ---
@@ -59,7 +59,7 @@ Each line is its own file in `vo_lines/`, named by its start time. **14 are reco
 
 | File | Starts | Status | Say |
 |---|---|---|---|
-| **`0000`** | 0:00 | 🎙️ **record this** | Coding practice sites only check if your answer passes. But real interviewers grade how you think: your approach, your edge cases, how you explain it. |
+| **`0000`** | 0:00 | 🎙️ **record this** | Coding tests check memorized answers in a silent text box. Real interviews test how you think out loud, defend your trade-offs, and debug under pressure. |
 | `0010` | 0:10 | ✅ recorded | AI writes code faster than we can understand it. An agent builds this transfer API in seconds, and it passes the happy path. But could you explain why it loses money under load? |
 | `0019` | 0:19 | ✅ | Ares, built on Meta's Muse models, proves you understand your code. |
 | `0023` | 0:23 | ✅ | We're students who prep for interviews and ship with AI agents every day. Ares grades how you engineer, not just your answer. |
@@ -75,7 +75,7 @@ Each line is its own file in `vo_lines/`, named by its start time. **14 are reco
 | `0205` | 2:05 | ✅ | A paste gets a neutral note, not an accusation. Submit runs the hidden tests in the sandbox. All pass. |
 | `0215` | 2:15 | ✅ | Muse Wonder writes the report: scores for how I solved it, and a replay of my code, synced with everything I said. |
 | `0230` | 2:30 | ✅ | Under the hood, it's one closed loop with a Meta model at every step. The model suggests, code decides: scores and verdicts are computed in Python, and a leak guard checks every line, so the interviewer never hands over the answer. |
-| **`0244`** | 2:44 | 🎙️ **record this** | What surprised us: Muse Spark is fast enough to watch every keystroke, and sharp enough to write the attack that breaks your app. |
+| **`0244`** | 2:44 | 🎙️ **record this** | Turns out, Muse Spark is fast enough to follow every keystroke, and sharp enough to write the exploit that breaks your app. |
 | `0254` | 2:54 | ✅ | Ares. Prove you understand your code. |
 
 After adding or re-recording a line: make its text in `build.py` (`VO_LINES`) match what you said, then
