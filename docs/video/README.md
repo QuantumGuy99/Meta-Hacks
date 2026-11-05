@@ -47,7 +47,7 @@ on the working product, make the sponsor's API visible, explain the hard part, a
 | 0:30–1:30 | **Project Defense demo, including its report** | 🎥 `clips/defense.mp4` (cut to 60 s, §5) |
 | 1:30–2:30 | **Live Coding Interview demo, including its report** | 🎥 `clips/coding.mp4` (cut to 60 s, §5) |
 | 2:30–2:44 | **Technical + Meta tooling:** the closed loop, the guards | rendered ✅ |
-| 2:44–2:54 | **"More than a chatbot", Meta's models in Ares:** four cards (Spark watches every keystroke in ~4 s; Spark writes the exploit; Wonder reads the whole project in one 1M-token pass; two models must agree) | rendered ✅ (needs the new line `0244`) |
+| 2:44–2:54 | **"More than a chatbot", Meta's models in Ares:** four cards (Spark follows every keystroke in ~4 s; Spark writes the exploit; Wonder reads the whole project in one 1M-token pass; two models must agree) | rendered ✅ (needs the new line `0244`) |
 | 2:54–2:59 | **End card**, with who benefits today and next | rendered ✅ |
 
 ---
