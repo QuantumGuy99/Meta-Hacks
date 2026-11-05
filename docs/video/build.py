@@ -48,14 +48,14 @@ TIMELINE = [
 # (file, first word lands at s, must end by s, caption it?, what was said). Keep in sync with README §4.
 # Files are named by their start time in the video.
 VO_LINES = [
-    ("0000", 0.4, 10.0, True, "Coding practice sites only check if your answer passes. But real interviewers grade how you think: your approach, your edge cases, how you explain it."),
-    ("0010", 10.3, 19.8, False, "AI writes code faster than we can understand it. An agent builds this transfer API in seconds, and it passes the happy path. But could you explain why it loses money under load?"),
-    ("0019", 19.9, 23.4, False, "Ares, built on Meta's Muse models, proves you understand your code."),
-    ("0023", 23.6, 30.0, True, "We're students who prep for interviews and ship with AI agents every day. Ares grades how you engineer, not just your answer."),
-    ("0030", 30.3, 42.0, True, "In Project Defense, you bring code, even code your AI wrote. Muse Wonder reads the whole project in one pass, maps it, and flags the riskiest flaw: a race condition in money transfers."),
-    ("0042", 42.3, 52.0, True, "Muse Spark writes a targeted attack, and Ares fires two hundred concurrent transfers at the real app in a sandbox."),
+    ("0000", 0.4, 9.4, True, "Coding practice sites only check if your answer passes. But real interviewers grade how you think: your approach, your edge cases, how you explain it."),
+    ("0010", 10.1, 19.6, False, "AI writes code faster than we can understand it. An agent builds this transfer API in seconds, and it passes the happy path. But could you explain why it loses money under load?"),
+    ("0019", 20.3, 23.7, False, "Ares, built on Meta's Muse models, proves you understand your code."),
+    ("0023", 24.3, 30.7, True, "We're students who prep for interviews and ship with AI agents every day. Ares grades how you engineer, not just your answer."),
+    ("0030", 31.3, 42.3, True, "In Project Defense, you bring code, even code your AI wrote. Muse Wonder reads the whole project in one pass, maps it, and flags the riskiest flaw: a race condition in money transfers."),
+    ("0042", 42.9, 52.0, True, "Muse Spark writes a targeted attack, and Ares fires two hundred concurrent transfers at the real app in a sandbox."),
     ("0102", 62.2, 66.3, True, "Muse Voice Transcribe hears me, and two Meta models grade it."),
-    ("0106", 66.4, 78.0, True, "A point counts only if both agree. Then I fix it myself. Ares re-runs the exact same attack. It holds. Merge gate: pass."),
+    ("0106", 66.9, 78.0, True, "A point counts only if both agree. Then I fix it myself. Ares re-runs the exact same attack. It holds. Merge gate: pass."),
     ("0118", 78.3, 90.0, True, "The report shows the before and after, my grill scores, and how much of the fix was mine."),
     ("0130", 90.3, 98.0, True, "The Live Coding Interview works the same way. I explain my approach out loud, and Muse Spark follows every edit."),
     ("0200", 120.2, 125.0, True, "It caught the missing empty case, without giving me the answer."),
