@@ -3,7 +3,7 @@
 Everything the team needs to finish the 3-minute demo video: what the judges look for, the format, what to
 show second by second, what to say, how to cut the demo recordings and how to build the final file.
 
-**Preview:** [`ares-demo-preview.mp4`](ares-demo-preview.mp4) (2:56). The problem statement, the intro, the
+**Preview:** [`ares-demo-preview.mp4`](ares-demo-preview.mp4) (2:59). The problem statement, the intro, the
 technical section and the end card are final, with the voiceover, captions and music. The two demo segments
 are **placeholders** (striped slates with a running clock) until we drop in the live recordings. To watch it,
 open the file on GitHub and click **View raw** or **Download**.
@@ -21,19 +21,23 @@ open the file on GitHub and click **View raw** or **Download**.
 3. **Stage 3, the top 5 per track:** judges **watch the video live in a room**. → Captions are burned in, the
    browser is zoomed to 125% when recording, and the big moments fill the screen.
 
-| Criterion | What the video has to prove |
-|---|---|
-| Impact (30%) | The first seconds are a problem a non-engineer gets, before any product |
-| Meta tooling (25%) | A Meta model is visibly working in every shot; the closed loop is clear |
-| Demo (25%) | It's real and smooth: real numbers, nothing frozen, every speed-up labelled |
-| Technical depth (20%) | Real sandbox, real numbers, guards that never leak answers, the replay, "under the hood" |
+The official rubric, and where the video earns each point:
+
+| Criterion (weight) | The judges ask | Where we answer it |
+|---|---|---|
+| **Impact (30%)** | Real-world potential? Who benefits, how much does it matter? Could people actually use it? Does it fit a problem statement? | 0:00–0:20 the two problems in plain words · 0:23 who we are (students: built for our own world) · 2:44 who benefits next (hiring teams, universities, teams shipping AI code) · the end card's live URL (people can use it today) |
+| **Use of Meta AI Tooling (25%)** | Creative use? Beyond a basic integration? Capabilities that surprised even Meta? | Every demo beat names the Meta model at work · 2:30 the closed loop (Wonder reads, Spark attacks, Voice listens, two models must agree to award a point) · 2:44 the surprise in one line: *AI wrote the code, Meta's models break it and grade you* |
+| **Technical Depth & Execution (20%)** | Sound, refined engineering? Real craft? | The real sandbox and real numbers in the Defense demo · 2:30 "the model suggests, code decides", the leak guard, timeouts and fallbacks · the replay in the coding report |
+| **Demo (25%)** | Working and impressive? Holds up live? Genuinely cool to watch? | 0:30–2:30 two real, unmocked runs, every speed-up labelled · the dollar loss and MERGE GATE: PASS full screen · voice in both directions |
+
+**Time on the rubric beyond the product: 59 s** (0:00–0:30 and 2:30–2:59).
 
 Research on winning demo videos agrees: open with the problem within ~20 seconds, spend about half the video
 on the working product, make the sponsor's API visible, explain the hard part, and stay under the time limit.
 
 ---
 
-## 2. The format (2:56)
+## 2. The format (2:59)
 
 | Time | Segment | Source |
 |---|---|---|
@@ -42,15 +46,16 @@ on the working product, make the sponsor's API visible, explain the hard part, a
 | 0:20–0:30 | **The answer:** Ares, built on Meta's models; who it's for (landing page) | rendered ✅ |
 | 0:30–1:30 | **Project Defense demo, including its report** | 🎥 `clips/defense.mp4` (cut to 60 s, §5) |
 | 1:30–2:30 | **Live Coding Interview demo, including its report** | 🎥 `clips/coding.mp4` (cut to 60 s, §5) |
-| 2:30–2:50 | **Technical: under the hood** | rendered ✅ |
-| 2:50–2:56 | **End card** | rendered ✅ |
+| 2:30–2:44 | **Technical + Meta tooling:** the closed loop, the guards | rendered ✅ |
+| 2:44–2:54 | **Why it matters:** the surprise, and who benefits next | rendered ✅ (needs the new line `0244`) |
+| 2:54–2:59 | **End card** | rendered ✅ |
 
 ---
 
 ## 3. What to say: the voiceover
 
-Each line is its own file in `vo_lines/`, named by its start time. **14 are recorded. Only `0000` is new.**
-Record it, save it as `vo_lines/0000.m4a`, and keep it under **9.5 seconds** (about 25 words at a normal pace).
+Each line is its own file in `vo_lines/`, named by its start time. **14 are recorded. Two are new:**
+`0000` (keep it under **9.5 s**) and `0244` (under **9 s**). Save them as `vo_lines/0000.m4a` and `vo_lines/0244.m4a`.
 
 | File | Starts | Status | Say |
 |---|---|---|---|
@@ -70,7 +75,8 @@ Record it, save it as `vo_lines/0000.m4a`, and keep it under **9.5 seconds** (ab
 | `0205` | 2:05 | ✅ | A paste gets a neutral note, not an accusation. Submit runs the hidden tests in the sandbox. All pass. |
 | `0215` | 2:15 | ✅ | Muse Wonder writes the report: scores for how I solved it, and a replay of my code, synced with everything I said. |
 | `0230` | 2:30 | ✅ | Under the hood, it's one closed loop with a Meta model at every step. The model suggests, code decides: scores and verdicts are computed in Python, and a leak guard checks every line, so the interviewer never hands over the answer. |
-| `0250` | 2:50 | ✅ | Ares. Prove you understand your code. |
+| **`0244`** | 2:44 | 🎙️ **record this** | AI wrote the code. Meta's models break it and grade you. Next: hiring teams and universities grading real understanding, not memorized answers. |
+| `0254` | 2:54 | ✅ | Ares. Prove you understand your code. |
 
 After adding or re-recording a line: make its text in `build.py` (`VO_LINES`) match what you said, then
 `uv run --with pocketsphinx python docs/video/align_vo.py` and `node docs/video/render.js`, so the captions
@@ -187,8 +193,9 @@ python3 docs/video/build.py        # → docs/video/out/ares-demo.mp4
 | `captions.srt` | Optional: replaces the generated captions |
 
 ### Submission checklist
-- [ ] Under 3:00 (the timeline is 2:56), both demo slates replaced, no placeholder left.
-- [ ] Line `0000` recorded and in place.
+- [ ] Under 3:00 (the timeline is 2:59), both demo slates replaced, no placeholder left.
+- [ ] Lines `0000` and `0244` recorded and in place.
+- [ ] The live URL on the end card: `node docs/video/render.js --live https://your-app-url` (Impact: people can use it today).
 - [ ] Uploaded to YouTube as **unlisted**; the link opens in a private window. Allow time for the upload.
 - [ ] Repo public, deployed URL works from a clean browser (PLAN §20.2).
 
@@ -200,7 +207,7 @@ python3 docs/video/build.py        # → docs/video/out/ares-demo.mp4
 |---|---|
 | `README.md` | This guide |
 | `ares-demo-preview.mp4` | The current preview cut |
-| `scenes.html` | The problem, hook, technical loop, end card and slates (frame-accurate: `window.seek(scene, t)`) |
+| `scenes.html` | The problem, hook, technical loop, why-it-matters beat, end card and slates (frame-accurate: `window.seek(scene, t)`) |
 | `render.js` | Renders those into `build/` (following the word timings) and captures the landing page |
 | `build.py` | Assembles `out/ares-demo.mp4` from `build/`, `clips/`, `vo_lines/` and `music.mp3` |
 | `align_vo.py` | Finds when each voiceover word is spoken → `vo_lines/timing.json` |
