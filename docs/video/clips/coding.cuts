@@ -1,0 +1,8 @@
+# Live Coding Interview take on Missing Raffle Ticket
+0:00.8 0:09.8          # setup, Start, the interviewer presents the problem
+0:12.8 0:23.6          # my approach out loud, then the first draft
+0:23.6 0:31.0          # Run: the empty-list test fails
+0:58.8 1:02.6          # paste the fix
+1:02.6 1:10.5          # Run passes, Submit: hidden tests pass
+1:12.0 1:18.0          # the report scores
+1:18.0 1:27.5          # the replay: the code writing itself, synced with the transcript

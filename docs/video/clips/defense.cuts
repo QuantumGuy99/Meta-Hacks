@@ -1,0 +1,10 @@
+# Project Defense take on bank-transfer
+0:04.0 0:07.5          # pick bank-transfer, Start
+0:10.6 0:12.6          # "Your project is being audited"
+0:12.6 0:16.0          # the attack is written, the app starts in the sandbox
+0:16.0 0:27.3          # 200 concurrent transfers stream, the dollar loss
+0:27.3 0:41.2          # the grill: the interviewer asks, I answer
+0:41.2 0:44.8 2x       # the fix in the editor
+0:44.8 0:57.0 1.5x     # Verify re-runs the same attack
+0:57.0 1:03.4          # held: MERGE GATE PASS
+1:03.5 1:10.5          # the report
