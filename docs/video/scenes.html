@@ -104,9 +104,9 @@
   <div id="t-nodes"></div>
   <div class="abs" id="t-coding">In the <b>Live Coding Interview</b>, Muse Spark analyzes every typing pause, Muse Voice Transcribe hears you think aloud, and Muse Wonder writes the report.</div>
   <div class="abs" id="t-rules">
-    <div class="rule"><b>The model suggests, code decides.</b>Scores, verdicts and phase changes are computed in Python, never by the LLM.</div>
-    <div class="rule"><b>Never hands over the answer.</b>A leak guard checks every line the interviewer says. Hidden tests stay on the server.</div>
-    <div class="rule"><b>Built to hold up.</b>Every model call has a timeout and a fallback. Untrusted code runs only in the sandbox.</div>
+    <div class="rule" id="r0"><b>The model suggests, code decides.</b>Scores, verdicts and phase changes are computed in Python, never by the LLM.</div>
+    <div class="rule" id="r1"><b>Never hands over the answer.</b>A leak guard checks every line the interviewer says. Hidden tests stay on the server.</div>
+    <div class="rule" id="r2"><b>Built to hold up.</b>Every model call has a timeout and a fallback. Untrusted code runs only in the sandbox.</div>
   </div>
 </section>
 
@@ -195,41 +195,70 @@ const $ = (id) => document.getElementById(id);
 const show = (el, o, dy = 0) => { el.style.opacity = o; el.style.transform = `translateY(${(1 - o) * dy}px)`; };
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 
+// Word timings (video seconds) from vo_lines/timing.json, passed in by render.js: VO[line] = [[word, start, end], ...].
+window.VO = window.VO || {};
+function W(line, word, nth, edge, dflt) {
+  let k = 0;
+  for (const [w, a, b] of (window.VO[line] || [])) {
+    if (w.toLowerCase().replace(/[^a-z']/g, "") === word && ++k === nth) return edge === "e" ? b : a;
+  }
+  return dflt;
+}
+
 function hook(t) {
-  const l1 = "AI writes code faster than you can understand it.";
-  const typed = Math.floor(clamp((t - 0.8) / 2.4) * l1.length);
-  const up = ramp(t, 3.4, 4.0);
+  const l1 = "AI writes code faster than we can understand it.";
+  const spoken = (window.VO["0000"] || []).slice(0, 9);
+  let typed;
+  if (spoken.length === 9) {  // reveal each word while it is being said
+    const toks = l1.split(" ");
+    typed = 0;
+    toks.forEach((tok, i) => {
+      const [, a, b] = spoken[i];
+      const f = clamp((t - a) / Math.max(0.08, b - a));
+      if (f > 0) typed = l1.split(" ").slice(0, i).join(" ").length + (i ? 1 : 0) + Math.ceil(f * tok.length);
+    });
+  } else {
+    typed = Math.floor(clamp((t - 0.8) / 2.4) * l1.length);
+  }
+  const typeEnd = W("0000", "it", 1, "e", 3.2);
+  const edIn = W("0000", "an", 1, "s", 4.2) - 0.3;
+  const code0 = W("0000", "agent", 1, "s", 4.4), code1 = W("0000", "passes", 1, "s", 6.8);
+  const q = W("0000", "but", 1, "s", 7.5);
+  const up = ramp(t, typeEnd + 0.15, typeEnd + 0.65);
   const l1el = $("h-l1");
-  l1el.innerHTML = esc(l1.slice(0, typed)) + (t < 3.4 && Math.floor(t * 2.5) % 2 === 0 ? '<span class="cursor">_</span>' : '<span class="cursor" style="opacity:0">_</span>');
+  l1el.innerHTML = esc(l1.slice(0, typed)) + (t < typeEnd + 0.15 && Math.floor(t * 2.5) % 2 === 0 ? '<span class="cursor">_</span>' : '<span class="cursor" style="opacity:0">_</span>');
   l1el.style.top = (450 - up * 370) + "px";
   l1el.style.fontSize = (76 - up * 26) + "px";
   l1el.style.opacity = 1 - ramp(t, 14.0, 14.8);
 
-  const ed = ramp(t, 3.9, 4.4) * (1 - ramp(t, 14.0, 14.8));
+  const ed = ramp(t, edIn, edIn + 0.5) * (1 - ramp(t, 14.0, 14.8));
   show($("h-editor"), ed, 30);
   show($("h-tag"), ed * 0.9);
   const total = CODE.join("\n").length;
-  const chars = Math.floor(clamp((t - 4.4) / 2.4) * total);
+  const chars = Math.floor(clamp((t - code0) / (code1 - code0)) * total);
   let used = 0, html = "";
   CODE.forEach((line, i) => {
     if (used > chars) return;
     const vis = line.slice(0, Math.max(0, chars - used));
     used += line.length + 1;
-    const hot = t > 7.4 && HOT.has(i) ? " hot" : "";
+    const hot = t > q - 0.1 && HOT.has(i) ? " hot" : "";
     html += `<span class="ln${hot}"><span class="n">${i + 1}</span>${esc(vis)}</span>`;
   });
   $("h-code").innerHTML = html;
-  const done = t >= 6.8;
+  const done = t >= code1;
   $("h-status").textContent = done ? "AI agent · done. Tests: happy path passes ✓" : "AI agent · writing services.py";
   $("h-dot").style.background = done ? "var(--green)" : (Math.floor(t * 4) % 2 ? "var(--cobalt)" : "#1b3a8a");
-  $("h-time").textContent = Math.min(t - 4.4, 2.4).toFixed(1).replace("-", "") + " s";
-  if (t < 4.4) $("h-time").textContent = "0.0 s";
-  show($("h-q"), ramp(t, 7.5, 8.1) * (1 - ramp(t, 14.0, 14.8)), 20);
+  $("h-time").textContent = clamp(t - code0, 0, code1 - code0).toFixed(1) + " s";
+  show($("h-q"), ramp(t, q, q + 0.5) * (1 - ramp(t, 14.0, 14.8)), 20);
 
-  show($("h-brand"), ramp(t, 15.0, 15.7), 30);
-  show($("h-sub"), ramp(t, 15.8, 16.5), 20);
-  show($("h-chiplabel"), ramp(t, 17.0, 17.5));
-  show($("h-chips"), ramp(t, 17.2, 17.9), 16);
+  const brand = W("0015", "ares", 1, "s", 15.2) - 0.15;
+  show($("h-brand"), ramp(t, brand, brand + 0.5), 30);
+  const label = W("0015", "built", 1, "s", 15.7);
+  show($("h-chiplabel"), ramp(t, label, label + 0.4));
+  const chips = W("0015", "muse", 1, "s", 16.0);
+  show($("h-chips"), ramp(t, chips, chips + 0.5), 16);
+  const sub = W("0015", "proves", 1, "s", 16.5);
+  show($("h-sub"), ramp(t, sub, sub + 0.5), 20);
 }
 
 const NODES = [
@@ -254,33 +283,35 @@ function buildTech() {
   $("t-nodes").innerHTML = h;
 }
 function tech(t) {
-  show($("t-kicker"), ramp(t, 0.2, 0.7));
-  show($("t-title"), ramp(t, 0.3, 0.9), 16);
-  const step = 0.8;
+  const T = (x) => x - 152;  // the technical section starts at 2:32
+  const head = T(W("0232", "under", 1, "s", 152.4));
+  show($("t-kicker"), ramp(t, head, head + 0.5));
+  show($("t-title"), ramp(t, head + 0.1, head + 0.7), 16);
+  const n0 = T(W("0232", "one", 1, "s", 153.0)), n5 = T(W("0232", "step", 1, "e", 157.0)) - 0.4;
+  const step = (n5 - n0) / 5;
   NODES.forEach((_, i) => {
-    const a = 0.8 + i * step;
+    const a = n0 + i * step;
     const n = $("n" + i);
-    show(n, ramp(t, a, a + 0.5), 20);
-    n.classList.toggle("live", t >= a && t < a + step + 0.2 && t < 6.0);
-    if (i < 5) {
-      const ar = $("a" + i);
-      ar.style.opacity = ramp(t, a + 0.9, a + 1.3);
-    }
+    show(n, ramp(t, a, a + 0.4), 20);
+    n.classList.toggle("live", t >= a && t < a + step + 0.2 && t < n5 + 0.8);
+    if (i < 5) $("a" + i).style.opacity = ramp(t, a + step * 0.6, a + step);
   });
-  show($("t-coding"), ramp(t, 5.6, 6.2), 12);
-  show($("t-rules"), ramp(t, 6.6, 7.3), 20);
-  const fade = 1 - ramp(t, 19.4, 20);
-  $("tech").style.opacity = fade;
+  const coding = n5 + 0.6;
+  show($("t-coding"), ramp(t, coding, coding + 0.5), 12);
+  [["r0", W("0232", "model", 2, "s", 158.5)], ["r1", W("0232", "leak", 1, "s", 162.0)], ["r2", W("0232", "never", 1, "s", 164.0)]]
+    .forEach(([id, at]) => show($(id), ramp(t, T(at), T(at) + 0.5), 20));
+  $("tech").style.opacity = 1 - ramp(t, 19.4, 20);
 }
 
 function end(t, params) {
   const links = [params.get("live"), "github.com/QuantumGuy99/Meta-Hacks"].filter(Boolean);
   $("e-links").innerHTML = links.map((l, i) => `<div class="${i ? "muted" : "blue"}">${esc(l)}</div>`).join("");
-  show($("e-brand"), ramp(t, 0.1, 0.7), 24);
-  show($("e-line"), ramp(t, 0.6, 1.2), 16);
-  show($("e-links"), ramp(t, 1.4, 1.9));
-  show($("e-team"), ramp(t, 1.8, 2.3));
-  show($("e-built"), ramp(t, 2.0, 2.5));
+  const brand = W("0252", "ares", 1, "s", 172.4) - 172 - 0.1, line = W("0252", "prove", 1, "s", 173.2) - 172;
+  show($("e-brand"), ramp(t, brand, brand + 0.5), 24);
+  show($("e-line"), ramp(t, line, line + 0.5), 16);
+  show($("e-links"), ramp(t, line + 1.2, line + 1.7));
+  show($("e-team"), ramp(t, line + 1.6, line + 2.1));
+  show($("e-built"), ramp(t, line + 1.8, line + 2.3));
 }
 
 function slate(name) {

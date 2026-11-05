@@ -34,6 +34,15 @@ function encodeFrames(frameDir, out, fps) {
 
 async function renderScenes(browser) {
   const page = await browser.newPage({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1 });
+  // Word timings in video seconds, so the animations follow the voiceover (see align_vo.py).
+  const timingFile = path.join(DIR, "vo_lines", "timing.json");
+  const vo = {};
+  if (fs.existsSync(timingFile)) {
+    for (const [name, t] of Object.entries(JSON.parse(fs.readFileSync(timingFile, "utf8")))) {
+      vo[name] = t.words.map(([w, a, b]) => [w, t.at + a - t.onset, t.at + b - t.onset]);
+    }
+  }
+  await page.addInitScript((v) => { window.VO = v; }, vo);
   const q = LIVE ? "?live=" + encodeURIComponent(LIVE) : "";
   await page.goto("file://" + path.join(DIR, "scenes.html") + q);
   await page.evaluate(() => window.ready);

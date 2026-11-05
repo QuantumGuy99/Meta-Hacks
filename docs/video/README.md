@@ -141,7 +141,7 @@ exactly. "Max" is the time before the next line starts; stay under it.
 | `0015` | 0:15 | 5 s | "Ares_ proves you understand your code" | Ares, built on Meta's Muse models, proves you understand your code. |
 | `0020` | 0:20 | 10 s | The landing page | We're students who prep for interviews and ship with AI agents every day. Ares grades how you engineer, not just your answer. |
 | `0030` | 0:30 | 18 s | Audit, the diagram, the red node | In Project Defense, you bring code, even code your AI wrote. Muse Wonder reads the whole project in one pass, maps it, and flags the riskiest flaw: a race condition in money transfers. |
-| `0048` | 0:48 | 12 s | The attack streams, the dollar loss | Muse Spark writes a targeted attack, and Ares fires two hundred concurrent transfers at the real app in a sandbox. Thousands of dollars just disappeared. |
+| `0048` | 0:48 | 12 s | The attack streams, the dollar loss | Muse Spark writes a targeted attack, and Ares fires two hundred concurrent transfers at the real app in a sandbox. |
 | — | 1:00–1:09 | — | The grill | *(silent: the interviewer's question and your spoken answer play)* |
 | `0109` | 1:09 | 5 s | Grill grading | Muse Voice Transcribe hears me, and two Meta models grade it. |
 | `0114` | 1:14 | 16 s | Fix, verify, merge gate | A point counts only if both agree. Then I fix it myself. Ares re-runs the exact same attack. It holds. Merge gate: pass. |
@@ -200,8 +200,10 @@ Put these in `docs/video/` and rebuild (about a minute each time):
 | File | What it does |
 |---|---|
 | `clips/defense.mp4`, `clips/defense_report.mp4`, `clips/coding.mp4`, `clips/coding_report.mp4` | Replace the placeholders (mp4/mov/webm/mkv). Scaled to 1920×1080 @ 30 fps; only the first N seconds are used (N = slot length); a shorter clip holds its last frame. Each keeps its own sound |
-| `vo_lines/<MMSS>.m4a` (or `.wav`/`.mp3`) | One file per voiceover line (§4). Each is trimmed, levelled, placed at its start time and checked against its limit (up to 10% too long is sped up; more is flagged). Captions are generated from the script; `vo_lines/<MMSS>.txt` overrides a line's caption |
-| `vo.wav` (or `.m4a`/`.mp3`) | Alternative: one voiceover track mixed from 0:00 (takes priority over `vo_lines/`) |
+| `vo_lines/<MMSS>.m4a` (or `.wav`/`.mp3`) | One file per voiceover line (§4), all 14 committed. Nothing is cut out of a recording: each gets one fixed gain (to −16 LUFS) and is shifted so its first word lands on its start time. Lines that run past their limit are flagged |
+| `vo_lines/timing.json` | When each word is spoken (committed). Drives the captions and the hook/technical/end-card animations. After re-recording a line, make its text in `build.py` `VO_LINES` match what you said, then run `uv run --with pocketsphinx python docs/video/align_vo.py` and `node docs/video/render.js` |
+| `music.mp3` | Background music (*The Mountain*, sci-fi; not committed, ask Ganesh for the file). Levelled to −26 LUFS in the gaps, 8 dB lower under any voice (yours or the clips'), with 0.3 s / 0.8 s ramps, faded in and out |
+| `vo.wav` (or `.m4a`/`.mp3`) | Alternative: one voiceover track mixed from 0:00 |
 | `captions.srt` | Burned-in captions (recommended for the live final round) |
 
 To put the live URL on the end card (needs Node + Playwright and the frontend running on :3000):

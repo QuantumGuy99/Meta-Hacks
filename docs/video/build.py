@@ -1,22 +1,25 @@
-"""Assemble the 2:58 demo video from rendered segments, your screen recordings and an optional voiceover.
+"""Assemble the 2:58 demo video from rendered segments, screen recordings, the voiceover and background music.
 
-Usage (from the repo root):  python3 docs/video/build.py
-Needs: ffmpeg, and docs/video/build/ from `node docs/video/render.js`.
+Usage (from the repo root):  python3 docs/video/build.py        Needs: Python 3 and ffmpeg.
 
 Recordings go in docs/video/clips/ (mp4, mov, webm or mkv), named after the slot:
   defense, defense_report, coding, coding_report
 Each is scaled to 1920x1080 at 30 fps. Only its first N seconds are used (N = the slot length); a shorter
 clip holds its last frame. A missing clip shows a placeholder slate with the slot's clock.
 Each clip keeps its own sound (the interviewer's voice, your spoken answers).
-Voiceover, either way:
-  - docs/video/vo_lines/<MMSS>.(m4a|wav|mp3), one file per script line (README §4). Each is trimmed of silence,
-    levelled, placed at its start time and checked against its time limit (up to 10% too long is sped up).
-    Captions are made from the script; a vo_lines/<MMSS>.txt overrides a line's caption text.
-  - or docs/video/vo.(wav|m4a|mp3), one track mixed from 0:00.
+
+Voiceover: docs/video/vo_lines/<MMSS>.(m4a|wav|mp3), one file per script line (README §4). Nothing is cut out
+of a recording: each is levelled with one fixed gain and shifted so its first word lands on the line's start
+time. vo_lines/timing.json (from align_vo.py) gives the word timings for that and for the captions; without
+it, silence detection finds the first word and captions are spread evenly.
+Music: docs/video/music.(mp3|m4a|wav), not committed (licence). Levelled, then lowered under every voice
+(the voiceover and the clips' own sound) and raised in the gaps, with smooth ramps.
 docs/video/captions.srt, if present, replaces the generated captions.
 Output: docs/video/out/ares-demo.mp4
 """
 
+import json
+import re
 import shutil
 import subprocess
 import sys
@@ -26,6 +29,8 @@ DIR = Path(__file__).resolve().parent
 BUILD, CLIPS, OUT = DIR / "build", DIR / "clips", DIR / "out"
 FONT = "/usr/share/fonts/opentype/inter/Inter-SemiBold.otf"
 VIDEO_EXT = (".mp4", ".mov", ".webm", ".mkv")
+AUDIO_EXT = (".m4a", ".wav", ".mp3", ".aac", ".ogg")
+VO_DIR = DIR / "vo_lines"
 
 # (slot, seconds, rendered source or None for a recording slot)
 TIMELINE = [
@@ -38,21 +43,14 @@ TIMELINE = [
     ("tech", 20, "08_tech.mp4"),
     ("end", 6, "09_end.mp4"),
 ]
-NORM = "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black,fps=30,format=yuv420p,setsar=1"
-ENC = ["-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
-       "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"]
-SILENCE = ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"]
-CLIP_VOLUME = 1.0  # the recordings' own sound (interviewer voice, your answers) under the voiceover
-VO_DIR = DIR / "vo_lines"
-AUDIO_EXT = (".m4a", ".wav", ".mp3", ".aac", ".ogg")
 
-# (file, speech starts at s, must end by s, caption it?, script text). Keep in sync with README §4.
+# (file, first word lands at s, must end by s, caption it?, what was said). Keep in sync with README §4.
 VO_LINES = [
     ("0000", 0.8, 15, False, "AI writes code faster than we can understand it. An agent builds this transfer API in seconds, and it passes the happy path. But could you explain why it loses money under load?"),
     ("0015", 15.2, 20, False, "Ares, built on Meta's Muse models, proves you understand your code."),
     ("0020", 20.2, 30, True, "We're students who prep for interviews and ship with AI agents every day. Ares grades how you engineer, not just your answer."),
     ("0030", 30.2, 48, True, "In Project Defense, you bring code, even code your AI wrote. Muse Wonder reads the whole project in one pass, maps it, and flags the riskiest flaw: a race condition in money transfers."),
-    ("0048", 48.2, 60, True, "Muse Spark writes a targeted attack, and Ares fires two hundred concurrent transfers at the real app in a sandbox. Thousands of dollars just disappeared."),
+    ("0048", 48.2, 60, True, "Muse Spark writes a targeted attack, and Ares fires two hundred concurrent transfers at the real app in a sandbox."),
     ("0109", 69.2, 74, True, "Muse Voice Transcribe hears me, and two Meta models grade it."),
     ("0114", 74.2, 90, True, "A point counts only if both agree. Then I fix it myself. Ares re-runs the exact same attack. It holds. Merge gate: pass."),
     ("0130", 90.2, 100, True, "The report shows the before and after, my grill scores, and how much of the fix was mine."),
@@ -63,10 +61,16 @@ VO_LINES = [
     ("0232", 152.2, 172, False, "Under the hood, it's one closed loop with a Meta model at every step. The model suggests, code decides: scores and verdicts are computed in Python, and a leak guard checks every line, so the interviewer never hands over the answer."),
     ("0252", 172.4, 178, False, "Ares. Prove you understand your code."),
 ]
-VO_CLEAN = ("highpass=f=80,"
-            "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.05,areverse,"
-            "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.15,areverse,"
-            "loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,aformat=channel_layouts=stereo")
+
+NORM = "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black,fps=30,format=yuv420p,setsar=1"
+ENC = ["-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+       "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2"]
+SILENCE = ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"]
+CLIP_VOLUME = 1.0       # the recordings' own sound under the voiceover
+VOICE_LUFS = -16.0      # every voiceover line is brought to this loudness
+MUSIC_GAP_LUFS = -26.0  # music where nobody speaks (10 dB under the voice)
+MUSIC_DUCK_DB = -8.0    # extra drop under speech (music then sits ~18 dB under the voice)
+DUCK_IN, DUCK_OUT = 0.3, 0.8  # seconds to dip before speech, and to come back after it
 
 
 def ffmpeg(*args: str) -> None:
@@ -93,77 +97,133 @@ def duration(path: Path) -> float:
     return float(out.strip())
 
 
+def loudness(path: Path) -> float:
+    err = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(path), "-af", "ebur128", "-f", "null", "-"],
+                         capture_output=True, text=True).stderr
+    return float(re.findall(r"I:\s+(-?[\d.]+) LUFS", err)[-1])
+
+
+def voiced(path: Path, offset: float = 0.0, noise: str = "-40dB") -> list[tuple[float, float]]:
+    """Spans with sound in a file, shifted by offset."""
+    err = subprocess.run(["ffmpeg", "-hide_banner", "-i", str(path), "-af", f"silencedetect=noise={noise}:d=0.4",
+                          "-f", "null", "-"], capture_output=True, text=True).stderr
+    starts = [float(x) for x in re.findall(r"silence_start: (-?[\d.]+)", err)]
+    ends = [float(x) for x in re.findall(r"silence_end: ([\d.]+)", err)]
+    total = duration(path)
+    spans, cur = [], 0.0
+    for s, e in zip(starts, ends + [total] * (len(starts) - len(ends))):
+        if s > cur + 0.05:
+            spans.append((offset + cur, offset + max(s, 0)))
+        cur = e
+    if cur < total - 0.05 and len(starts) <= len(ends):
+        spans.append((offset + cur, offset + total))
+    return spans
+
+
 def srt_time(t: float) -> str:
     ms = round(t * 1000)
     return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
 
 
-def chunks(text: str, width: int = 64) -> list[str]:
-    out, cur = [], ""
-    for word in text.split():
-        if cur and len(cur) + 1 + len(word) > width:
-            out.append(cur)
-            cur = word
-        else:
-            cur = f"{cur} {word}".strip()
-        if cur.endswith((".", "?", ":")) and len(cur) > width * 0.45:
-            out.append(cur)
-            cur = ""
-    return out + ([cur] if cur else [])
+def caption_cues(words: list[tuple[str, float, float]], width: int = 56) -> list[tuple[float, float, str]]:
+    """Groups timed words into one-line captions, breaking at sentence ends, pauses and the width."""
+    cues, cur = [], []
+    for i, (w, a, b) in enumerate(words):
+        cur.append((w, a, b))
+        text = " ".join(x[0] for x in cur)
+        nxt = words[i + 1] if i + 1 < len(words) else None
+        long_next = nxt and len(text) + 1 + len(nxt[0]) > width
+        pause = nxt and nxt[1] - b > 0.35 and len(text) > 18
+        stop = w.endswith((".", "?", "!", ":")) and len(text) > 18
+        if not nxt or long_next or pause or stop:
+            cues.append([cur[0][1], cur[-1][2], text])
+            cur = []
+    for i, c in enumerate(cues):  # linger a little, never into the next caption
+        c[1] = min(c[1] + 0.3, cues[i + 1][0] - 0.02) if i + 1 < len(cues) else c[1] + 0.4
+    return [tuple(c) for c in cues]
 
 
-def build_voiceover(work: Path, total: int) -> tuple[Path | None, Path | None, list[str]]:
-    """Places each vo_lines/<MMSS> file at its start time. Returns (track, captions, report lines)."""
-    placed, report, cues = [], [], []
+def build_voiceover(work: Path, total: int) -> tuple[Path | None, list, list, list[str]]:
+    """Returns (track, caption cues, speech spans, report)."""
+    timing = json.loads((VO_DIR / "timing.json").read_text()) if (VO_DIR / "timing.json").exists() else {}
+    placed, cues, spans, report = [], [], [], []
     for name, at, until, caption, text in VO_LINES:
         src = find(name, VO_DIR, AUDIO_EXT)
         if not src:
             report.append(f"  {name}  missing")
             continue
+        t = timing.get(name)
+        if t:
+            onset, end = t["onset"], t["end"]
+            words = [(w, at + a - onset, at + b - onset) for w, a, b in t["words"]]
+        else:
+            v = voiced(src, noise="-50dB")
+            onset, end = (v[0][0], v[-1][1]) if v else (0.0, duration(src))
+            toks = text.split()
+            step = (end - onset) / max(1, len(toks))
+            words = [(w, at + i * step, at + (i + 1) * step) for i, w in enumerate(toks)]
+        gain = VOICE_LUFS - loudness(src)
         clean = work / f"vo_{name}.wav"
-        ffmpeg("-i", str(src), "-af", VO_CLEAN, str(clean))
-        dur, limit = duration(clean), until - at
-        note = f"{dur:4.1f}s of {limit:4.1f}s"
-        if dur > limit:
-            ratio = dur / limit
-            if ratio <= 1.10:
-                sped = work / f"vo_{name}_fit.wav"
-                ffmpeg("-i", str(clean), "-af", f"atempo={ratio:.4f}", str(sped))
-                clean, dur = sped, duration(sped)
-                note += f"  sped up {ratio:.2f}x to fit"
-            else:
-                note += f"  TOO LONG by {dur - limit:.1f}s: re-record or shorten (it runs into the next part)"
-        report.append(f"  {name}  {note}")
-        placed.append((clean, at))
+        ffmpeg("-i", str(src), "-af", f"highpass=f=70,volume={gain:.2f}dB,alimiter=limit=0.89:level=0,"
+               "aresample=48000,aformat=channel_layouts=stereo", str(clean))
+        delay = at - onset
+        speech, limit = end - onset, until - at
+        note = f"{speech:4.1f}s of {limit:4.1f}s"
+        if speech > limit:
+            note += f"  TOO LONG by {speech - limit:.1f}s: re-record or shorten"
+        report.append(f"  {name}  {note}" + ("" if t else "  (no word timing: run align_vo.py)"))
+        placed.append((clean, delay))
+        spans.append((at, at + speech))
         if caption:
-            words = (VO_DIR / f"{name}.txt").read_text().strip() if (VO_DIR / f"{name}.txt").exists() else text
-            parts = chunks(words)
-            weights = [len(p) for p in parts]
-            t = at
-            for part, w in zip(parts, weights):
-                span = dur * w / sum(weights)
-                cues.append((t, t + span, part))
-                t += span
+            cues += caption_cues(words)
     if not placed:
-        return None, None, report
+        return None, [], [], report
     track = work / "vo_track.wav"
     inputs = [arg for clean, _ in placed for arg in ("-i", str(clean))]
-    delays = "".join(f"[{i}:a]adelay={round(at * 1000)}:all=1[d{i}];" for i, (_, at) in enumerate(placed))
+    pre = ""
+    for i, (_, d) in enumerate(placed):
+        pre += (f"[{i}:a]adelay={round(d * 1000)}:all=1[d{i}];" if d >= 0
+                else f"[{i}:a]atrim=start={-d:.3f},asetpts=PTS-STARTPTS[d{i}];")
     mix = "".join(f"[d{i}]" for i in range(len(placed)))
     ffmpeg(*inputs, "-filter_complex",
-           f"{delays}{mix}amix=inputs={len(placed)}:normalize=0:dropout_transition=0,apad=whole_dur={total}[a]",
+           f"{pre}{mix}amix=inputs={len(placed)}:normalize=0:dropout_transition=0,apad=whole_dur={total}[a]",
            "-map", "[a]", "-t", str(total), str(track))
-    srt = None
-    if cues:
-        srt = work / "captions.srt"
-        srt.write_text("".join(f"{i}\n{srt_time(a)} --> {srt_time(b)}\n{txt}\n\n"
-                               for i, (a, b, txt) in enumerate(cues, 1)))
-    return track, srt, report
+    return track, cues, spans, report
+
+
+def merge(spans: list[tuple[float, float]], gap: float = 1.2) -> list[tuple[float, float]]:
+    out: list[list[float]] = []
+    for a, b in sorted(spans):
+        if out and a - out[-1][1] < gap:
+            out[-1][1] = max(out[-1][1], b)
+        else:
+            out.append([a, b])
+    return [(a, b) for a, b in out]
+
+
+def build_music(src: Path, work: Path, total: int, speech: list[tuple[float, float]]) -> Path:
+    """Music levelled to MUSIC_GAP_LUFS, dipped by MUSIC_DUCK_DB under speech, faded in and out."""
+    level = work / "music_level.wav"
+    ffmpeg("-i", str(src), "-af", "dynaudnorm=f=1000:g=31:m=3:p=0.9,aresample=48000,aformat=channel_layouts=stereo",
+           "-t", str(total), str(level))
+    gain = MUSIC_GAP_LUFS - loudness(level)
+    # duck(t) is 1 inside speech and ramps 0 -> 1 over DUCK_IN before it and 1 -> 0 over DUCK_OUT after it.
+    terms = [f"clip(min((t-{a - DUCK_IN:.2f})/{DUCK_IN},({b + DUCK_OUT:.2f}-t)/{DUCK_OUT}),0,1)" for a, b in speech]
+    duck = "0"
+    for term in terms:
+        duck = f"max({duck},{term})"
+    end = min(total, duration(src))
+    out = work / "music_track.wav"
+    ffmpeg("-i", str(level), "-af",
+           f"volume={gain:.2f}dB,volume='pow(10,({MUSIC_DUCK_DB}*{duck})/20)':eval=frame,"
+           f"afade=t=in:d=1.5,afade=t=out:st={end - 4:.2f}:d=4,apad=whole_dur={total}",
+           "-t", str(total), str(out))
+    return out
 
 
 def clock(start: int) -> str:
     # drawtext expression: the video's overall timecode, for timing the voiceover against the slate.
-    return (f"video %{{eif\\:floor((t+{start})/60)\\:d}}\\:%{{eif\\:mod(floor(t+{start})\\,60)\\:d\\:2}}")
+    return f"video %{{eif\\:floor((t+{start})/60)\\:d}}\\:%{{eif\\:mod(floor(t+{start})\\,60)\\:d\\:2}}"
 
 
 def main() -> None:
@@ -173,7 +233,7 @@ def main() -> None:
     work = OUT / "parts"
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir()
-    parts, start = [], 0
+    parts, clip_speech, start = [], [], 0
     for slot, secs, rendered in TIMELINE:
         part = work / f"{len(parts):02d}_{slot}.mp4"
         if rendered:
@@ -187,6 +247,7 @@ def main() -> None:
                 inputs, audio = SILENCE, ["-map", "1:a"]
             ffmpeg("-i", str(clip), *inputs, "-map", "0:v:0", *audio,
                    "-vf", f"{NORM},tpad=stop_mode=clone:stop_duration={secs}", "-t", str(secs), *ENC, str(part))
+            clip_speech += voiced(part, offset=start)
             note = f"clip {clip.name}"
         else:
             slate = BUILD / f"slate_{slot}.jpg"
@@ -204,20 +265,23 @@ def main() -> None:
     joined = work / "joined.mp4"
     ffmpeg("-f", "concat", "-safe", "0", "-i", str(listing), "-c", "copy", str(joined))
 
-    vo = find("vo", DIR, (".wav", ".m4a", ".mp3"))
+    vo, cues, vo_speech, report = build_voiceover(work, start) if VO_DIR.exists() else (None, [], [], [])
+    music_src = find("music", DIR, AUDIO_EXT)
+    music = build_music(music_src, work, start, merge(vo_speech + clip_speech)) if music_src else None
+
     srt = DIR / "captions.srt" if (DIR / "captions.srt").exists() else None
-    report: list[str] = []
-    if not vo and VO_DIR.exists():
-        vo, made_srt, report = build_voiceover(work, start)
-        srt = srt or made_srt
+    if not srt and cues:
+        srt = work / "captions.srt"
+        srt.write_text("".join(f"{i}\n{srt_time(a)} --> {srt_time(b)}\n{txt}\n\n" for i, (a, b, txt) in enumerate(cues, 1)))
+
     final = OUT / "ares-demo.mp4"
     args = ["-i", str(joined)]
-    if vo:
-        args += ["-i", str(vo), "-filter_complex",
-                 f"[0:a]volume={CLIP_VOLUME}[a0];[a0][1:a]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]",
-                 "-map", "[a]"]
-    else:
-        args += ["-map", "0:a"]
+    extra = [p for p in (vo, music) if p]
+    for p in extra:
+        args += ["-i", str(p)]
+    mix = f"[0:a]volume={CLIP_VOLUME}[a0];[a0]" + "".join(f"[{i + 1}:a]" for i in range(len(extra)))
+    args += ["-filter_complex", f"{mix}amix=inputs={1 + len(extra)}:duration=first:dropout_transition=0:normalize=0,"
+             "alimiter=limit=0.95:level=0[a]", "-map", "[a]"]
     vf = []
     if srt:
         style = ("FontName=Inter,FontSize=13,Bold=1,PrimaryColour=&H00FFFFFF,BackColour=&H99000000,"
@@ -230,7 +294,8 @@ def main() -> None:
         print("\nvoiceover lines:\n" + "\n".join(report))
     shutil.rmtree(work)
     print(f"\n{final.relative_to(DIR.parent.parent)}  ({start // 60}:{start % 60:02d})"
-          f"  voiceover: {vo.name if vo else 'none'}  captions: {'yes' if srt else 'no'}")
+          f"  voiceover: {'yes' if vo else 'none'}  music: {music_src.name if music_src else 'none'}"
+          f"  captions: {'yes' if srt else 'no'}")
 
 
 if __name__ == "__main__":
