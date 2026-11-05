@@ -40,8 +40,9 @@ TIMELINE = [
     ("whofor", 6.5, "02_whofor.mp4"),
     ("defense", 60, None),
     ("coding", 60, None),
-    ("tech", 20, "08_tech.mp4"),
-    ("end", 6, "09_end.mp4"),
+    ("tech", 14.5, "08_tech.mp4"),
+    ("impact", 9.5, "08b_impact.mp4"),
+    ("end", 5, "09_end.mp4"),
 ]
 
 # (file, first word lands at s, must end by s, caption it?, what was said). Keep in sync with README §4.
@@ -60,8 +61,9 @@ VO_LINES = [
     ("0200", 120.2, 125.0, True, "It caught the missing empty case, without giving me the answer."),
     ("0205", 125.2, 135.0, True, "A paste gets a neutral note, not an accusation. Submit runs the hidden tests in the sandbox. All pass."),
     ("0215", 135.3, 150.0, True, "Muse Wonder writes the report: scores for how I solved it, and a replay of my code, synced with everything I said."),
-    ("0230", 150.2, 170.0, False, "Under the hood, it's one closed loop with a Meta model at every step. The model suggests, code decides: scores and verdicts are computed in Python, and a leak guard checks every line, so the interviewer never hands over the answer."),
-    ("0250", 170.4, 176.0, False, "Ares. Prove you understand your code."),
+    ("0230", 150.2, 164.5, False, "Under the hood, it's one closed loop with a Meta model at every step. The model suggests, code decides: scores and verdicts are computed in Python, and a leak guard checks every line, so the interviewer never hands over the answer."),
+    ("0244", 164.8, 173.8, True, "AI wrote the code. Meta's models break it and grade you. Next: hiring teams and universities grading real understanding, not memorized answers."),
+    ("0254", 174.4, 179.0, False, "Ares. Prove you understand your code."),
 ]
 
 NORM = "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black,fps=30,format=yuv420p,setsar=1"

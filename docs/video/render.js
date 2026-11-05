@@ -21,8 +21,9 @@ const ONLY = arg("--only", "");
 const SEGMENTS = [
   { name: "00_problem", scene: "problem", from: 0, seconds: 10 },
   { name: "01_hook", scene: "hook", from: 10, seconds: 13.5 },
-  { name: "08_tech", scene: "tech", from: 0, seconds: 20 },
-  { name: "09_end", scene: "end", from: 0, seconds: 6 },
+  { name: "08_tech", scene: "tech", from: 0, seconds: 14.5 },
+  { name: "08b_impact", scene: "impact", from: 0, seconds: 9.5 },
+  { name: "09_end", scene: "end", from: 0, seconds: 5 },
   { name: "slate_defense", scene: "slate:defense", seconds: 1 },
   { name: "slate_coding", scene: "slate:coding", seconds: 1 },
 ];

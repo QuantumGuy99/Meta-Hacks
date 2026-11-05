@@ -77,6 +77,17 @@
   .rule { flex: 1; border-top: 3px solid var(--cobalt); padding-top: 18px; font-size: 26px; line-height: 1.3; }
   .rule b { display: block; font-family: var(--display); font-size: 32px; margin-bottom: 6px; }
 
+
+  /* impact */
+  #i-kicker { left: 120px; top: 150px; font-family: var(--mono); font-size: 22px; letter-spacing: 0.14em; color: var(--cobalt); }
+  .iline { left: 120px; font-size: 76px; }
+  #i-l0 { top: 200px; } #i-l1 { top: 295px; } #i-l2 { top: 390px; color: var(--cobalt); }
+  #i-next { left: 120px; top: 560px; font-family: var(--mono); font-size: 22px; letter-spacing: 0.14em; color: var(--muted); }
+  #i-cards { left: 120px; right: 120px; top: 610px; display: flex; gap: 24px; }
+  .icard { flex: 1; background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--cobalt); border-radius: 14px; padding: 26px 28px; }
+  .icard b { display: block; font-family: var(--display); font-size: 34px; margin-bottom: 10px; }
+  .icard span { font-size: 26px; color: var(--muted); line-height: 1.35; }
+
   /* end */
   #e-brand { top: 250px; font-size: 200px; }
   #e-line { top: 520px; font-size: 64px; }
@@ -146,6 +157,20 @@
     <div class="rule" id="r0"><b>The model suggests, code decides.</b>Scores, verdicts and phase changes are computed in Python, never by the LLM.</div>
     <div class="rule" id="r1"><b>Never hands over the answer.</b>A leak guard checks every line the interviewer says. Hidden tests stay on the server.</div>
     <div class="rule" id="r2"><b>Built to hold up.</b>Every model call has a timeout and a fallback. Untrusted code runs only in the sandbox.</div>
+  </div>
+</section>
+
+
+<section class="scene" id="impact">
+  <div class="abs" id="i-kicker">WHY IT MATTERS</div>
+  <div class="abs display iline" id="i-l0">AI wrote the code.</div>
+  <div class="abs display iline" id="i-l1">Meta's models break it and grade you.</div>
+  <div class="abs display iline" id="i-l2">You prove you understand it.</div>
+  <div class="abs" id="i-next">WHERE IT GOES NEXT</div>
+  <div class="abs" id="i-cards">
+    <div class="icard" id="i-c0"><b>Hiring teams</b><span>Screen for understanding, not memorized answers</span></div>
+    <div class="icard" id="i-c1"><b>Universities &amp; bootcamps</b><span>Grade how students engineer, not just the output</span></div>
+    <div class="icard" id="i-c2"><b>Teams shipping AI code</b><span>Every AI-written change has a human who can defend it</span></div>
   </div>
 </section>
 
@@ -342,13 +367,30 @@ function tech(t) {
   show($("t-coding"), ramp(t, coding, coding + 0.5), 12);
   [["r0", W("0230", "model", 2, "s", 156.5)], ["r1", W("0230", "leak", 1, "s", 160.0)], ["r2", W("0230", "never", 1, "s", 162.0)]]
     .forEach(([id, at]) => show($(id), ramp(t, T(at), T(at) + 0.5), 20));
-  $("tech").style.opacity = 1 - ramp(t, 19.4, 20);
+  $("tech").style.opacity = 1 - ramp(t, 14.1, 14.5);
+}
+
+function impact(t) {
+  const T = (x) => x - 164.5;  // this section starts at 2:44.5
+  const L = "0244";
+  const w0 = T(W(L, "ai", 1, "s", 164.8));
+  show($("i-kicker"), ramp(t, w0 - 0.3, w0));
+  show($("i-l0"), ramp(t, w0, w0 + 0.4), 16);
+  const w1 = T(W(L, "meta's", 1, "s", 166.0));
+  show($("i-l1"), ramp(t, w1, w1 + 0.4), 16);
+  const w2 = T(W(L, "grade", 1, "e", 167.6));
+  show($("i-l2"), ramp(t, w2, w2 + 0.5), 16);
+  const nx = T(W(L, "next", 1, "s", 168.2));
+  show($("i-next"), ramp(t, nx, nx + 0.4));
+  [["i-c0", W(L, "hiring", 1, "s", 168.6)], ["i-c1", W(L, "universities", 1, "s", 169.5)], ["i-c2", W(L, "understanding", 1, "s", 171.0)]]
+    .forEach(([id, at]) => show($(id), ramp(t, T(at), T(at) + 0.45), 20));
+  $("impact").style.opacity = 1 - ramp(t, 9.1, 9.5);
 }
 
 function end(t, params) {
   const links = [params.get("live"), "github.com/QuantumGuy99/Meta-Hacks"].filter(Boolean);
   $("e-links").innerHTML = links.map((l, i) => `<div class="${i ? "muted" : "blue"}">${esc(l)}</div>`).join("");
-  const brand = W("0250", "ares", 1, "s", 170.4) - 170 - 0.1, line = W("0250", "prove", 1, "s", 171.2) - 170;
+  const brand = W("0254", "ares", 1, "s", 174.4) - 174 - 0.1, line = W("0254", "prove", 1, "s", 175.2) - 174;
   show($("e-brand"), ramp(t, brand, brand + 0.5), 24);
   show($("e-line"), ramp(t, line, line + 0.5), 16);
   show($("e-links"), ramp(t, line + 1.2, line + 1.7));
@@ -369,7 +411,7 @@ window.seek = (scene, t) => {
   document.querySelectorAll(".scene").forEach((s) => s.classList.remove("on"));
   if (scene.startsWith("slate:")) { $("slate").classList.add("on"); slate(scene.slice(6)); return; }
   $(scene).classList.add("on");
-  ({ problem, hook, tech, end })[scene](t, params);
+  ({ problem, hook, tech, impact, end })[scene](t, params);
 };
 buildTech();
 window.ready = document.fonts.ready.then(() => true);
