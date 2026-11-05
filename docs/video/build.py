@@ -60,7 +60,7 @@ VO_LINES = [
     ("0203", 123.2, 128, True, "It caught the missing empty case, without giving me the answer."),
     ("0208", 128.2, 140, True, "A paste gets a neutral note, not an accusation. Submit runs the hidden tests in the sandbox. All pass."),
     ("0220", 140.2, 152, True, "Muse Wonder writes the report: scores for how I solved it, and a replay of my code, synced with everything I said."),
-    ("0232", 152.2, 172, True, "Under the hood, it's one closed loop with a Meta model at every step. The model suggests, code decides: scores and verdicts are computed in Python, and a leak guard checks every line, so the interviewer never hands over the answer."),
+    ("0232", 152.2, 172, False, "Under the hood, it's one closed loop with a Meta model at every step. The model suggests, code decides: scores and verdicts are computed in Python, and a leak guard checks every line, so the interviewer never hands over the answer."),
     ("0252", 172.4, 178, False, "Ares. Prove you understand your code."),
 ]
 VO_CLEAN = ("highpass=f=80,"
